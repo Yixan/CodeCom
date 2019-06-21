@@ -1,0 +1,181 @@
+import numpy as np
+import tensorflow as tf
+from tensorflow.contrib import rnn
+from tensorflow.python.tools.inspect_checkpoint import print_tensors_in_checkpoint_file
+
+
+
+
+class LSTMModel:
+
+
+    def __init__(self, embedding_dim, vocab_size, ref_size, learning_rate, dropout_prob):
+
+
+        self.embedding_dim = embedding_dim
+        self.vocab_size = vocab_size+1
+        self.ref_size = ref_size+1
+        self.learning_rate = learning_rate
+        self.dropout_prob = dropout_prob
+        self.stddev = 0.001
+
+
+        self.loss_array = []
+
+
+    def create_Graph(self, embedding_matrix, refs_matrix):
+        tf.reset_default_graph()
+
+
+        self.left_context = tf.placeholder(tf.int32, shape=[None, None])
+        self.right_context = tf.placeholder(tf.int32, shape=[None, None])
+        self.left_len = tf.placeholder(tf.int32, shape=[None])
+        self.right_len = tf.placeholder(tf.int32, shape=[None])
+        self.refs = tf.placeholder(tf.int32, shape=[None])
+        self.labels = tf.placeholder(tf.int32, shape=[None])
+        self.size_placeholder = tf.placeholder(name = "train_sizes", dtype = tf.int32)
+
+
+        if embedding_matrix is not None:
+            self.word_embeddings = tf.get_variable(name="word_embeddings", shape=[
+                                                   self.vocab_size, self.embedding_dim], initializer=tf.constant_initializer(embedding_matrix))
+        else:
+            self.word_embeddings = tf.get_variable(name="word_embeddings", shape=[
+                                                   self.vocab_size, self.embedding_dim], initializer=tf.random_normal_initializer(stddev=self.stddev))
+
+
+        if refs_matrix is not None:
+            self.refs_embeddings = tf.get_variable(name="refs_embeddings", shape=[
+                                                   self.ref_size, self.embedding_dim], initializer=tf.constant_initializer(refs_matrix))
+        else:
+            self.refs_embeddings = tf.get_variable(name="refs_embeddings", shape=[
+                                                   self.ref_size, self.embedding_dim], initializer=tf.random_normal_initializer(stddev=self.stddev))
+
+
+        self.relu_matrix = tf.get_variable(name="relu_matrix", shape=[
+                                           2*self.embedding_dim+self.embedding_dim, 2], initializer=tf.random_normal_initializer(stddev=self.stddev))
+
+
+        self.relu_bias = tf.get_variable(name="relu_bias", shape=[
+                                         2], initializer=tf.zeros_initializer())
+
+
+        self.left_embedded_context = tf.nn.embedding_lookup(
+            params=self.word_embeddings, ids=self.left_context)
+        self.right_embedded_context = tf.nn.embedding_lookup(
+            params=self.word_embeddings, ids=self.right_context)
+        self.refs_embedded = tf.nn.embedding_lookup(
+            params=self.refs_embeddings, ids=self.refs)
+
+
+        with tf.variable_scope('left'):
+            self.lstm_cell_left = rnn.LSTMCell(self.embedding_dim)
+            self.outputs_left, self.states_left = tf.nn.dynamic_rnn(
+                cell=self.lstm_cell_left, inputs=self.left_embedded_context, dtype=tf.float32, sequence_length=self.left_len)
+            self.last_rnn_output_left = self.states_left.h
+
+
+        with tf.variable_scope('right'):
+            self.lstm_cell_right = rnn.LSTMCell(self.embedding_dim)
+            self.outputs_right, self.states_right = tf.nn.dynamic_rnn(
+                cell=self.lstm_cell_right, inputs=self.right_embedded_context, dtype=tf.float32, sequence_length=self.right_len)
+            self.last_rnn_output_right = self.states_right.h
+
+
+        self.concat_vecs = tf.concat(
+            [self.last_rnn_output_left, self.last_rnn_output_right, self.refs_embedded], 1)
+
+
+        self.vecs_dp = tf.nn.dropout(
+            self.concat_vecs, keep_prob=self.dropout_prob)
+
+
+        self.relu = tf.nn.leaky_relu(
+            tf.matmul(self.vecs_dp, self.relu_matrix) + self.relu_bias)
+
+
+        self.loss_op = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
+            logits=self.relu, labels=self.labels))
+        self.optimizer = tf.train.AdagradOptimizer(
+            learning_rate=self.learning_rate)
+        self.train_op = self.optimizer.minimize(self.loss_op)
+
+
+        # vecs for train
+
+
+        self.stacked_vecs_left = tf.tile(self.last_rnn_output_left, [
+                                         self.size_placeholder, 1])
+        self.stacked_vecs_right = tf.tile(self.last_rnn_output_right, [
+                                          self.size_placeholder, 1])
+        self.train_concat_vecs = tf.concat(
+            [self.stacked_vecs_left, self.stacked_vecs_right, self.refs_embedded], 1)
+
+
+        self.train_relu = tf.nn.leaky_relu(
+            tf.matmul(self.train_concat_vecs, self.relu_matrix) + self.relu_bias)
+
+
+        self.prediction = tf.nn.softmax(self.train_relu)
+
+
+        # session
+
+
+        self.session = tf.Session()
+
+
+        self.session.run(tf.global_variables_initializer())
+
+
+        self.saver = tf.train.Saver()
+
+
+    def train_forward(self, left_context_batch, right_context_batch, left_len_batch, right_len_batch, refs_batch, labels_batch):
+        _, loss = self.session.run([self.train_op, self.loss_op], feed_dict={
+                                   self.left_context: left_context_batch, self.right_context: right_context_batch, self.refs: refs_batch, self.left_len: left_len_batch, self.right_len: right_len_batch, self.labels: labels_batch})
+        self.loss_array.append(loss)
+
+
+        return loss
+
+
+    def eval_avg_loss(self):
+        avg_loss = sum(self.loss_array)/len(self.loss_array)
+
+
+        return avg_loss
+
+
+    def reset_avg_loss(self):
+    	self.loss_array = []
+
+
+    def save_model(self, path, step):
+        if step is not None:
+            self.saver.save(self.session, path, global_step=step)
+        else:
+            self.saver.save(self.session, path)
+            
+    def restore_model(self, path):
+        #print_tensors_in_checkpoint_file(file_name = path, tensor_name='',all_tensors = True)
+        self.saver.restore(self.session,path)
+
+
+    def test_batch(self, left_context_batch, right_context_batch, left_len_batch, right_len_batch, refs_batch):
+        """compute true-probability of this refs"""
+
+
+        p_vec = self.session.run([self.prediction], feed_dict={
+            self.left_context: left_context_batch, self.right_context: right_context_batch, self.refs: refs_batch, self.left_len: left_len_batch, self.right_len: right_len_batch, self.size_placeholder: len(refs_batch)})
+
+
+        p_vec_true = p_vec[0][:, 1]
+
+
+        return p_vec_true
+
+
+    def delete_model(self):
+        self.session.close()
+        tf.reset_default_graph()

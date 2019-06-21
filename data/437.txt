@@ -1,0 +1,8 @@
+from tensorflow import keras
+from utils.ml_utils import MLModel
+class SimpleLSTM(MLModel):
+    def __init__(self, hid_dim, dropout_rate, class_dim, **kwargs):
+        model = keras.Sequential()
+        model.add(self.emb_layer)
+        model.add(keras.layers.LSTM(hid_dim, dropout=dropout_rate,recurrent_dropout=dropout_rate))
+        model.add(keras.layers.Dense(class_dim, activation='softmax'))

@@ -1,0 +1,560 @@
+# -*- coding: UTF-8 -*-
+import tensorflow as tf
+import numpy as np
+import matplotlib.pyplot as plt
+from tensorflow.examples.tutorials.mnist import input_data
+
+
+
+
+def constantTest():
+    # 创建两个常量OP矩阵，矩阵相乘
+    m1 = tf.constant([[3,3]])
+    m2 = tf.constant([[2],[3]])
+    predect = tf.matmul(m1,m2)
+    print(predect) # 输出非计算值，而是一个Tensor对象只有启动图，并调用session指针run方法指定某一节点的时候才执行并计算
+    with tf.Session() as sess: # 启动图
+        print(sess.run(predect)) # 调用session指针run方法指定有待计算的节点op，执行并计算
+
+
+def variableTest():
+    # 变量计算，需要初始化变量才能使用
+    a = tf.Variable(1.)
+    newValue = tf.add(a,1) # 执行加一运算
+    update = tf.assign(a,newValue) # 赋值给变量
+    init = tf.global_variables_initializer() # 声明初始化方法
+    with tf.Session() as sess:
+        sess.run(init)# 执行变量的初始化
+        # 执行计算前后变量的变化
+        print(sess.run(a))
+        sess.run(update)
+        print(sess.run(a))
+
+
+def fetchTest():
+    # fetch，在session指针run中同时执行多个节点操作，返回对应的多个值
+    input1 = tf.constant(3.0)
+    input2 = tf.constant(2.0)
+    input3 = tf.constant(5.0)
+    intermed = tf.add(input2, input3)
+    with tf.Session() as sess:
+        result = sess.run([input1, intermed])
+        print(result)
+
+
+def feedTest():
+    # feed，在run的时候为占位符传值的操作
+    input1 = tf.placeholder(tf.float32)
+    input2 = tf.placeholder(tf.float32)
+    output = tf.add(input1, input2)
+    with tf.Session() as sess:
+        print(sess.run([output], feed_dict={input1: [7.], input2: [2.]}))
+
+
+def test4liner():
+    # 拟合线性方程demo操作
+
+
+    # 生成数据
+    x_data = np.random.rand(100)
+    y_data = x_data*0.1 + 0.2
+
+
+    # 构造线性模型 y=kx+b
+    b = tf.Variable(0.)
+    k = tf.Variable(0.)
+    y = k*x_data + b
+
+
+    # 定义二次代价函数，最小化该值以得到最接近真实值的值
+    with tf.name_scope('loss'):
+        loss = tf.reduce_mean(tf.square(y-y_data))
+
+
+    # 定义一个优化器(梯度下降，学习率为0.2)，用来不断的迭代，使得上述目标函数最小化
+    with tf.name_scope('train'):
+        optimizer = tf.train.GradientDescentOptimizer(0.2)
+
+
+        # 最小化目标函数训练节点
+        train = optimizer.minimize(loss)
+
+
+    # 初始化变量
+    init = tf.global_variables_initializer()
+
+
+    with tf.Session() as sess:
+        writer = tf.summary.FileWriter('logs', sess.graph)  # tensorboard 中的图，写出到指定的文件夹
+        sess.run(init)
+        for i in range(100):
+            sess.run(train)
+            if i%10==0:
+                print(sess.run([k,b]))
+
+
+def test4regression():
+    # 拟合数据回归线，demo操作
+
+
+    # 生成数据
+    x_data = np.linspace(-0.5,0.5,200)[:,np.newaxis] # 生成 -0.5,0.5 之间随机点200个,np.newaxis使得行向量转换为列向量
+    noise = np.random.normal(0,0.02,x_data.shape)
+    y_data = np.square(x_data)+noise
+
+
+    # 定义两个占位符，待输入x y 数据
+    x = tf.placeholder(tf.float32,[None,1])
+    y = tf.placeholder(tf.float32,[None,1])
+
+
+    # 定义神经网络中间层
+    Weights_L1 = tf.Variable(tf.random_normal([1,10]))
+    biases_L1 = tf.Variable(0.) # 初始化为0，或者下方的写法
+    Wx_plus_b_L1 = tf.matmul(x,Weights_L1) + biases_L1
+    L1 = tf.nn.tanh(Wx_plus_b_L1)
+    # L1 = tf.nn.elu(Wx_plus_b_L1)
+
+
+    # 定义神经网络输出层
+    Weights_L2 = tf.Variable(tf.random_normal([10,1]))
+    biases_L2 = tf.Variable(tf.zeros([1,1])) # 初始化为0
+    Wx_plus_b_L2 = tf.matmul(L1,Weights_L2) + biases_L2
+    prediction = tf.nn.tanh(Wx_plus_b_L2)
+    # prediction = tf.nn.elu(Wx_plus_b_L2)
+
+
+    # 定义二次代价函数，最小化该值以得到最接近真实值的值
+    loss = tf.reduce_mean(tf.square(y-prediction))
+
+
+    # 定义一个优化器(梯度下降，学习率为0.2)，用来不断的迭代，使得上述目标函数最小化
+    train = tf.train.GradientDescentOptimizer(0.2).minimize(loss)
+
+
+    with tf.Session() as sess:
+        sess.run(tf.global_variables_initializer())# 初始化变量
+        for i in range(2000):
+            sess.run(train,feed_dict={x:x_data,y:y_data})
+        prediction_value = sess.run(prediction,feed_dict={x:x_data})
+        # 画图
+        plt.figure()
+        plt.scatter(x_data,y_data)
+        plt.plot(x_data,prediction_value,'r-')
+        plt.show()
+
+
+def test4classifyMnist():
+    # 数据分类，mnist 图片分类
+
+
+    # 载入数据集到指定的目录，并开启onehot编码
+    mnist = input_data.read_data_sets('mnist_data',one_hot=True)
+
+
+    # 分批次进行训练，并计算一共进行了多少个批次
+    batch_size = 100
+    n_batch = mnist.train.num_examples // batch_size
+
+
+    # 定义两个占位符，待输入x y 数据
+    x = tf.placeholder(tf.float32,[None,784])
+    y = tf.placeholder(tf.float32,[None,10])
+
+
+    # 定义神经网络中间隐藏层
+    Weights_L1 = tf.Variable(tf.random_normal([784,100]))
+    biases_L1 = tf.Variable(tf.zeros([100])+0.1) # 初始化为非零效果较好
+    Wx_plus_b_L1 = tf.matmul(x,Weights_L1) + biases_L1
+    L1 = tf.nn.sigmoid(Wx_plus_b_L1)
+
+
+    Weights_L2 = tf.Variable(tf.random_normal([100,100]))
+    biases_L2 = tf.Variable(tf.zeros([100])) # 初始化为0
+    Wx_plus_b_L2 = tf.matmul(L1,Weights_L2) + biases_L2
+    L2 = tf.nn.sigmoid(Wx_plus_b_L2)
+
+
+    # 定义神经网络输出层
+    Weights_L3 = tf.Variable(tf.random_normal([100,10]))
+    biases_L3 = tf.Variable(tf.zeros([10])) # 初始化为0
+    Wx_plus_b_L3 = tf.matmul(L2,Weights_L3) + biases_L3
+    prediction = tf.nn.softmax(Wx_plus_b_L3)
+
+
+
+
+    # loss = tf.reduce_mean(tf.square(y-prediction)) # 定义二次代价函数，最小化该值以得到最接近真实值的值,适用于回归问题较多
+    loss = tf.nn.softmax_cross_entropy_with_logits(labels=y,logits=prediction) # 损失函数可以改成交叉熵做运算，TensorFlow中有配合softmax的交叉熵实现
+    # 定义一个优化器(梯度下降，学习率为0.2)，用来不断的迭代，使得上述目标函数最小化
+    train = tf.train.GradientDescentOptimizer(0.2).minimize(loss)
+
+
+    # 结果存放在一个布尔型列表中 --》arg_max表返回最大值所在的索引，equal对比索引是否相同
+    correct_prediction = tf.equal(tf.arg_max(y,1),tf.arg_max(prediction,1))
+    # 求准确率,cast 把布尔型数据转换成0，1类型数据，然后求均值，即得到准确率
+    accuracy = tf.reduce_mean(tf.cast(correct_prediction,tf.float32))
+
+
+    with tf.Session() as sess:
+        sess.run(tf.global_variables_initializer())# 初始化变量
+        for i in range(20):
+            for batch in range(n_batch):
+                batch_xs,batch_ys = mnist.train.next_batch(batch_size)
+                sess.run(train,feed_dict={x:batch_xs,y:batch_ys})
+
+
+            acc = sess.run(accuracy,feed_dict={x:mnist.test.images,y:mnist.test.labels})
+            print('Iter '+ str(i) + ',Testing Accuracy ' + str(acc))
+
+
+def test4fitness2dropout():
+    # mnist 图片分类,增加过拟合dropout，以及更改优化器相关处理方法
+
+
+    # 载入数据集到指定的目录，并开启onehot编码
+    mnist = input_data.read_data_sets('mnist_data',one_hot=True)
+
+
+    # 分批次进行训练，并计算一共进行了多少个批次
+    batch_size = 100
+    n_batch = mnist.train.num_examples // batch_size
+    # 新增占位符，用于存储dropout有效数据所占的百分比
+    keep_prob = tf.placeholder(tf.float32)
+
+
+    # 定义两个占位符，待输入x y 数据
+    x = tf.placeholder(tf.float32,[None,784])
+    y = tf.placeholder(tf.float32,[None,10])
+
+
+    # 定义神经网络中间隐藏层
+    Weights_L1 = tf.Variable(tf.zeros([784,100]))
+    biases_L1 = tf.Variable(tf.zeros([100])+0.1) # 初始化为非零效果较好
+    Wx_plus_b_L1 = tf.matmul(x,Weights_L1) + biases_L1
+    L1 = tf.nn.sigmoid(Wx_plus_b_L1)
+    L1 = tf.nn.dropout(L1,keep_prob)
+
+
+    Weights_L2 = tf.Variable(tf.zeros([100,100]))
+    biases_L2 = tf.Variable(tf.zeros([100])) # 初始化为0
+    Wx_plus_b_L2 = tf.matmul(L1,Weights_L2) + biases_L2
+    L2 = tf.nn.sigmoid(Wx_plus_b_L2)
+    L2 = tf.nn.dropout(L2, keep_prob)
+
+
+    # 定义神经网络输出层
+    Weights_L3 = tf.Variable(tf.zeros([100,10]))
+    biases_L3 = tf.Variable(tf.zeros([10])) # 初始化为0
+    Wx_plus_b_L3 = tf.matmul(L2,Weights_L3) + biases_L3
+    prediction = tf.nn.softmax(Wx_plus_b_L3)
+
+
+    # loss = tf.reduce_mean(tf.square(y-prediction)) # 定义二次代价函数，最小化该值以得到最接近真实值的值,适用于回归问题较多
+    loss = tf.nn.softmax_cross_entropy_with_logits(labels=y,logits=prediction) # 损失函数可以改成交叉熵做运算，TensorFlow中有配合softmax的交叉熵实现
+    # 定义一个优化器(梯度下降，学习率为0.2)，用来不断的迭代，使得上述目标函数最小化
+    # train = tf.train.GradientDescentOptimizer(0.2).minimize(loss) # 随机梯度下降法优化器
+    train = tf.train.AdamOptimizer().minimize(loss) # Adam优化器，综合和动量以及参数学习率自动学习方法
+
+
+    # 结果存放在一个布尔型列表中 --》arg_max表返回最大值所在的索引，equal对比索引是否相同
+    correct_prediction = tf.equal(tf.arg_max(y,1),tf.arg_max(prediction,1))
+    # 求准确率,cast 把布尔型数据转换成0，1类型数据，然后求均值，即得到准确率
+    accuracy = tf.reduce_mean(tf.cast(correct_prediction,tf.float32))
+
+
+    with tf.Session() as sess:
+        sess.run(tf.global_variables_initializer())# 初始化变量
+        for i in range(20):
+            for batch in range(n_batch):
+                batch_xs,batch_ys = mnist.train.next_batch(batch_size)
+                sess.run(train,feed_dict={x:batch_xs,y:batch_ys,keep_prob:0.7}) # 添加keep_prob参数，表示工作中的神经元所占的百分比
+
+
+            acc_test = sess.run(accuracy,feed_dict={x:mnist.test.images,y:mnist.test.labels,keep_prob:1.0}) # 添加keep_prob参数，始终为1，代表生产环境下开启所有训练的神经元节点
+            acc_train = sess.run(accuracy,feed_dict={x:mnist.train.images,y:mnist.train.labels,keep_prob:1.0})
+            print('Iter '+ str(i) + ',Testing Accuracy ' + str(acc_test) + ',Training Accuracy ' + str(acc_train))
+
+
+def test4tensorboard():
+    # mnist 图片分类,增加过拟合dropout，以及更改优化器相关处理方法
+
+
+    def variable_summaries(var):
+        # TensorBoard 分析数值图相关计算
+        with tf.name_scope('summaries'):
+            mean = tf.reduce_mean(var)
+            tf.summary.scalar('mean', mean)  # 平均值
+            with tf.name_scope('stddex'):
+                stddev = tf.sqrt(tf.reduce_mean(tf.square(var - mean)))
+            tf.summary.scalar('stddev', stddev)
+            tf.summary.scalar('max', tf.reduce_max(var))
+            tf.summary.scalar('max', tf.reduce_min(var))
+            tf.summary.histogram('histogram', var)  # 直方图
+
+
+    # 载入数据集到指定的目录，并开启onehot编码
+    mnist = input_data.read_data_sets('mnist_data',one_hot=True)
+
+
+    # 分批次进行训练，并计算一共进行了多少个批次
+    batch_size = 100
+    n_batch = mnist.train.num_examples // batch_size
+    # 新增占位符，用于存储dropout有效数据所占的百分比
+    keep_prob = tf.placeholder(tf.float32)
+
+
+    # 定义两个占位符，待输入x y 数据
+    x = tf.placeholder(tf.float32,[None,784])
+    y = tf.placeholder(tf.float32,[None,10])
+
+
+    # 定义神经网络中间隐藏层
+    Weights_L1 = tf.Variable(tf.zeros([784,100]))
+    biases_L1 = tf.Variable(tf.zeros([100])+0.1) # 初始化为非零效果较好
+    variable_summaries(Weights_L1)
+    variable_summaries(biases_L1)
+    Wx_plus_b_L1 = tf.matmul(x,Weights_L1) + biases_L1
+    L1 = tf.nn.sigmoid(Wx_plus_b_L1)
+    L1 = tf.nn.dropout(L1,keep_prob)
+
+
+    Weights_L2 = tf.Variable(tf.zeros([100,100]))
+    biases_L2 = tf.Variable(tf.zeros([100])) # 初始化为0
+    Wx_plus_b_L2 = tf.matmul(L1,Weights_L2) + biases_L2
+    L2 = tf.nn.sigmoid(Wx_plus_b_L2)
+    L2 = tf.nn.dropout(L2, keep_prob)
+
+
+    # 定义神经网络输出层
+    Weights_L3 = tf.Variable(tf.zeros([100,10]))
+    biases_L3 = tf.Variable(tf.zeros([10])) # 初始化为0
+    Wx_plus_b_L3 = tf.matmul(L2,Weights_L3) + biases_L3
+    prediction = tf.nn.softmax(Wx_plus_b_L3)
+
+
+    # loss = tf.reduce_mean(tf.square(y-prediction)) # 定义二次代价函数，最小化该值以得到最接近真实值的值,适用于回归问题较多
+    loss = tf.nn.softmax_cross_entropy_with_logits(labels=y,logits=prediction) # 损失函数可以改成交叉熵做运算，TensorFlow中有配合softmax的交叉熵实现
+    tf.summary.scalar('loss',tf.reduce_mean(loss))
+    # 定义一个优化器(梯度下降，学习率为0.2)，用来不断的迭代，使得上述目标函数最小化
+    # train = tf.train.GradientDescentOptimizer(0.2).minimize(loss) # 随机梯度下降法优化器
+    train = tf.train.AdamOptimizer().minimize(loss) # Adam优化器，综合和动量以及参数学习率自动学习方法
+
+
+    # 结果存放在一个布尔型列表中 --》arg_max表返回最大值所在的索引，equal对比索引是否相同
+    correct_prediction = tf.equal(tf.arg_max(y,1),tf.arg_max(prediction,1))
+    # 求准确率,cast 把布尔型数据转换成0，1类型数据，然后求均值，即得到准确率
+    accuracy = tf.reduce_mean(tf.cast(correct_prediction,tf.float32))
+    tf.summary.scalar('accuracy',tf.reduce_mean(accuracy))
+
+
+    merged = tf.summary.merge_all() # 合并所有上方写入的 summary，待统一激活或者输出
+    with tf.Session() as sess:
+        writer = tf.summary.FileWriter('logs', sess.graph)  # tensorboard 中的图，写出到指定的文件夹
+        sess.run(tf.global_variables_initializer())# 初始化变量
+        for i in range(20):
+            for batch in range(n_batch):
+                batch_xs,batch_ys = mnist.train.next_batch(batch_size)
+                sess.run(train,feed_dict={x:batch_xs,y:batch_ys,keep_prob:0.7}) # 添加keep_prob参数，表示工作中的神经元所占的百分比
+
+
+            summary,acc_test = sess.run([merged,accuracy],feed_dict={x:mnist.test.images,y:mnist.test.labels,keep_prob:1.0}) # 添加keep_prob参数，始终为1，代表生产环境下开启所有训练的神经元节点
+            writer.add_summary(summary,i)
+            acc_train = sess.run(accuracy,feed_dict={x:mnist.train.images,y:mnist.train.labels,keep_prob:1.0})
+            print('Iter '+ str(i) + ',Testing Accuracy ' + str(acc_test) + ',Training Accuracy ' + str(acc_train))
+
+
+def test4cnn():
+    '''cnn,mnist图像的卷积操作'''
+    # 载入数据集到指定的目录，并开启onehot编码
+    mnist = input_data.read_data_sets('mnist_data',one_hot=True)
+    # 分批次进行训练，并计算一共进行了多少个批次
+    batch_size = 100
+    n_batch = mnist.train.num_examples // batch_size
+
+
+    # 初始化权值
+    def weight_variable(shape):
+        initial = tf.truncated_normal(shape,stddev=0.1) # 生成一个阶段的正态分布
+        return tf.Variable(initial)
+
+
+    # 初始化偏置
+    def bias_variable(shape):
+        initial = tf.constant(0.1,shape=shape)
+        return tf.Variable(initial)
+
+
+    # 卷积层
+    def conv2d(x,W):
+        '''
+        padding 补零操作，参数有 "SAME", "VALID"
+        strides
+        strides[0] = 1，也即在 batch 维度上的移动为 1，也就是不跳过任何一个样本，否则当初也不该把它们作为输入（input）
+        strides[3] = 1，也即在 channels 维度上的移动为 1，也就是不跳过任何一个颜色通道；1为灰度图，3为彩图
+        strides[1]，strides[2] 代表沿着x或者y的方向，每步移动的距离
+        '''
+        return tf.nn.conv2d(x,W,strides=[1,1,1,1],padding='SAME')
+
+
+    # 池化层
+    def max_pool_2x2(x):
+        '''
+        max_pool:最大值采样
+        ksize
+        ksize[0] = 1，也即在 batch 维度上的移动为 1，也就是不跳过任何一个样本，否则当初也不该把它们作为输入（input）
+        ksize[3] = 1，也即在 channels 维度上的移动为 1，也就是不跳过任何一个颜色通道；
+        ksize[1]，ksize[2] 代表沿着x或者y的方向，每步移动的距离
+        '''
+        return tf.nn.max_pool(x,ksize=[1,2,2,1],strides=[1,2,2,1],padding='SAME')
+
+
+    # 定义两个 placeholder
+    x = tf.placeholder(tf.float32,[None,784]) # 28*28
+    y = tf.placeholder(tf.float32,[None,10])
+
+
+    # 改变向量的类型为4D的向量 [batch,in_height,in_width,in_channels]
+    x_image = tf.reshape(x,[-1,28,28,1])
+
+
+    # 初始化第一个卷积层的权值与偏置
+    W_convl = weight_variable([5,5,1,32])# 5*5的采样窗口，32个卷积核从一个平面抽取特征
+    b_convl = bias_variable([32]) #每个卷积核一个偏置值
+
+
+    # 把 x_image 和权值向量进行卷积，再加上偏置值，然后应用于relu激活函数
+    h_conv1 = tf.nn.relu(conv2d(x_image,W_convl)+b_convl)
+    h_pool1 = max_pool_2x2(h_conv1) # 进行max-pooling
+
+
+    # 初始化第二个卷积层的权值与偏置
+    W_conv2 = weight_variable([5,5,32,64])# 5*5的采样窗口，64个卷积核从32个平面抽取特征
+    b_conv2 = bias_variable([64]) #每个卷积核一个偏置值
+
+
+    # 把 h_pool1 和权值向量进行卷积，再加上偏置值，然后应用于relu激活函数
+    h_conv2 = tf.nn.relu(conv2d(h_pool1,W_conv2)+b_conv2)
+    h_pool2 = max_pool_2x2(h_conv2) # 进行max-pooling
+
+
+    # 28*28的图片第一次卷积后还是28*28，第一次池化后变为14*14
+    # 第二次卷积后为 14*14，第二次池化后变为 7*7
+    # 通过上面操作之后得到64张7*7的平面
+
+
+    # 初始化后第一个全连接层的权值
+    W_fcl = weight_variable([7*7*64,1024]) # 上一场有 7*7*64 个神经元，全连接层有1024个神经元
+    b_fcl = bias_variable([1024]) # 1024 个节点
+
+
+    # 把池化层2的输出扁平化为1维
+    h_pool2_flat = tf.reshape(h_pool2,[-1,7*7*64])
+    # 求第一个全连接层的输出
+    h_fcl = tf.nn.relu(tf.matmul(h_pool2_flat,W_fcl)+b_fcl)
+
+
+    # keep_prob 用来表示神经元的输出概率
+    keep_prob = tf.placeholder(tf.float32)
+    h_fcl_drop = tf.nn.dropout(h_fcl,keep_prob)
+
+
+    # 初始化第二个全连接层
+    W_fc2 = weight_variable([1024,10])
+    b_fc2 = bias_variable([10])
+
+
+    # 计算输出
+    prediction = tf.nn.softmax(tf.matmul(h_fcl_drop,W_fc2) + b_fc2)
+
+
+    # 交叉熵代价函数
+    cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=y,logits=prediction))
+    # 使用 AdamOptimizer 进行优化
+    train_step = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
+    # 结果存放在一个布尔列表中
+    correct_prediction = tf.equal(tf.arg_max(prediction,1),tf.arg_max(y,1))
+    # 求准确率
+    accuracy = tf.reduce_mean(tf.cast(correct_prediction,tf.float32))
+
+
+    with tf.Session() as sess:
+        sess.run(tf.global_variables_initializer())
+        for i in range(20):
+            for batch in range(n_batch):
+                batch_xs,batch_ys = mnist.train.next_batch(batch_size)
+                sess.run(train_step,feed_dict={x:batch_xs,y:batch_ys,keep_prob:0.7})
+            acc = sess.run(accuracy,feed_dict={x:mnist.test.images,y:mnist.test.labels,keep_prob:1.0})
+            print('Iter '+str(i) + ',Testing Accuracy= ' + str(acc))
+
+
+def test4rnnLstm():
+    # 载入数据集到指定的目录，并开启onehot编码
+    mnist = input_data.read_data_sets('mnist_data',one_hot=True)
+
+
+    # 输入图片是 28*28
+    n_inputs = 28 # 一次输入，一行有28个数据
+    max_time = 28 # 一共28行
+    lstm_size = 100 # 隐藏层单元数量
+    n_classes = 10 # 10个分类
+    batch_size = 50 # 没批次50个样本
+    n_batch = mnist.train.num_examples // batch_size # 计算一共有多少个批次
+
+
+    # 这里的none，表示第一个维度可以是任意维度
+    # 定义两个占位符，待输入x y 数据
+    x = tf.placeholder(tf.float32,[None,784])
+    y = tf.placeholder(tf.float32,[None,10])
+
+
+    # 初始化权值
+    weights = tf.Variable(tf.truncated_normal([lstm_size,n_classes],stddev=0.1))
+    # 初始化偏置值
+    biases = tf.Variable(tf.constant(0.1,shape=[n_classes]))
+
+
+    # 定义RNN网络
+    def RNN(X,weights,biases):
+        # inputs = [batch_size,max_time,n_inputs]
+        inputs = tf.reshape(X,[-1,max_time,n_inputs])
+        # 定义LSTM基本CELL
+        lstm_cell = tf.contrib.rnn.BasicLSTMCell(lstm_size)
+        # final_state[0] 是cell state
+        # final_state[1] 是hidden state
+        outputs,final_state = tf.nn.dynamic_rnn(lstm_cell,inputs,dtype=tf.float32)
+        results = tf.nn.softmax(tf.matmul(final_state[1],weights)+biases)
+        return results
+
+
+    # 计算RNN返回结果
+    prediction = RNN(x,weights,biases)
+    # 损失函数
+    cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=prediction,labels=y))
+    # 使用优化器进行优化
+    train_step = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
+    # 结果存放在一个布尔列表中
+    correct_prediction = tf.equal(tf.arg_max(y,1),tf.arg_max(prediction,1)) # arg_max返回一维张量中最大值所在的位置
+    # 求准确率
+    accuracy = tf.reduce_mean(tf.cast(correct_prediction,tf.float32)) # 把correct_prediction变成float32类型向量
+    # 初始化
+    init = tf.global_variables_initializer()
+
+
+    with tf.Session() as sess:
+        sess.run(init)
+        for epoch in range(6):
+            for batch in range(n_batch):
+                batch_xs,batch_ys = mnist.train.next_batch(batch_size)
+                sess.run(train_step,feed_dict={x:batch_xs,y:batch_ys})
+
+
+            acc = sess.run(accuracy,feed_dict={x:mnist.test.images,y:mnist.test.labels})
+            print('Iter' + str(epoch) + ',Testing Accuracy= '+str(acc))
+
+
+
+
+if __name__ == '__main__':
+    # test4liner()
+    test4tensorboard()

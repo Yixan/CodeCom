@@ -1,0 +1,538 @@
+
+In [ ]:
+
+    
+import pandas as pd
+import numpy as np
+import tensorflow as tf
+from numba import jit
+
+
+    
+
+
+
+In [ ]:
+
+    
+df_origin = pd.read_csv(
+    "./input/ml-100k/u.data",
+    sep="\t",
+    names=["userid", "itemid", "rating", "timestamp"],
+    usecols=["userid", "itemid", "rating"]
+)
+
+
+    
+
+
+
+In [ ]:
+
+    
+df = df_origin.copy()
+df.head()
+
+
+    
+
+
+
+In [ ]:
+
+    
+def data_preparation(df):
+    df_new = df.copy()
+    df_new["rating"] = (df_new["rating"] > 3).astype(int)
+    
+    return df_new
+
+df_new = data_preparation(df)
+display(df_new.head(10))
+display(df_new["rating"].describe())
+
+
+    
+
+
+
+In [ ]:
+
+    
+# user や item の種類を確認
+count_user = max(df["userid"])
+count_item = max(df["itemid"])
+N = 4  # number of negative samples per positive example(for movie-lens 10m data)
+N = 1  # 
+user_item_mtx = np.zeros((count_user, count_item))
+print("make user_item_mtx")
+
+# train, valid, test にデータを分割
+# 学習用 user_item_mtx を作成
+
+
+    
+
+
+
+In [ ]:
+
+    
+# 事前定義パラメータ
+num_users = 10
+num_items = 5
+dim_emb = 15
+SEED = 10
+
+tf.set_random_seed(SEED)
+
+# 実行時に与える引数（プレースホルダー）
+## user_item 行列、
+R = np.random.randint(0, 2, num_users*num_items).reshape((num_users, num_items))
+R = tf.constant(R, dtype=tf.float32)
+# R = tf.placeholder(tf.int8, shape=[num_users, num_items])
+# user = tf.placeholder(tf.int32, shape=[])  # one hot
+# item = tf.placeholder(tf.int32, shape=[])
+# モデルに入れる前に one-hot にした方がスマート
+
+userid = 1
+itemid = 2
+
+# 学習対象パラメータの定義
+emb_user = tf.Variable(tf.random_normal(shape=[num_users, dim_emb]))
+emb_item = tf.Variable(tf.random_normal(shape=[num_items, dim_emb]))
+item_context = tf.Variable(tf.random_normal(shape=[num_items, dim_emb]))
+
+# one-hot に変換
+x_u = tf.one_hot([userid - 1], depth=num_users, dtype=tf.float32)
+x_u = tf.reshape(x_u, [num_users, 1])
+y_i = tf.one_hot([itemid - 1], depth=num_items, dtype=tf.float32)
+y_i = tf.reshape(y_i, [num_items, 1])
+
+# 活性化関数
+h_u = tf.matmul(tf.transpose(x_u), emb_user)
+h_u = tf.nn.relu(h_u)
+w_i = tf.matmul(tf.transpose(y_i), emb_item)
+w_i = tf.nn.relu(w_i)
+# c_ui: the set of iterms that user u clicked, excluding i
+r_u = tf.reshape(R[userid], [num_items, 1])
+c_ui = tf.subtract(r_u, y_i)  # [0] for matrix -> vector
+v_c_ui = tf.matmul(tf.transpose(c_ui), item_context)
+v_c_ui = tf.nn.relu(v_c_ui)
+
+# 内積
+r_1 = tf.matmul(h_u, tf.transpose(w_i))
+r_2 = tf.matmul(w_i, tf.transpose(v_c_ui))
+rate_pred = tf.nn.sigmoid(tf.add(r_1, r_2))
+
+# 損失関数
+# binary cross entropy ???
+# 将来的にはミニバッチに適用できるようにする？
+bce = tf.nn.sigmoid_cross_entropy_with_logits(
+    labels=R[userid][itemid],
+    logits=rate_pred[0][0]
+)
+
+# Optimize
+optimizer = tf.train.AdamOptimizer(0.001)
+train = optimizer.minimize(bce)
+
+# initializer
+init = tf.global_variables_initializer()
+
+with tf.Session() as sess:
+    init.run()
+    for i in range(1000):
+        sess.run(train)
+        if i % 50 == 0:
+            print("i: ", i, "bce: ", bce.eval())
+    
+
+
+    
+
+
+
+In [ ]:
+
+    
+# 事前定義パラメータ
+num_users = 10
+num_items = 5
+dim_emb = 15
+epoch = 50
+SEED = 10
+learning_rate = 0.001
+
+tf.set_random_seed(SEED)
+
+# 入力データを適当に作る
+R = np.random.randint(0, 2, num_users*num_items).reshape((num_users, num_items))
+userids = [i for i in range(num_users) for j in range(num_items)]
+itemids = [j for i in range(num_users) for j in range(num_items)]
+labels = [R[i][j] for i in range(num_users) for j in range(num_items)]
+userids = np.array(userids)
+itemids = np.array(itemids)
+labels = np.array(labels)
+
+# 実行時引数
+# 入力として与えられる
+# 後でプレースホルダ―で定義する
+# R, userids, itemids, label
+# place holder で次元を指定したくない場合はどうする？
+R = tf.constant(R, dtype=tf.float32)
+userids = tf.constant(userids, dtype=tf.int32)
+itemids = tf.constant(itemids, dtype=tf.int32)
+labels = tf.constant(labels, dtype=tf.float32)
+
+# 学習対象パラメータの定義
+emb_user = tf.Variable(tf.random_normal(shape=[num_users, dim_emb]))
+emb_item = tf.Variable(tf.random_normal(shape=[num_items, dim_emb]))
+emb_context_item = tf.Variable(tf.random_normal(shape=[num_items, dim_emb]))
+
+# 学習データ内の userid, itemid をそれぞれ one-hot に変換
+userids_onehot = tf.one_hot(userids, depth=num_users, dtype=tf.float32)
+userids_onehot = tf.reshape(userids_onehot, [-1, num_users])
+itemids_onehot = tf.one_hot(itemids, depth=num_items, dtype=tf.float32)
+itemids_onehot = tf.reshape(itemids_onehot, [-1, num_items])
+
+# 訓練データ内の userids を埋め込みベクトルに変換
+h = tf.nn.relu(tf.nn.embedding_lookup(emb_user, userids))
+
+# 訓練データ内の itemids を埋め込みベクトルに変換
+w = tf.nn.relu(tf.nn.embedding_lookup(emb_item, itemids))
+
+# コンテキスト（履歴）、userids における各ユーザーがクリックしたアイテム一覧
+# ただし i は除く
+# 訓練データの各 (userid, itemid) に対応している
+context = tf.subtract(tf.matmul(userids_onehot, R), itemids_onehot)
+
+# コンテキスト埋め込みベクトルに変換して relu 通す
+v = tf.nn.relu(tf.matmul(context, emb_context_item))
+
+# 各データに対応する内積値
+# (訓練データ数, 1) になる予定
+r_1 = tf.reduce_sum(tf.multiply(h, w), axis=1)
+r_2 = tf.reduce_sum(tf.multiply(w, v), axis=1)
+
+# 予測値(訓練データ数個ある予定)
+# predicts = tf.nn.sigmoid(r)
+# 訓練する上では下記の tf.nn.sigmoid_cross... を使うため predicts は求めない
+r = tf.add(r_1, r_2)
+
+# loss: binary cross entropy
+bce = tf.nn.sigmoid_cross_entropy_with_logits(
+    labels=labels,
+    logits=r
+)
+loss = tf.reduce_sum(bce)
+
+# Optimize
+optimizer = tf.train.AdamOptimizer(learning_rate)
+train = optimizer.minimize(loss)
+
+init = tf.global_variables_initializer()
+with tf.Session() as sess:
+    init.run()
+    for i in range(epoch):
+        sess.run(train)
+        l = sess.run(loss)
+        if i % 5 == 0:
+            print("Iteration: ", i, "Loss: ", l)
+
+
+    
+
+
+
+In [ ]:
+
+    
+# 事前定義パラメータ
+num_users = 10
+num_items = 5
+dim_emb = 15
+epoch = 50
+SEED = 10
+learning_rate = 0.001
+
+tf.set_random_seed(SEED)
+
+# 入力データを適当に作る
+input_R = np.random.randint(0, 2, num_users*num_items).reshape((num_users, num_items))
+input_userids = np.array([i for i in range(num_users) for j in range(num_items)])
+input_itemids = np.array([j for i in range(num_users) for j in range(num_items)])
+input_labels = np.array([input_R[i][j] for i in range(num_users) for j in range(num_items)])
+
+# place holder 設定
+# R は事前に与えるべき？
+# たしかにバッチのたびに与えるのは何か違うような…でも定数だしありか？
+# 一旦毎回与える方式で
+R = tf.placeholder(tf.float32, shape=[None, None])
+userids = tf.placeholder(tf.int32)
+itemids = tf.placeholder(tf.int32)
+labels = tf.placeholder(tf.float32)
+
+# 学習対象パラメータの定義
+emb_user = tf.Variable(tf.random_normal(shape=[num_users, dim_emb]))
+emb_item = tf.Variable(tf.random_normal(shape=[num_items, dim_emb]))
+emb_context_item = tf.Variable(tf.random_normal(shape=[num_items, dim_emb]))
+
+# 学習データ内の userid, itemid をそれぞれ one-hot に変換
+userids_onehot = tf.one_hot(userids, depth=num_users, dtype=tf.float32)
+userids_onehot = tf.reshape(userids_onehot, [-1, num_users])
+itemids_onehot = tf.one_hot(itemids, depth=num_items, dtype=tf.float32)
+itemids_onehot = tf.reshape(itemids_onehot, [-1, num_items])
+
+# 訓練データ内の userids を埋め込みベクトルに変換
+h = tf.nn.relu(tf.nn.embedding_lookup(emb_user, userids))
+
+# 訓練データ内の itemids を埋め込みベクトルに変換
+w = tf.nn.relu(tf.nn.embedding_lookup(emb_item, itemids))
+
+# コンテキスト（履歴）、userids における各ユーザーがクリックしたアイテム一覧
+# ただし i は除く
+# 訓練データの各 (userid, itemid) に対応している
+context = tf.subtract(tf.matmul(userids_onehot, R), itemids_onehot)
+
+# コンテキスト埋め込みベクトルに変換して relu 通す
+v = tf.nn.relu(tf.matmul(context, emb_context_item))
+
+# 各データに対応する内積値
+# (訓練データ数, 1) になる予定
+r_1 = tf.reduce_sum(tf.multiply(h, w), axis=1)
+r_2 = tf.reduce_sum(tf.multiply(w, v), axis=1)
+
+# 予測値(訓練データ数個ある予定)
+# predicts = tf.nn.sigmoid(r)
+# 訓練する上では下記の tf.nn.sigmoid_cross... を使うため predicts は求めない
+r = tf.add(r_1, r_2)
+
+# loss: binary cross entropy
+bce = tf.nn.sigmoid_cross_entropy_with_logits(
+    labels=labels,
+    logits=r
+)
+loss = tf.reduce_sum(bce)
+
+# Optimize
+optimizer = tf.train.AdamOptimizer(learning_rate)
+train = optimizer.minimize(loss)
+
+init = tf.global_variables_initializer()
+with tf.Session() as sess:
+    init.run()
+    for i in range(epoch):
+        sess.run(train, 
+                 feed_dict={R: input_R, userids: input_userids, 
+                            itemids: input_itemids, labels: input_labels})
+        x = sess.run(loss, 
+                 feed_dict={R: input_R, userids: input_userids, 
+                            itemids: input_itemids, labels: input_labels})
+    # モデルの保存的なこともここで行う？
+    
+        print(x)
+
+
+    
+
+
+
+In [5]:
+
+    
+import tensorflow as tf
+import numpy as np
+import os
+
+
+options = {
+    "num_users": 10,
+    "num_items": 5,
+    "dim_emb": 15,
+    "seed": 10,
+    "learning_rate": 0.001
+}
+
+
+class NeuralPersonalizedEmbedding(object):
+    def __init__(self, options, session):
+        self._session = session
+        self._num_users = options["num_users"]
+        self._num_items = options["num_items"]
+        self._dim_emb = options["dim_emb"]
+        self._learning_rate = options["learning_rate"]
+        self.build_graph()
+
+    def build_graph(self):
+        # place holder 設定
+        # R は事前に与えるべき？
+        # たしかにバッチのたびに与えるのは何か違うような…でも定数だしありか？
+        # 一旦毎回与える方式で
+        R = tf.placeholder(tf.float32, shape=[None, None])
+        userids = tf.placeholder(tf.int32)
+        itemids = tf.placeholder(tf.int32)
+        labels = tf.placeholder(tf.float32)
+        self._R = R
+        self._userids = userids
+        self._itemids = itemids
+        self._labels = labels
+
+        # 学習対象パラメータの定義
+        emb_user = tf.Variable(
+            tf.random_normal(shape=[self._num_users, self._dim_emb]))
+        emb_item = tf.Variable(
+            tf.random_normal(shape=[self._num_items, self._dim_emb]))
+        emb_context_item = tf.Variable(
+            tf.random_normal(shape=[self._num_items, self._dim_emb]))
+
+        # 学習データ内の userid, itemid をそれぞれ one-hot に変換
+        userids_onehot = tf.one_hot(userids, depth=self._num_users, dtype=tf.float32)
+        userids_onehot = tf.reshape(userids_onehot, [-1, self._num_users])
+        itemids_onehot = tf.one_hot(itemids, depth=self._num_items, dtype=tf.float32)
+        itemids_onehot = tf.reshape(itemids_onehot, [-1, self._num_items])
+
+        # 訓練データ内の userids を埋め込みベクトルに変換
+        h = tf.nn.relu(tf.nn.embedding_lookup(emb_user, userids))
+
+        # 訓練データ内の itemids を埋め込みベクトルに変換
+        w = tf.nn.relu(tf.nn.embedding_lookup(emb_item, itemids))
+
+        # コンテキスト（履歴）、userids における各ユーザーがクリックしたアイテム一覧
+        # ただし i は除く
+        # 訓練データの各 (userid, itemid) に対応している
+        context = tf.subtract(tf.matmul(userids_onehot, R), itemids_onehot)
+
+        # コンテキスト埋め込みベクトルに変換して relu 通す
+        v = tf.nn.relu(tf.matmul(context, emb_context_item))
+
+        # 各データに対応する内積値
+        # (訓練データ数, 1) になる予定
+        r_1 = tf.reduce_sum(tf.multiply(h, w), axis=1)
+        r_2 = tf.reduce_sum(tf.multiply(w, v), axis=1)
+
+        # 訓練する上では下記の tf.nn.sigmoid_cross... を使うため predicts は学習時
+        # は求めない
+        r = tf.add(r_1, r_2)
+
+        # 予測値(訓練データ数個ある予定)
+        predicts = tf.nn.sigmoid(r)
+        self._predictop = predicts
+
+        # loss: binary cross entropy
+        bce = tf.nn.sigmoid_cross_entropy_with_logits(
+            labels=labels,
+            logits=r
+        )
+        loss = tf.reduce_sum(bce)
+        self._lossop = loss
+
+        # Optimize
+        optimizer = tf.train.AdamOptimizer(self._learning_rate)
+        train = optimizer.minimize(loss)
+
+        # trainer and saver
+        self._trainop = train
+        tf.global_variables_initializer().run()
+        self.saver = tf.train.Saver()
+        print("graph build!")
+
+    def train(self, user_item_mtx, userids, itemids, labels):
+        self._session.run(
+            self._trainop,
+            feed_dict={
+                self._R: user_item_mtx, self._userids: userids, 
+                self._itemids: itemids, self._labels: labels
+            }
+        )
+        self._loss = self._session.run(
+            self._lossop,
+            feed_dict={
+                self._R: user_item_mtx, self._userids: userids, 
+                self._itemids: itemids, self._labels: labels
+            }
+        )
+
+    def predict(self, user_item_mtx, userids, itemids):
+        predicts = self._session.run(
+            self._predictop,
+            feed_dict={
+                self._R: user_item_mtx, self._userids: userids, 
+                self._itemids: itemids
+            }
+        )
+        return predicts
+
+    def print_loss(self):
+        print("loss: ", self._loss)
+
+    def get_loss(self):
+        return self._loss
+
+    def save(self, session, path):
+        self._saver.save(session, path)
+        print("model saved!")
+
+
+def main():
+    # args = parse_args()
+    epoch = 100
+    # training
+    num_users = 10
+    num_items = 5
+    dim_emb = 15
+    input_R = np.random.randint(0, 2, num_users*num_items).reshape((num_users, num_items))
+    input_userids = np.array([i for i in range(num_users) for j in range(num_items)])
+    input_itemids = np.array([j for i in range(num_users) for j in range(num_items)])
+    input_labels = np.array([input_R[i][j] for i in range(num_users) for j in range(num_items)])
+
+    # データをロード
+    
+
+    with tf.Graph().as_default(), tf.Session() as session:
+        model = NeuralPersonalizedEmbedding(options, session)
+        for i in range(epoch):
+            model.train(input_R, input_userids, input_itemids, input_labels)
+            if i % 5 == 0:
+                model.print_loss()
+        print(model.predict(input_R, [3], [3]))
+        print(input_R[3][3])
+        #    model.eval()  # loss の表示
+        #model.save(session, "./mymodel_20180601.ckpt")
+
+
+def train_minibatch():
+    return None
+
+
+if __name__ == "__main__":
+    main()
+
+
+    
+
+
+
+In [ ]:
+
+    
+# 動作させてみる
+npe = neural_personalized_embedding_cf()
+# npe.leaning(R)
+
+
+    
+
+
+
+In [ ]:
+
+    
+# 予測してみる
+
+
+# 精度を確認してみる
+
+
+    
+

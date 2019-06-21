@@ -1,0 +1,321 @@
+
+In [1]:
+
+    
+import numpy as np
+import tensorflow as tf
+
+
+%autosave 9999
+
+
+    
+
+
+
+In [2]:
+
+    
+y_hat = tf.constant(36,name='y_hat')
+y = tf.constant(39,name='y')
+loss = tf.Variable((y-y_hat)**2,name='loss')
+init = tf.global_variables_initializer()  # when apply session.run(init), the loss variable will be initialized
+                                          # and ready to be computed
+with tf.Session() as session:
+    session.run(init)   # initialize variables
+    print(session.run(loss)) # compute the loss
+
+
+    
+
+
+
+In [3]:
+
+    
+a = tf.constant(2)
+b = tf.constant(10)
+c = a * b
+print(c)
+
+
+    
+
+
+
+In [4]:
+
+    
+sess = tf.Session()
+print(sess.run(c))
+
+
+    
+
+
+
+In [5]:
+
+    
+x = tf.placeholder(tf.int32,name='x')
+print(sess.run(2*x,feed_dict={x:3}))
+sess.close()
+
+
+    
+
+
+
+In [6]:
+
+    
+def linear_function():
+    rng = np.random.RandomState(1)
+    X = tf.constant(rng.randn(3,1),name='X')
+    W = tf.constant(rng.randn(4,3),name='W')
+    b = tf.constant(rng.randn(4,1),name='b')
+    Y = tf.add(tf.matmul(W,X),b)
+    
+    with tf.Session() as sess:
+        result = sess.run(Y)
+    return result
+print('result = {}'.format(linear_function()))
+
+
+    
+
+
+
+In [7]:
+
+    
+def sigmoid(z):
+    x = tf.placeholder(tf.float32,name='x')
+    sigmoid = tf.sigmoid(x)
+    with tf.Session() as sess:
+        result = sess.run(sigmoid,feed_dict={x:z})
+    return result
+print('sigmoid(0) = {}'.format(sigmoid(0)))
+print('sigmoid(12) = {}'.format(sigmoid(12)))
+
+
+    
+
+
+
+In [8]:
+
+    
+def cost(logits,labels):
+    z = tf.placeholder(tf.float32,name='z')
+    y = tf.placeholder(tf.float32,name='y')
+    cost = tf.nn.sigmoid_cross_entropy_with_logits(logits=z,labels=y)
+    with tf.Session() as sess:
+        cost = sess.run(cost,feed_dict={z:logits,y:labels})
+    return cost
+logits = sigmoid(np.array([0.2,0.4,0.7,0.9]))
+labels = np.array([0,0,1,1])
+print('cost = {}'.format(cost(logits,labels)))
+
+
+    
+
+
+
+In [9]:
+
+    
+def one_hot_matrix(labels,C):
+    C = tf.constant(C,name='C')
+    one_hot_matrix = tf.one_hot(indices=labels,depth=C,axis=0)
+    with tf.Session() as sess:
+        one_hot = sess.run(one_hot_matrix)
+    return one_hot
+labels = np.array([1,2,3,0,2,1])
+one_hot = one_hot_matrix(labels,C=4)
+print('one_hot={}'.format(one_hot))
+
+
+    
+
+
+
+In [10]:
+
+    
+def ones_zeros(shape,isone=True):
+    if isone==True:
+        out = tf.ones(shape)
+    elif isone==False:
+        out = tf.zeros(shape)
+    with tf.Session() as sess:
+        out = sess.run(out)
+    return out
+print('ones = {}'.format(ones_zeros([1,2],True)))
+print('zeros = {}'.format(ones_zeros([2,2],False)))
+
+
+    
+
+
+
+In [11]:
+
+    
+from tensorflow.examples.tutorials.mnist import input_data
+mnist = input_data.read_data_sets('MNIST_data/',one_hot=True)
+
+
+    
+
+
+
+In [12]:
+
+    
+batch_size = 128 # sg, if we use all the data the trainning will take a lot of time
+
+x = tf.placeholder(tf.float32, [None, 784])
+W = tf.Variable(tf.zeros([784, 10]))
+b = tf.Variable(tf.zeros([10]))
+y = tf.matmul(x, W) + b
+sm = tf.nn.softmax(y)
+
+# cross entropy (loss function)
+y_ = tf.placeholder(tf.float32, [None, 10])
+loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=y, labels=y_))
+
+train_step = tf.train.GradientDescentOptimizer(0.5).minimize(loss)
+correct_prediction = tf.equal(tf.argmax(sm, 1), tf.argmax(y_, 1))
+accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+
+# init
+init = tf.global_variables_initializer()
+
+
+    
+
+
+
+In [13]:
+
+    
+num_steps = 10000
+
+with tf.Session() as session:
+    
+    session.run(init)
+
+    # training
+    for step in range(num_steps):
+        # Generate a minibatch.
+        batch_data, batch_labels = mnist.train.next_batch(batch_size)
+        
+        error, ts, acc = session.run([loss, train_step, accuracy], 
+                                     feed_dict={x: batch_data, y_: batch_labels}) 
+        if step % 1000 == 0:
+            # evaluating the model
+            acc = accuracy.eval(feed_dict={x: mnist.test.images, y_: mnist.test.labels})
+            print('Accuracy:{}'.format(acc * 100))
+
+
+    
+
+
+
+In [14]:
+
+    
+def weight_variable(shape):
+    initial = tf.truncated_normal(shape,stddev=0.1)
+    return tf.Variable(initial)
+def bias_variable(shape):
+    initial = tf.constant(0.1,shape=shape)
+    return tf.Variable(initial)
+def conv2d(x,W):
+    return tf.nn.conv2d(x,W,strides=[1,1,1,1],padding='SAME')
+def max_pool_2x2(x):
+    return tf.nn.max_pool(x,ksize=[1,2,2,1],strides=[1,2,2,1],padding='SAME')
+
+
+    
+
+
+
+In [15]:
+
+    
+#First convolutional layer
+W_conv1 = weight_variable([5,5,1,32]) #32 filters, each with 5x5x1 size
+b_conv1 = bias_variable([32])
+x_image = tf.reshape(x,[-1,28,28,1])
+h_conv1 = tf.nn.relu(conv2d(x_image,W_conv1)+b_conv1)
+h_pool1 = max_pool_2x2(h_conv1)
+
+#Second convolutional layer
+W_conv2 = weight_variable([5,5,32,64]) #64 filters, each with 5x5x32 size
+b_conv2 = bias_variable([64])
+h_conv2 = tf.nn.relu(conv2d(h_pool1,W_conv2)+b_conv2)
+h_pool2 = max_pool_2x2(h_conv2)
+
+#Densely connected layer
+W_fc1 = weight_variable([7*7*64,1024])
+b_fc1 = bias_variable([1024])
+h_pool2_flat = tf.reshape(h_pool2,[-1,7*7*64])
+h_fc1 = tf.nn.relu(tf.matmul(h_pool2_flat,W_fc1) + b_fc1)
+
+#Dropout
+keep_prob = tf.placeholder(tf.float32)
+h_fc1_drop = tf.nn.dropout(h_fc1,keep_prob)
+
+#Readout layer
+W_fc2 = weight_variable([1024,10])
+b_fc2 = bias_variable([10])
+y_conv = tf.matmul(h_fc1_drop,W_fc2) + b_fc2
+
+
+    
+
+
+
+In [16]:
+
+    
+loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(labels=y_,logits=y_conv))
+train_step = tf.train.AdamOptimizer(1e-4).minimize(loss)
+correct_prediction = tf.equal(tf.argmax(y_conv,1),tf.argmax(y_,1))
+accuracy = tf.reduce_mean(tf.cast(correct_prediction,tf.float32))
+init = tf.global_variables_initializer()
+
+
+    
+
+
+
+In [18]:
+
+    
+batch_size = 50
+with tf.Session() as sess:
+    sess.run(init)
+    for i in range(1000):
+        batch_x, batch_y = mnist.train.next_batch(batch_size)
+        sess.run(train_step,feed_dict={x: batch_x, y_: batch_y, keep_prob: 0.5})
+        if i % 100 == 0:
+            acc = sess.run(accuracy,feed_dict={x:mnist.test.images, y_: mnist.test.labels, keep_prob: 1.0})
+            print('i={}, testing accuracy:{}'.format(i,acc*100))
+        
+
+
+    
+
+
+
+In [ ]:
+
+    
+ 
+
+
+    
+

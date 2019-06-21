@@ -1,0 +1,630 @@
+
+In [1]:
+
+    
+import tensorflow as tf
+
+# Create TensorFlow object called tensor
+hello_constant = tf.constant('Hello World!')
+
+
+    
+
+
+
+In [3]:
+
+    
+with tf.Session() as sess:
+    output = sess.run(hello_constant)
+    print(output)
+
+
+    
+
+
+
+In [4]:
+
+    
+a = tf.placeholder(tf.string)
+b = tf.placeholder(tf.int32)
+c = tf.placeholder(tf.float32)
+with tf.Session() as sess:
+    output = sess.run(a, feed_dict={a: 'hi', b: 23, c: 32.0})
+    print(output)
+
+
+    
+
+
+
+In [9]:
+
+    
+# Add, subtract, multiply and divide operations
+add = tf.add(5, 2) # 7
+sub = tf.sub(10, 4) # 6
+mul = tf.mul(2, 5)  # 10
+div = tf.div(10, 5) # 2
+
+with tf.Session() as sess:
+    output = [sess.run(add), sess.run(sub), sess.run(mul), 
+              sess.run(div)]
+    print(output)
+
+
+    
+
+
+
+In [14]:
+
+    
+# Initialisation
+
+def variables():
+    output = None
+    
+    x = tf.Variable([1, 2, 3, 4])
+    
+    # Initialise all variables
+    init = tf.initialize_all_variables()
+    
+    with tf.Session() as sess:
+        sess.run(init)
+        output = sess.run(x)
+    
+    return output
+
+variables()
+
+
+    
+
+
+
+In [13]:
+
+    
+# Logistic Regression
+
+def logits():
+    output = None
+    x_data = [[1.0, 2.0], [2.5, 6.3]]
+    test_weights = [[-0.3545495, -0.17928936], [-0.63093454, 0.74906588]]
+    class_size = 2
+    
+    
+    x = tf.placeholder(tf.float32)
+    weights = tf.Variable(test_weights)
+    biases = tf.Variable(tf.zeros([class_size]))
+    
+    # ToDo: Implement wx + b in TensorFlow
+    logits = tf.matmul(weights, x)
+    
+    init = tf.initialize_all_variables()
+    with tf.Session() as sess:
+        sess.run(init)
+        output = sess.run(logits, feed_dict={x: x_data})
+        
+    return output
+
+logits()
+
+
+    
+
+
+
+In [ ]:
+
+    
+# Softmax function in ram Python
+
+import numpy as np
+
+def softmax(x):
+    """Compute softmax values for each sets of scores in x."""
+    # TODO: Compute and return softmax(x)
+    # S(y_i) = (e**(y_i) / sum_over_j(e**y_j))
+    return np.exp(x) / np.sum(np.exp(x), axis=0)
+
+
+    
+
+
+
+In [ ]:
+
+    
+# Softmax with TF
+
+import tensorflow as tf
+
+
+def run():
+    output = None
+    logit_data = [2.0, 1.0, 0.1]
+    logits = tf.placeholder(tf.float32)
+    
+    # ToDo: Calculate the softmax of the logits
+    softmax = tf.nn.softmax(logits)    
+    
+    with tf.Session() as sess:
+        # ToDo: Feed in the logits data
+        output = sess.run(softmax, feed_dict={logits: logit_data})
+
+    return output
+
+
+    
+
+
+
+In [ ]:
+
+    
+# Hidden Layer with ReLU activation function
+hidden_layer = tf.add(tf.matmul(features, weights), biases)
+hidden_layer = tf.nn.relu(hidden_layer)
+
+output = tf.add(tf.matmul(hidden_layer, weights), biases)
+
+
+    
+
+
+
+In [ ]:
+
+    
+# Solution is available in the other "solution.py" tab
+def run():
+    output = None
+    hidden_layer_weighats = [
+        [0.1, 0.2, 0.4],
+        [0.4, 0.6, 0.6],
+        [0.5, 0.9, 0.1],
+        [0.8, 0.2, 0.8]]
+    out_weights = [
+        [0.1, 0.6],
+        [0.2, 0.1],
+        [0.7, 0.9]]
+
+    # Weights and biases
+    weights = [
+        tf.Variable(hidden_layer_weights),
+        tf.Variable(out_weights)]
+    biases = [
+        tf.Variable(tf.zeros(3)),
+        tf.Variable(tf.zeros(2))]
+
+    # Input
+    features = tf.Variable([[1.0, 2.0, 3.0, 4.0], [-1.0, -2.0, -3.0, -4.0], [11.0, 12.0, 13.0, 14.0]])
+
+    # Model
+    hidden_layer = tf.matmul(features, weights[0]) + biases[0]
+    # ToDo: Apply activation using a single Relu
+    hidden_layer = tf.nn.relu(hidden_layer)
+    logits = tf.matmul(hidden_layer, weights[1]) + biases[1]
+
+    # Calculate logits
+    with tf.Session() as sess:
+        sess.run(tf.initialize_all_variables())
+        output = sess.run(logits)
+
+    return output
+
+
+    
+
+
+
+In [1]:
+
+    
+import tensorflow as tf
+
+
+    
+
+
+
+In [14]:
+
+    
+help(input_data.read_data_sets)
+
+
+    
+
+
+
+In [17]:
+
+    
+mnist
+
+
+    
+
+
+
+In [22]:
+
+    
+from tensorflow.examples.tutorials.mnist import input_data
+mnist = input_data.read_data_sets(".", one_hot=True)
+# Udacity version included reshape=False but this got the 
+# 'unexpected keyword' error
+
+
+    
+
+
+
+In [4]:
+
+    
+# Learning Parameters
+## Usually we have to find these.
+learning_rate = 0.001
+training_epochs = 15
+batch_size = 100
+display_step = 1
+
+n_input = 784  # MNIST data input (img shape: 28*28)
+n_classes = 10  # MNIST total classes (0-9 digits)
+
+
+    
+
+
+
+In [5]:
+
+    
+n_hidden_layer = 256 # layer number of features (width of a layer)
+
+
+    
+
+
+
+In [6]:
+
+    
+# Store layers weight & bias
+weights = {
+    'hidden_layer': tf.Variable(tf.random_normal([n_input, n_hidden_layer])),
+    'out': tf.Variable(tf.random_normal([n_hidden_layer, n_classes]))
+}
+biases = {
+    'hidden_layer': tf.Variable(tf.random_normal([n_hidden_layer])),
+    'out': tf.Variable(tf.random_normal([n_classes]))
+}
+
+
+    
+
+
+
+In [20]:
+
+    
+# tf Graph input
+x = tf.placeholder("float", [None, n_input])
+y = tf.placeholder("float", [None, n_classes])
+x_flat = x
+
+
+    
+
+
+
+In [27]:
+
+    
+tf.shape(x)
+
+
+    
+
+
+
+In [28]:
+
+    
+x_flat2 = tf.reshape(x, [-1, n_input])
+
+
+    
+
+
+
+In [29]:
+
+    
+tf.shape(x_flat2)
+
+
+    
+
+
+
+In [8]:
+
+    
+# Hidden layer with RELU activation
+layer_1 = tf.add(tf.matmul(x_flat, weights['hidden_layer']), biases['hidden_layer'])
+layer_1 = tf.nn.relu(layer_1)
+# Output layer with linear activation
+logits = tf.matmul(layer_1, weights['out']) + biases['out']
+
+
+    
+
+
+
+In [10]:
+
+    
+# Define loss and optimizer
+cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits, y))
+optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(cost)
+
+
+    
+
+
+
+In [21]:
+
+    
+# Initializing the variables
+init = tf.initialize_all_variables()
+
+
+# Launch the graph
+with tf.Session() as sess:
+    sess.run(init)
+    # Training cycle
+    for epoch in range(training_epochs):
+        total_batch = int(mnist.train.num_examples/batch_size)
+        # Loop over all batches
+        for i in range(total_batch):
+            batch_x, batch_y = mnist.train.next_batch(batch_size)
+            # Run optimization op (backprop) and cost op (to get loss value)
+            sess.run(optimizer, feed_dict={x: batch_x, y: batch_y})
+
+
+    
+
+
+
+In [23]:
+
+    
+'''
+A Multilayer Perceptron implementation example using TensorFlow library.
+This example is using the MNIST database of handwritten digits
+(http://yann.lecun.com/exdb/mnist/)
+
+Author: Aymeric Damien
+Project: https://github.com/aymericdamien/TensorFlow-Examples/
+'''
+
+from __future__ import print_function
+
+# Import MNIST data
+from tensorflow.examples.tutorials.mnist import input_data
+mnist = input_data.read_data_sets("/tmp/data/", one_hot=True)
+
+import tensorflow as tf
+
+# Parameters
+learning_rate = 0.001
+training_epochs = 15
+batch_size = 100
+display_step = 1
+
+# Network Parameters
+n_hidden_1 = 256 # 1st layer number of features
+n_hidden_2 = 256 # 2nd layer number of features
+n_input = 784 # MNIST data input (img shape: 28*28)
+n_classes = 10 # MNIST total classes (0-9 digits)
+
+# tf Graph input
+x = tf.placeholder("float", [None, n_input])
+y = tf.placeholder("float", [None, n_classes])
+
+
+# Create model
+def multilayer_perceptron(x, weights, biases):
+    # Hidden layer with RELU activation
+    layer_1 = tf.add(tf.matmul(x, weights['h1']), biases['b1'])
+    layer_1 = tf.nn.relu(layer_1)
+    # Hidden layer with RELU activation
+    layer_2 = tf.add(tf.matmul(layer_1, weights['h2']), biases['b2'])
+    layer_2 = tf.nn.relu(layer_2)
+    # Output layer with linear activation
+    out_layer = tf.matmul(layer_2, weights['out']) + biases['out']
+    return out_layer
+
+# Store layers weight & bias
+weights = {
+    'h1': tf.Variable(tf.random_normal([n_input, n_hidden_1])),
+    'h2': tf.Variable(tf.random_normal([n_hidden_1, n_hidden_2])),
+    'out': tf.Variable(tf.random_normal([n_hidden_2, n_classes]))
+}
+biases = {
+    'b1': tf.Variable(tf.random_normal([n_hidden_1])),
+    'b2': tf.Variable(tf.random_normal([n_hidden_2])),
+    'out': tf.Variable(tf.random_normal([n_classes]))
+}
+
+# Construct model
+pred = multilayer_perceptron(x, weights, biases)
+
+# Define loss and optimizer
+cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(pred, y))
+optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
+
+# Initializing the variables
+init = tf.initialize_all_variables()
+
+# Launch the graph
+with tf.Session() as sess:
+    sess.run(init)
+
+    # Training cycle
+    for epoch in range(training_epochs):
+        avg_cost = 0.
+        total_batch = int(mnist.train.num_examples/batch_size)
+        # Loop over all batches
+        for i in range(total_batch):
+            batch_x, batch_y = mnist.train.next_batch(batch_size)
+            # Run optimization op (backprop) and cost op (to get loss value)
+            _, c = sess.run([optimizer, cost], feed_dict={x: batch_x,
+                                                          y: batch_y})
+            # Compute average loss
+            avg_cost += c / total_batch
+        # Display logs per epoch step
+        if epoch % display_step == 0:
+            print("Epoch:", '%04d' % (epoch+1), "cost=", \
+                "{:.9f}".format(avg_cost))
+    print("Optimization Finished!")
+
+    # Test model
+    correct_prediction = tf.equal(tf.argmax(pred, 1), tf.argmax(y, 1))
+    # Calculate accuracy
+    accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
+    print("Accuracy:", accuracy.eval({x: mnist.test.images, y: mnist.test.labels}))
+
+
+    
+
+
+
+In [ ]:
+
+    
+keep_prob = tf.placeholder(tf.float32) # probability to keep units
+
+hidden_layer = tf.add(tf.matmul(features, weights[0]), biases[0])
+hidden_layer = tf.nn.relu(hidden_layer)
+hidden_layer = tf.nn.dropout(hidden_layer, keep_prob)
+
+logits = tf.add(tf.matmul(hidden_layer, weights[1]), biases[1])
+
+
+    
+
+
+
+In [ ]:
+
+    
+# Solution is available in the other "solution.py" tab
+import tensorflow as tf
+
+
+def run():
+    output = None
+    hidden_layer_weights = [
+        [0.1, 0.2, 0.4],
+        [0.4, 0.6, 0.6],
+        [0.5, 0.9, 0.1],
+        [0.8, 0.2, 0.8]]
+    out_weights = [
+        [0.1, 0.6],
+        [0.2, 0.1],
+        [0.7, 0.9]]
+
+    # Weights and biases
+    weights = [
+        tf.Variable(hidden_layer_weights),
+        tf.Variable(out_weights)]
+    biases = [
+        tf.Variable(tf.zeros(3)),
+        tf.Variable(tf.zeros(2))]
+        
+    keep_prob = tf.placeholder(tf.float32)
+
+    # Input
+    features = tf.Variable([[0.0, 2.0, 3.0, 4.0], [0.1, 0.2, 0.3, 0.4], [11.0, 12.0, 13.0, 14.0]])
+
+    # Model
+    hidden_layer = tf.matmul(features, weights[0]) + biases[0]
+    hidden_layer = tf.nn.relu(hidden_layer)
+    # TODO: Add dropout
+    hidden_layer = tf.nn.dropout(hidden_layer, keep_prob)
+    
+    logits = tf.matmul(hidden_layer, weights[1]) + biases[1]
+
+    # Calculate logits
+    with tf.Session() as sess:
+        sess.run(tf.initialize_all_variables())
+        output = sess.run(logits, feed_dict={keep_prob: 0.5})
+
+    return output
+
+
+    
+
+
+
+In [ ]:
+
+    
+# Output depth
+k_output = 64
+
+# Image Properties
+image_width = 10
+image_height = 10
+color_channels = 3
+
+# Convolution filter
+filter_size_width = 5
+filter_size_height = 5
+
+# Input/Image
+input = tf.placeholder(
+    tf.float32,
+    shape=[None, image_width, image_height, color_channels])
+
+# Weight and bias
+weight = tf.Variable(tf.truncated_normal(
+    [filter_size_width, filter_size_height, color_channels, k_output]))
+bias = tf.Variable(tf.zeros(k_output))
+
+# Apply Convolution
+conv_layer = tf.nn.conv2d(input, weight, strides=[1, 2, 2, 1], padding='SAME')
+# Add bias
+conv_layer = tf.nn.bias_add(conv_layer, bias)
+# Apply activation function
+conv_layer = tf.nn.relu(conv_layer)
+
+
+    
+
+
+
+In [ ]:
+
+    
+conv_layer = tf.nn.conv2d(input, weight, strides=[1, 2, 2, 1], padding='SAME')
+conv_layer = tf.nn.bias_add(conv_layer, bias)
+conv_layer = tf.nn.relu(conv_layer)
+# Apply Max Pooling
+conv_layer = tf.nn.max_pool(
+    conv_layer,
+    ksize=[1, 2, 2, 1],
+    strides=[1, 2, 2, 1],
+    padding='SAME')
+
+
+    
+

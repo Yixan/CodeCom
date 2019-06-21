@@ -1,0 +1,124 @@
+from keras.layers import Input, Dense, Conv2D, MaxPooling2D, UpSampling2D, LSTM, Embedding, Dropout
+from keras.models import Model, Sequential
+from keras import layers
+from keras import backend as K
+from keras.callbacks import ModelCheckpoint
+from keras import callbacks
+from keras.callbacks import TensorBoard
+from keras import metrics
+from keras import optimizers
+def model_v34():
+	model = Sequential()
+	model.add(Dense(52, input_shape = (101, 26),activation='relu'))
+	model.add(Dense(24 ,activation='relu'))
+	model.add(Dense(12, activation="softmax"))
+	return model
+def model_v35():
+	model = Sequential()
+	model.add(Dense(52, input_shape = (101, 26),activation='relu'))
+	model.add(Dense(24 ,activation='relu'))
+	model.add(Dropout(0.2))
+	model.add(Dense(12, activation="softmax"))
+	return model
+def model_v38():
+	model = Sequential()
+	model.add(Dense(52, input_shape = (101, 26),activation='relu'))
+	model.add(Dense(18 ,activation='relu'))
+	model.add(Dense(12, activation="softmax"))
+	return model
+def model_v39():
+	model = Sequential()
+	model.add(Dense(39, input_shape = (101, 26),activation='relu'))
+	model.add(Dense(18 ,activation='relu'))
+	model.add(Dense(12, activation="softmax"))
+	return model
+def model_v40():
+	model = Sequential()
+	model.add(Dense(39, input_shape = (101, 26),activation='relu'))
+	model.add(Dense(18 ,activation='relu'))
+	model.add(Dense(12, activation="softmax"))
+	return model
+def model_v41():
+	model = Sequential()
+	model.add(Dense(39, input_shape = (101, 26),activation='relu'))
+	model.add(Dense(18 ,activation='relu'))
+	model.add(Dense(12, activation="softmax"))
+	return model
+def model_v42():
+	model = Sequential()
+	model.add(Dense(39, input_shape = (101, 26),activation='relu'))
+	model.add(Dense(18 ,activation='relu'))
+	model.add(Dense(12, activation="softmax"))
+	return model
+def model_v43():
+	model = Sequential()
+	model.add(Dense(39, input_shape = (101, 26),activation='relu'))
+	model.add(Dense(18 ,activation='relu'))
+	model.add(Dense(12, activation="softmax"))
+	return model
+def model_v44():
+	model = Sequential()
+	model.add(Dense(39, input_shape = (101, 26),activation='relu'))
+	model.add(Dense(18 ,activation='relu'))
+	model.add(Dense(12, activation="softmax"))
+	return model
+def model_v45():
+	model = Sequential()
+	model.add(Dense(39, input_shape = (101, 26),activation='relu'))
+	model.add(Dense(18 ,activation='relu'))
+	model.add(Dense(12, activation="softmax"))
+	return model
+def model_v46():
+	model = Sequential()
+	model.add(Dense(39, input_shape = (101, 26),activation='relu'))
+	model.add(Dense(18 ,activation='relu'))
+	model.add(Dense(12, activation="softmax"))
+	return model
+def model_v47():
+	model = Sequential()
+	model.add(Dense(39, input_shape = (101, 13),activation='relu'))
+	model.add(Dense(18 ,activation='relu'))
+	model.add(Dense(12, activation="softmax"))
+	return model
+def model_v48():
+	model = Sequential()
+	model.add(Dense(39, input_shape = (101, 13),activation='relu'))
+	model.add(Dense(18 ,activation='relu'))
+	model.add(Dense(12, activation="softmax"))
+	return model
+def model_v49():
+	model = Sequential()
+	model.add(Dense(39, input_shape = (101, 13),activation='relu'))
+	model.add(Dense(18 ,activation='relu'))
+	model.add(Dense(12, activation="softmax"))
+	return model
+def model_v50():
+	model = model_v49()
+	return model
+def model_v51():
+	model = model_v49()
+	return model
+def model_v52():
+	model = Sequential()
+	model.add(Dense(39, input_shape = (101, 128),activation='relu'))
+	model.add(Dense(18 ,activation='relu'))
+	model.add(Dense(12, activation="softmax"))
+	return model
+def model_v53():
+	model = Sequential()
+	model.add(Dense(256, input_shape = (101, 128),activation='relu'))
+	model.add(Dense(18 ,activation='relu'))
+	model.add(Dense(12, activation="softmax"))
+	return model
+def model_v54():
+	model = Sequential()
+	model.add(Dense(256, input_shape = (101, 128),activation='relu'))
+	model.add(LSTM(64,return_sequences=True)) 
+	model.add(LSTM(64, return_sequences=True)) 
+	model.add(LSTM(32, return_sequences=True)) 
+	model.add(LSTM(32, return_sequences=True))
+	model.add(LSTM(32, return_sequences=True)) 
+	model.add(LSTM(32 ,return_sequences=False))
+	model.add(Dense(18 ,activation='relu'))
+	model.add(Dense(12, activation="softmax"))
+	return model

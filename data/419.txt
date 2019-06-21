@@ -1,0 +1,99 @@
+from __future__ import print_function
+import numpy as np
+from keras.models import Sequential
+from keras.layers.core import Dense, Dropout, Activation, Flatten
+from keras.layers.embeddings import Embedding
+from keras.layers.convolutional import Convolution1D, MaxPooling1D
+from keras.layers.recurrent import LSTM, GRU
+from keras.models import Graph
+from recurrent import Bidirectional
+def cnn(W):
+    nb_filter = 250
+    filter_length = 3
+    hidden_dims = 250
+    model = Sequential()
+    model.add(Embedding(W.shape[0], W.shape[1], input_length=maxlen, weights=None))
+    model.add(Dropout(0.25))
+    model.add(Convolution1D(nb_filter=nb_filter,filter_length=filter_length,border_mode='valid',activation='relu',subsample_length=1))
+    model.add(MaxPooling1D(pool_length=2))
+    model.add(Flatten())
+    model.add(Dense(hidden_dims))
+    model.add(Dropout(0.25))
+    model.add(Activation('relu'))
+    model.add(Dense(1))
+    model.add(Activation('linear'))
+    return model
+def lstm(W):
+    model = Sequential()
+    model.add(Embedding(W.shape[0], W.shape[1], input_length=maxlen))
+    model.add(Dropout(0.5))
+    model.add(Dense(1))
+    model.add(Activation('sigmoid'))
+    return model
+def gru(W):
+    model = Sequential()
+    model.add(Embedding(W.shape[0], W.shape[1], input_length=maxlen))
+    model.add(Dropout(0.5))
+    model.add(Dense(1))
+    model.add(Activation('sigmoid'))
+    return model
+def bidirectional_lstm(W):
+    model = Graph()
+    model.add_input(name='input', input_shape=(maxlen,), dtype=int)
+    model.add_node(Embedding(W.shape[0], W.shape[1], weights=[W], input_length=maxlen),ame='embedding', input='input')
+    model.add_node(LSTM(64), name='forward', input='embedding')
+    model.add_node(LSTM(64, go_backwards=True), name='backward', input='embedding')
+    model.add_node(Dropout(0.5), name='dropout', inputs=['forward', 'backward'])
+    model.add_node(Dense(1, activation='sigmoid'), name='sigmoid', input='dropout')
+    model.add_output(name='output', input='sigmoid')
+    return model
+def cnn_lstm(W):
+    nb_filter = 64
+    filter_length = 3
+    pool_length = 2
+    lstm_output_size = 64
+    p = 0.25
+    model = Sequential()
+    model.add(Embedding(W.shape[0], W.shape[1], input_length=maxlen, weights=[W]))
+    model.add(Dropout(p))
+    model.add(Convolution1D(nb_filter=nb_filter,filter_length=filter_length,border_mode='valid',activation='relu',subsample_length=1))
+    model.add(MaxPooling1D(pool_length=pool_length))
+    model.add(LSTM(lstm_output_size))
+    model.add(Dense(lstm_output_size))
+    model.add(Dropout(p))
+    model.add(Dense(1))
+    model.add(Activation('sigmoid'))
+    return model
+def cnn_gru(W):
+    nb_filter = 64
+    filter_length = 3
+    pool_length = 2
+    lstm_output_size = 70
+    model = Sequential()
+    model.add(Embedding(W.shape[0], W.shape[1], input_length=maxlen))
+    model.add(Dropout(0.25))
+    model.add(Convolution1D(nb_filter=nb_filter,filter_length=filter_length,border_mode='valid',activation='relu',subsample_length=1))
+    model.add(MaxPooling1D(pool_length=pool_length))
+    model.add(GRU(lstm_output_size))
+    model.add(Dense(1))
+    model.add(Activation('sigmoid'))
+    return model
+def b_rnn(W):
+    lstm_output_size = 64
+    lstm = LSTM(output_dim=lstm_output_size)
+    gru = GRU(output_dim=lstm_output_size)
+    brnn = Bidirectional(forward=lstm, backward=gru)
+    nb_filter = 64
+    filter_length = 3
+    pool_length = 2
+    model = Sequential()
+    model.add(Embedding(W.shape[0], W.shape[1], input_length=maxlen, weights=[W]))
+    model.add(Dropout(0.25))
+    model.add(Convolution1D(nb_filter=nb_filter,filter_length=filter_length,border_mode='valid',activation='relu',subsample_length=1))
+    model.add(MaxPooling1D(pool_length=pool_length))
+    model.add(brnn)
+    model.add(Dense(1))
+    model.add(Activation('sigmoid'))
+    return model
+if __name__ == "__main__":
+    pass

@@ -1,0 +1,357 @@
+
+In [1]:
+
+    
+import tensorflow as tf
+import numpy as np
+
+
+    
+
+
+
+In [3]:
+
+    
+# 建立一維張量
+ts_A = tf.Variable([0.1, 0.2, 0.3])
+
+with tf.Session() as sess:
+    # 初始化所有 tensorflow global 變數
+    init = tf.global_variables_initializer()
+    sess.run(init)
+    
+    A = sess.run(ts_A)
+    print('A=' + str(A))
+    
+print('---------------')
+# 查看一維張量形狀
+print('A.shape =' + str(A.shape)) 
+print('---------------')
+# 建立二維張量
+ts_B = tf.Variable([[0.1, 0.2, 0.3],[0.6, 0.5, 0.4]])
+
+with tf.Session() as sess:
+    # 初始化所有 tensorflow global 變數
+    init = tf.global_variables_initializer()
+    sess.run(init)
+    
+    B = sess.run(ts_B)
+    print('B=')
+    print(B)
+    
+# 查看二維張量形狀
+print('---------------')
+print('B.shape =' + str(B.shape))
+
+
+    
+
+
+
+In [4]:
+
+    
+# 建立計算圖 (二維張量)
+X = tf.Variable([[0.4, 0.1, 0.3]])
+
+W = tf.Variable([[-0.1, 0.1],
+                 [0.3, -0.2],
+                 [0.1, 0.3]])
+
+b = tf.Variable([[0.2, 0.1]])
+
+# 矩陣相乘: tf.matmul
+XW = tf.matmul(X, W)
+
+Sum = XW + b
+
+# 執行計算圖
+with tf.Session() as sess:
+    # 初始化所有 tensorflow global 變數
+    init = tf.global_variables_initializer()
+    sess.run(init)
+    
+    print('XW=')
+    print(sess.run(XW))
+    print('---------------')
+    print('Sum=')
+    print(sess.run(Sum))
+
+
+    
+
+
+
+In [5]:
+
+    
+# 建立計算圖 (二維張量)
+X = tf.Variable([[0.4, 0.1, 0.3]])
+
+W = tf.Variable([[-0.1, 0.1],
+                 [0.3, -0.2],
+                 [0.1, 0.3]])
+
+b = tf.Variable([[0.2, 0.1]])
+
+# 矩陣相乘: tf.matmul
+XW = tf.matmul(X, W)
+
+Sum = XW + b
+
+# 活化函數為 relu function
+#y = tf.nn.relu(Sum)
+
+# 活化函數為 sigmoid function
+y = tf.nn.sigmoid(Sum)
+
+# 執行計算圖
+with tf.Session() as sess:
+    # 初始化所有 tensorflow global 變數
+    init = tf.global_variables_initializer()
+    sess.run(init)
+    
+    print('XW=')
+    print(sess.run(XW))
+    print('---------------')
+    print('Sum=')
+    print(sess.run(Sum))
+    print('---------------')
+    print('y=')
+    print(sess.run(y))
+
+
+    
+
+
+
+In [6]:
+
+    
+# 建立計算圖 (二維張量)
+X = tf.Variable([[0.4, 0.1, 0.3]])
+
+W = tf.Variable(tf.random_normal([3, 2]))
+
+b = tf.Variable(tf.random_normal([1, 2]))
+
+# 矩陣相乘: tf.matmul
+XW = tf.matmul(X, W)
+
+Sum = XW + b
+
+# 活化函數為 relu function
+#y = tf.nn.relu(Sum)
+
+# 活化函數為 sigmoid function
+y = tf.nn.sigmoid(Sum)
+
+# 執行計算圖
+with tf.Session() as sess:
+    # 初始化所有 tensorflow global 變數
+    init = tf.global_variables_initializer()
+    sess.run(init)
+    
+    # 執行一次取得三個變數
+    (_XW, _Sum, _y) = sess.run((XW, Sum, y))
+    
+    print('XW=')
+    print(_XW)
+    print('-------------------------------')
+    print('Sum=')
+    print(_Sum)
+    print('-------------------------------')
+    print('y=')
+    print(_y)
+
+
+    
+
+
+
+In [7]:
+
+    
+# 建立計算圖 (二維張量)
+# 定義 placeholder X; 第一個參數: placeholder 的資料型態，第二個參數: placeholder 矩陣的形狀
+X = tf.placeholder('float', [None, 3])
+
+W = tf.Variable(tf.random_normal([3, 2]))
+
+b = tf.Variable(tf.random_normal([1, 2]))
+
+# 矩陣相乘: tf.matmul
+XW = tf.matmul(X, W)
+
+Sum = XW + b
+
+# 活化函數為 relu function
+#y = tf.nn.relu(Sum)
+
+# 活化函數為 sigmoid function
+y = tf.nn.sigmoid(Sum)
+
+# 執行計算圖
+with tf.Session() as sess:
+    # 初始化所有 tensorflow global 變數
+    init = tf.global_variables_initializer()
+    sess.run(init)
+    
+    # 建立 X_array
+    X_array = np.array([[0.4, 0.1, 0.3]])
+    
+    # 執行一次取得三個變數; placeholder X 以 feed_dict 傳入 X_array
+    (_XW, _Sum, _y) = sess.run((XW, Sum, y), feed_dict = {X: X_array})
+    print('XW=')
+    print(_XW)
+    print('-------------------------------')
+    print('Sum=')
+    print(_Sum)
+    print('-------------------------------')
+    print('y=')
+    print(_y)
+
+
+    
+
+
+
+In [8]:
+
+    
+# 定義 layer 函數
+# inputs: 輸入二維陣列的 placeholder, input_dim: 輸入神經元的數量
+# output_dim: 輸出神經元的數量, activation: 活化函數 (預設為 None)
+def layer(inputs, input_dim, output_dim, activation = None):
+    W = tf.Variable(tf.random_normal([input_dim, output_dim]))
+    b = tf.Variable(tf.random_normal([1, output_dim]))
+    
+    XW = tf.matmul(inputs, W)
+    Sum = XW + b
+
+    if activation is None:
+        outputs = Sum
+    
+    else:
+        outputs = activation(Sum)
+        
+    return outputs
+
+
+    
+
+
+
+In [9]:
+
+    
+# 輸入層
+X = tf.placeholder('float', [None, 3])
+
+# 隱藏層
+h = layer(inputs = X, input_dim = 3, output_dim = 2, activation = tf.nn.sigmoid)
+
+# 輸出層
+y = layer(inputs = h, input_dim = 2, output_dim = 1)
+
+# 執行計算圖
+with tf.Session() as sess:
+    # 初始化所有 tensorflow global 變數
+    init = tf.global_variables_initializer()
+    sess.run(init)
+    
+    # 建立 X_array
+    X_array = np.array([[0.4, 0.1, 0.3]])
+    
+    # 執行一次取得三個變數; placeholder X 以 feed_dict 傳入 X_array
+    (layer_X, layer_h, layer_y) = sess.run((X, h, y), feed_dict = {X: X_array})
+    print('Input layer X:')
+    print(layer_X)
+    print('-------------------------------')
+    print('Hidden layer h:')
+    print(layer_h)
+    print('-------------------------------')
+    print('Output layer y:')
+    print(layer_y)
+
+
+    
+
+
+
+In [10]:
+
+    
+# 定義 layer 函數
+# inputs: 輸入二維陣列的 placeholder, input_dim: 輸入神經元的數量
+# output_dim: 輸出神經元的數量, activation: 活化函數 (預設為 None)
+def layer(inputs, input_dim, output_dim, activation = None):
+    W = tf.Variable(tf.random_normal([input_dim, output_dim]))
+    b = tf.Variable(tf.random_normal([1, output_dim]))
+    
+    XW = tf.matmul(inputs, W)
+    Sum = XW + b
+
+    if activation is None:
+        outputs = Sum
+    
+    else:
+        outputs = activation(Sum)
+        
+    return outputs, W, b
+
+
+    
+
+
+
+In [11]:
+
+    
+# 輸入層
+X = tf.placeholder('float', [None, 3])
+
+# 隱藏層
+h, W1, b1 = layer(inputs = X, input_dim = 3, output_dim = 2, activation = tf.nn.sigmoid)
+
+# 輸出層
+y, W2, b2 = layer(inputs = h, input_dim = 2, output_dim = 1)
+
+# 執行計算圖
+with tf.Session() as sess:
+    # 初始化所有 tensorflow global 變數
+    init = tf.global_variables_initializer()
+    sess.run(init)
+    
+    # 建立 X_array
+    X_array = np.array([[0.4, 0.1, 0.3]])
+    
+    # 執行一次取得 7 個變數; placeholder X 以 feed_dict 傳入 X_array
+    (layer_X, layer_h, layer_y, _W1, _b1, _W2, _b2) = \
+    sess.run((X, h, y, W1, b1, W2, b2), feed_dict = {X: X_array})
+    
+    print('Input layer X:')
+    print(layer_X)
+    print('-------------------------------')
+    print('W1:')
+    print(_W1)    
+    print('-------------------------------')
+    print('b1:')
+    print(_b1)    
+    print('-------------------------------')
+    print('Hidden layer h:')
+    print(layer_h)
+    print('-------------------------------')
+    print('W2:')
+    print(_W2)    
+    print('-------------------------------')
+    print('b2:')
+    print(_b2)    
+    print('-------------------------------')
+    print('Output layer y:')
+    print(layer_y)
+
+
+    
+

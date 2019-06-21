@@ -1,0 +1,39 @@
+from sklearn.model_selection import train_test_split
+from keras.preprocessing.text import Tokenizer
+from keras.preprocessing.sequence import pad_sequences
+from keras.models import Sequential,Model
+from keras.layers import Dense,LSTM,Embedding
+from keras.optimizers import Adam
+from keras.layers import Bidirectional,Conv1D,GlobalMaxPooling1D,MaxPooling1D,Flatten
+from keras.callbacks import ModelCheckpoint, TensorBoard, Callback, EarlyStopping
+from keras.utils import to_categorical
+train = load_train_data()[1:5000]
+y = train['Sentiment']
+test = load_test_data()
+max_features = 13000
+max_words = 50
+batch_size = 16
+epochs = 5
+num_classes=5
+X_train , X_val , Y_train , Y_val = train_test_split(train['Phrase'],y.values,st_size = 0.20)
+Y_train = to_categorical(Y_train)
+Y_val = to_categorical(Y_val)
+tokenizer = Tokenizer(num_words=max_features)
+tokenizer.fit_on_texts(list(X_train))
+X_train = tokenizer.texts_to_sequences(X_train)
+X_val = tokenizer.texts_to_sequences(X_val) 
+X_test = tokenizer.texts_to_sequences(test['Phrase'])
+X_test =pad_sequences(X_test, maxlen=max_words)
+X_train =pad_sequences(X_train, maxlen=max_words)
+X_val = pad_sequences(X_val, maxlen=max_words)
+model_LSTM=Sequential()
+model_LSTM.add(Embedding(max_features,100,mask_zero=True))
+model_LSTM.add(LSTM(64,dropout=0.4,return_sequences=True,name='LSTM'))
+model_LSTM.add(LSTM(32,dropout=0.5,return_sequences=False))
+model_LSTM.add(Dense(num_classes,activation='softmax'))
+model_LSTM.compile(loss='categorical_crossentropy',optimizer=Adam(lr = 0.001),metrics=['accuracy'])
+model_LSTM.summary()
+layer_name = 'LSTM'
+int_layer_model = Model(inputs=model_LSTM.input,outputs=model_LSTM.get_layer(layer_name).output)
+int_out = int_layer_model.predict(X_train)
+history=model_LSTM.fit(X_train, Y_train, alidation_data=(X_val, Y_val),pochs=epochs, atch_size=batch_size, verbose=1

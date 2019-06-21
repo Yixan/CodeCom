@@ -1,0 +1,193 @@
+
+In [6]:
+
+    
+import tensorflow as tf
+
+graph = tf.Graph()
+
+with graph.as_default():
+    x = tf.placeholder(tf.int32)
+
+with graph.as_default():
+    y = tf.placeholder(tf.int32)
+    z = x+y
+    lr = z
+    
+with tf.Session(graph=graph) as session:
+    tf.initialize_all_variables().run()
+    _z  = session.run(z, feed_dict={x:1, y:2})
+    print _z
+    
+
+for i in range(10):
+     with tf.Session(graph=graph) as session:
+        tf.initialize_all_variables().run()
+        _z  = session.run(z, feed_dict={x:1, y:2})
+        print _z
+
+
+    
+
+
+
+In [ ]:
+
+    
+train_counts = train_labels[:,0]
+valid_counts = valid_labels[:,0]
+test_counts = test_labels[:,0]
+
+train_counts_mean  = np.mean(train_counts)
+train_counts_std   = np.std(train_counts)
+
+print "mean: {}, std: {}".format(train_counts_mean, train_counts_std)
+
+def normalize_counts(counts):
+    return (counts - train_counts_mean)/train_counts_std
+
+def scale_counts(counts):
+    return np.round(counts * train_counts_std + train_counts_mean)
+
+
+train_counts = normalize_counts(train_counts)
+valid_counts = normalize_counts(valid_counts)
+test_counts =  normalize_counts(test_counts)
+
+
+    
+
+
+
+In [ ]:
+
+    
+def counts_accuracy(predictions, labels):
+    """
+        How many places did we get right?
+    """
+    #assert(predictions.shape[0] == len(labels))
+    return (100.0 * np.sum(np.argmax(predictions, 1).T == labels)) / labels.size
+
+
+    
+
+
+
+In [ ]:
+
+    
+batch_size = 32
+keep_prob_dropout = 0.99
+
+# start with
+image_size = 32
+num_channels = 1
+
+# convolve layers
+patch_size = 5
+depth1 = 16
+depth2 = 32
+
+
+## FCN
+num_hidden = 32
+num_labels = 1
+
+graph_numdigits = tf.Graph()
+with graph_numdigits.as_default():
+
+  # Input data.
+  tf_train_dataset = tf.placeholder(
+    tf.float32, shape=(batch_size, image_size, image_size, num_channels))
+  tf_train_labels = tf.placeholder(tf.float32, shape=(batch_size))
+  tf_valid_dataset = tf.constant(valid_images)
+  tf_test_dataset = tf.constant(test_images)
+  
+  # Variables.
+  layer1_weights = tf.get_variable("conv1",
+                                   shape = [patch_size, patch_size, num_channels, depth1],
+                                   initializer = tf.contrib.layers.xavier_initializer_conv2d()
+                                  )
+  layer1_biases = tf.Variable(tf.zeros([depth1]))
+  
+
+  layer2_weights = tf.get_variable("conv2",
+                                   shape = [patch_size, patch_size, depth1, depth1],
+                                   initializer = tf.contrib.layers.xavier_initializer_conv2d()
+                                  )
+  layer2_biases = tf.Variable(tf.zeros([depth1]))
+
+  layer3_weights = tf.Variable(tf.truncated_normal(
+    [patch_size * patch_size * depth1, num_hidden], stddev=0.01)) 
+  layer3_biases = tf.Variable(tf.zeros([num_hidden]))
+
+  ## create a predictor here
+  op_weights = tf.Variable(tf.truncated_normal(
+      [num_hidden, num_labels], stddev=0.1))
+  op_biases = tf.Variable(tf.constant(0.01, shape=[num_labels]))
+
+  # Model.
+  def model(data, is_training = False):
+    conv = tf.nn.conv2d(data, layer1_weights, [1, 1, 1, 1], padding='VALID') # -> 28x28x1x16
+    pool = tf.nn.max_pool(conv, [1, 2, 2, 1], [1,2,2,1], padding = 'SAME') ## 
+    hidden = tf.nn.relu(pool + layer1_biases)
+    
+    conv = tf.nn.conv2d(hidden, layer2_weights, [1, 1, 1, 1], padding='VALID')
+    pool = tf.nn.max_pool(conv, [1,2,2,1], [1,2,2,1], padding = 'SAME')
+    hidden = tf.nn.relu(pool + layer2_biases)
+    
+    shape = hidden.get_shape().as_list()
+    reshape = tf.reshape(hidden, [shape[0], shape[1] * shape[2] * shape[3]])
+    hidden = tf.nn.relu(tf.matmul(reshape, layer3_weights) + layer3_biases)
+    if is_training:
+        hidden  = tf.nn.dropout(hidden, keep_prob=keep_prob_dropout)
+
+    return tf.matmul(hidden, op_weights) + op_biases
+    
+  # Training computation.
+  num_digits = model(tf_train_dataset, True)
+  loss = tf.nn.l2_loss(num_digits - tf_train_labels)
+   
+  # Optimizer.
+  global_step = tf.Variable(0)  # count the number of steps taken.
+  learning_rate = tf.train.exponential_decay(0.05, global_step, 300, 0.98)
+  optimizer = tf.train.GradientDescentOptimizer(learning_rate).minimize(loss, global_step=global_step)
+  #optimizer = tf.train.AdagradOptimizer(learning_rate).minimize(loss, global_step=global_step)
+
+  # Predictions for the training, validation, and test data.
+  train_prediction = num_digits
+  valid_prediction = model(tf_valid_dataset)
+  test_prediction  = model(tf_test_dataset)
+
+
+    
+
+
+
+In [ ]:
+
+    
+num_steps = 150001
+
+with tf.Session(graph=graph_numdigits) as session:
+  tf.initialize_all_variables().run()
+  print('Initialized')
+  for step in range(num_steps):
+    offset = (step * batch_size) % (train_counts.shape[0] - batch_size)
+    batch_data = train_images[offset:(offset + batch_size), :, :, :]
+    batch_labels = train_counts[offset:(offset + batch_size)]
+    feed_dict = {tf_train_dataset : batch_data, tf_train_labels : batch_labels}
+    _, predictions, l = session.run(
+      [optimizer, train_prediction, loss], feed_dict=feed_dict)
+    if (step % 2500 == 0):
+      print('Minibatch loss at step %d: %f' % (step, l))
+      print('Minibatch accuracy: %.1f%%' % counts_accuracy(scale_counts(predictions), batch_labels))
+      print('Validation accuracy: %.1f%%' % counts_accuracy(
+        scale_counts(valid_prediction.eval()), valid_counts))
+  final_predictions = test_prediction.eval()
+  print('Test accuracy: %.1f%%' % counts_accuracy(scale_counts(final_predictions), test_counts))
+
+
+    
+

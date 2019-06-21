@@ -1,0 +1,29 @@
+from data import data
+import numpy as np
+from sim import sim
+from keras.models import Sequential
+from keras.layers import Dense, Activation, LSTM
+import keras.utils
+from data import data
+from keras.callbacks import History
+import matplotlib.pyplot as plt
+from keras import optimizers
+path = '/home/scottgbarnes/Documents/Simulation/Training/Test Set/'
+prefix = 'Data'
+index = (20, 32)
+suffix = '_rev2'
+d = data.multiload(path, prefix, index, suffix)
+[inpt, trgt] = data.preplstm(d)
+model = Sequential()
+model.add(LSTM(9, input_shape=(1, inpt.shape[2]), return_sequences=True))
+model.add(LSTM(2))
+model.summary()
+optimizers.rmsprop(lr=0.2)
+model.compile(loss='mean_squared_logarithmic_error',optimizer='rmsprop')
+epch = 100
+print('Training Model')
+print('...')
+hist = model.fit(inpt, trgt, epochs=epch)
+history = History()
+plt.plot(range(1, epch+1), hist.history['loss'])
+plt.show()

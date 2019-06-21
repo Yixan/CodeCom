@@ -1,0 +1,143 @@
+
+In [9]:
+
+    
+import tensorflow as tf
+import numpy as np
+import matplotlib.pyplot as plt
+from tensorflow.examples.tutorials.mnist import input_data
+# 加载数据
+mnist = input_data.read_data_sets("MNIST_data/", one_hot=True)
+trX, trY, teX, teY = mnist.train.images, mnist.train.labels, mnist.test.images,mnist.test.labels
+X = tf.placeholder("float", [None, 784])
+Y = tf.placeholder("float", [None, 10])
+# 定义权重函数
+def init_weights(shape):
+    return tf.Variable(tf.random_normal(shape, stddev=0.01))
+# 初始化权重参数
+w_h = init_weights([784, 625])
+w_h2 = init_weights([625, 625])
+w_o = init_weights([625, 10])
+
+
+    
+
+
+
+In [11]:
+
+    
+# 定义模型
+def model(X, w_h, w_h2, w_o, p_keep_input, p_keep_hidden):
+# 第一个全连接层
+    X = tf.nn.dropout(X, p_keep_input)
+    h = tf.nn.relu(tf.matmul(X, w_h))
+    h = tf.nn.dropout(h, p_keep_hidden)
+        # 第二个全连接层
+    h2 = tf.nn.relu(tf.matmul(h, w_h2))
+    h2 = tf.nn.dropout(h2, p_keep_hidden)
+    return tf.matmul(h2, w_o) # 输出预测值
+
+
+    
+
+
+
+In [14]:
+
+    
+#生成网络模型,得到预测值,代码如下:
+p_keep_input = tf.placeholder("float")
+p_keep_hidden = tf.placeholder("float")
+py_x = model(X, w_h, w_h2, w_o, p_keep_input, p_keep_hidden)
+
+
+    
+
+
+
+In [19]:
+
+    
+import tensorflow as tf
+# 创建一个先入先出队列 , 初始化队列插入 0.1 、 0.2 、 0.3 三个数字
+q = tf.FIFOQueue(3, "float")
+init = q.enqueue_many(([0.1, 0.2, 0.3],))
+# 定义出队、 +1 、入队操作
+x = q.dequeue()
+y = x + 1
+q_inc = q.enqueue([y])
+#然后开启一个会话,执行 2 次 q_inc 操作,随后查看队列的内容:
+with tf.Session() as sess:
+    sess.run(init)
+    quelen = sess.run(q.size())
+    for i in range(2):
+        sess.run(q_inc) # 执行 2 次操作,队列中的值变为 0.3,1.1,1.2
+        quelen = sess.run(q.size())
+    for i in range(quelen):
+        print (sess.run(q.dequeue())) # 输出队列的值
+
+
+    
+
+
+
+In [24]:
+
+    
+#RandomShuffleQueue 创建一个随机队列,在出队列时,是以随机的顺序产生元素的。
+q = tf.RandomShuffleQueue(capacity=10, min_after_dequeue=2, dtypes="float")
+sess = tf.Session()
+for i in range(0, 10): #12 次入队
+    sess.run(q.enqueue(i))
+for i in range(0, 8): # 8 次出队
+    print(sess.run(q.dequeue()))
+
+
+    
+
+
+
+In [25]:
+
+    
+#预加载数据
+x1 = tf.constant([2, 3, 4])
+x2 = tf.constant([4, 0, 1])
+y = tf.add(x1, x2)
+
+
+    
+
+
+
+In [29]:
+
+    
+#填充数据
+#使用 sess.run()中的 feed_dict 参数,将 Python 产生的数据填充给后端。
+import tensorflow as tf
+# 设计图
+a1 = tf.placeholder(tf.int16)
+a2 = tf.placeholder(tf.int16)
+b = tf.add(x1, x2)
+# 用 Python 产生数据
+li1 = [2, 3, 4]
+li2 = [4, 0, 1]
+# 打开一个会话,将数据填充给后端
+with tf.Session() as sess:
+    print (sess.run(b, feed_dict={a1: li1, a2: li2}))
+
+
+    
+
+
+
+In [ ]:
+
+    
+#
+
+
+    
+

@@ -1,0 +1,167 @@
+import numpy as np
+import random as random
+import tensorflow as tf
+import pickle
+from collections import deque
+
+
+class FNN:
+    """
+    neural network model
+    """
+    def __init__(self, num_actions, STATES_SHAPE, params={}):
+        self.num_actions = num_actions
+        self.state_shape = STATES_SHAPE
+        self.LEARNING_RATE = params['LearningRate']
+        self.reg = params['reg']
+
+
+        self.num_hidden = params['HiddenLayerNum']
+        self.hidden_size = params['HiddenLayerSize']
+        self.log_file_path = params['log_file_path']
+        self.session = self.create_model()
+
+
+    def define_placeholders(self):
+        input_placeholder = tf.placeholder(tf.float32, shape = (None, self.state_shape))
+        output_placeholder = tf.placeholder(tf.float32, shape = (None, self.num_actions))
+        return input_placeholder, output_placeholder
+
+
+
+
+    def variable_summaries(self,var, name):
+        with tf.name_scope('summaries'):
+            mean = tf.reduce_mean(var)
+            tf.scalar_summary('mean/' + name, mean)
+        with tf.name_scope('stddev'):
+            stddev = tf.sqrt(tf.reduce_sum(tf.square(var - mean)))
+        tf.scalar_summary('sttdev/' + name, stddev)
+        tf.scalar_summary('max/' + name, tf.reduce_max(var))
+        tf.scalar_summary('min/' + name, tf.reduce_min(var))
+
+
+    def multilayer_perceptron(self, input_mat):
+        n_input = self.state_shape
+        n_hidden_1 = self.hidden_size
+        n_hidden_2 = self.hidden_size
+        n_classes = self.num_actions
+
+
+        weights = {
+            'h1': tf.Variable(tf.truncated_normal([n_input, n_hidden_1],stddev = 0.1)),
+            'h2': tf.Variable(tf.truncated_normal([n_hidden_1, n_hidden_2],stddev = 0.1)),
+            'out': tf.Variable(tf.truncated_normal([n_hidden_2, n_classes],stddev = 0.1))
+        }
+        biases = {
+            'b1': tf.Variable(tf.random_normal([n_hidden_1], stddev = 0.1)),
+            'b2': tf.Variable(tf.random_normal([n_hidden_2], stddev = 0.1)),
+            'out': tf.Variable(tf.random_normal([n_classes], stddev = 0.1))
+        }
+        # Hidden layer with RELU activation
+        layer_1 = tf.add(tf.matmul(input_mat, weights['h1']), biases['b1'])
+        # mean,variance = tf.nn.moments(layer_1,[0])
+        # layer_1 = tf.nn.batch_normalization(layer_1,mean,variance,None,None,0.00001)
+        # layer_1 = tf.tanh(layer_1)
+        layer_1 = tf.nn.relu(layer_1)
+        # Hidden layer with RELU activation
+        layer_2 = tf.add(tf.matmul(layer_1, weights['h2']), biases['b2'])
+        # mean,variance = tf.nn.moments(layer_2,[0])
+        # layer_2 = tf.nn.batch_normalization(layer_2,mean,variance,None,None,0.00001)
+        # layer_2 = tf.tanh(layer_2)
+        layer_2 = tf.nn.relu(layer_2)
+        # Output layer with linear activation
+        out_layer = tf.matmul(layer_2, weights['out']) + biases['out']
+        reg_term = self.reg * (tf.reduce_sum(tf.square(weights['h1']))+
+        tf.reduce_sum(tf.square(weights['h2']))+tf.reduce_sum(tf.square(weights['out'])))
+        return out_layer, reg_term, weights, biases
+
+
+    def create_model(self):
+        self.input_placeholder, self.output_placeholder = self.define_placeholders()
+        output, reg_term, weights, biases = self.multilayer_perceptron(self.input_placeholder)
+
+
+        self.variable_summaries(weights['h1'], 'layer1'+ '/weights')
+        self.variable_summaries(weights['h2'], 'layer2' + '/weights')
+        self.variable_summaries(weights['out'], 'layer3' + '/weights')
+
+
+
+
+        self.NN_output = output
+
+
+
+
+        self.cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(output,self.output_placeholder))
+
+
+        # self.cost = tf.reduce_sum(tf.square(self.output_placeholder-self.NN_output)) + reg_term
+
+
+        tf.scalar_summary('cost', self.cost)
+
+
+        optimizer = tf.train.GradientDescentOptimizer(learning_rate = self.LEARNING_RATE)
+        self.train_op = optimizer.minimize(self.cost)
+        init = tf.initialize_all_variables()
+
+
+        """
+        Default runs at cpu,
+
+        For GPU runnning, it takes 33 percent of entire gpu memory
+        use this:
+        gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.333)
+        session = tf.Session(config=tf.ConfigProto(gpu_options = gpu_options))
+        """
+        session = tf.Session()
+        session.run(init)
+        self.saver_op = tf.train.Saver()
+        self.merged = tf.merge_all_summaries()
+        self.train_writer = tf.train.SummaryWriter('dqn_log_files/log1/data3',session.graph)
+        return session
+    #
+    # def write_summary(self,t):
+    #     train_writer = tf.train.SummaryWriter('dqn_log_files/log1/data1',self.session.graph)
+    #     train_writer.add_summary(t,self.summary)
+    #
+    def init_t(self):
+        self.t = 0
+
+
+    def save_model(self, path):
+        # print(path)
+        save_path = self.saver_op.save(self.session, path)
+        print ('Model saved in file:%s' %save_path)
+        # pass
+
+
+    def restore_model(self, path):
+        self.saver_op.restore(self.session, path)
+
+
+
+
+    def train_step(self, Input_mat, actions):
+        _, cost, prediction_probs, self.summary = self.session.run(
+        [self.train_op, self.cost, self.NN_output, self.merged],
+        feed_dict = {
+            self.input_placeholder : Input_mat,
+            self.output_placeholder : actions
+        })
+        return cost
+        # print(tf.shape(prediction_probs))
+        # print(tf.shape(actions))
+        #tensorboard --logdir='dqn_log_files/log1/data1'
+
+
+    def predict(self, states, label):
+        cost, prediction_probs = self.session.run(
+        [self.cost, self.NN_output],
+        feed_dict = {
+        self.input_placeholder: states,
+        self.output_placeholder: label
+        })
+        return prediction_probs

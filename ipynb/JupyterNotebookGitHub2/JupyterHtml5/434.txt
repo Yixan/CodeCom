@@ -1,0 +1,315 @@
+
+In [ ]:
+
+    
+from PIL import Image
+import numpy as np
+import glob
+from numpy import array
+import pandas as pd
+from sklearn.preprocessing import LabelEncoder,OneHotEncoder
+import tensorflow as tf
+from io import BytesIO  
+import requests  
+import json
+
+def loading_saving_image_as_grayscale_train(img):
+    loading=Image.open(img)
+    
+    loading=loading.resize((28,28),Image.ANTIALIAS)
+
+    loading=loading.convert('L')
+
+    conversion_to_array=np.asarray(loading,dtype=float)
+
+    train_data.append(conversion_to_array)
+
+def loading_saving_image_as_grayscale_test(img):
+    loading=Image.open(img,'r')
+    
+    loading=loading.resize((28,28),Image.ANTIALIAS)
+
+    loading=loading.convert('L')
+    
+
+    conversion_to_array=np.asarray(loading,dtype=float)
+
+    test_data.append(conversion_to_array)
+
+
+
+test_data=[]
+train_data=[]
+
+train=glob.glob('train_img/*.png')
+test=glob.glob('test_img/*.png')
+
+for data in train:
+    loading_saving_image_as_grayscale_train(data)
+
+for item in test:
+    loading_saving_image_as_grayscale_test(item)
+
+def OneHot(label,n_classes):
+    label=np.array(label).reshape(-1)
+    label=np.eye(n_classes)[label]
+
+    return label
+
+dataframe=pd.read_csv('train.csv')
+train_data=np.asarray(train_data)
+test_data=np.asarray(test_data)
+uni=dataframe['label']
+
+dataframe1=pd.read_csv('test.csv')
+dataframe1.index=dataframe1.index+1
+only_index=dataframe1['image_id']
+
+
+label=LabelEncoder()
+integer_encoding=label.fit_transform(uni)
+
+
+binary=OneHotEncoder(sparse=False)
+integer_encoding=integer_encoding.reshape(len(integer_encoding),1)
+onehot=binary.fit_transform(integer_encoding)
+
+train_data=np.reshape(train_data,[-1,28,28,1])
+test_data=np.reshape(test_data,[-1,28,28,1])
+
+train_data=np.transpose(train_data,(0,2,1,3))
+test_data=np.transpose(test_data,(0,2,1,3))
+
+train_data=train_data.astype(np.float32)
+test_data=test_data.astype(np.int32)
+
+'''HyperParameters
+Batch size=10
+Decay rate10000,0.02
+Image size=28
+No of Iterations-300000
+Size of Network-8 layers
+Optimizer-SGD'''
+batch_size = 50
+
+graph = tf.Graph()
+
+with graph.as_default():
+    # placeholders for input data batch_size x 32 x 32 x 3 and labels batch_size x 10
+    data_placeholder = tf.placeholder(tf.float32, shape=[batch_size, 28, 28, 1])
+    label_placeholder = tf.placeholder(tf.int32, shape=[batch_size, 25])
+    data_placeholder2 = tf.placeholder(tf.float32, shape=[batch_size, 28, 28, 1])
+
+    tf_test_dataset = tf.placeholder(tf.float32, shape=(len(test_data), 28, 28, 1))
+
+    # defining decaying learning rate
+    global_step = tf.Variable(0)
+    decay_rate = tf.train.exponential_decay(1e-6, global_step=global_step, decay_steps=10000, decay_rate=0.02)
+    
+    layerCNN01_weights= tf.Variable(tf.truncated_normal([5,5, 1,64], stddev=0.1))
+    layerCNN01_biases = tf.Variable(tf.constant(0.1, shape=[64]))
+    
+    layerCNN02_weights= tf.Variable(tf.truncated_normal([5,5,64,64], stddev=0.1))
+    layerCNN02_biases = tf.Variable(tf.constant(0.1, shape=[64]))
+    
+    layerCNN03_weights= tf.Variable(tf.truncated_normal([5, 5,64,128], stddev=0.1))
+    layerCNN03_biases = tf.Variable(tf.constant(0.1, shape=[128]))
+    
+    layer0_weights= tf.Variable(tf.truncated_normal([4,4,128,128], stddev=0.1))
+    layer0_biases = tf.Variable(tf.constant(0.1, shape=[128]))
+
+    layer1_weights = tf.Variable(tf.truncated_normal([3,3,128,256], stddev=0.1))
+    layer1_biases = tf.Variable(tf.constant(0.1, shape=[256]))
+
+    layer2_weights = tf.Variable(tf.truncated_normal([3,3,256,256], stddev=0.1))
+    layer2_biases = tf.Variable(tf.constant(0.1, shape=[256]))
+
+    layer3_weights = tf.Variable(tf.truncated_normal([2,2,256,512], stddev=0.1))
+    layer3_biases = tf.Variable(tf.constant(0.1, shape=[512]))
+
+    layer4_weights = tf.Variable(tf.truncated_normal([512, 25], stddev=0.1))
+    layer4_biases = tf.Variable(tf.constant(0.1, shape=[25]))
+
+    layer5_weights = tf.Variable(tf.truncated_normal([25, 25], stddev=0.1))
+    layer5_biases = tf.Variable(tf.constant(0.1, shape=[25]))
+
+
+    def layer_multiplication(data_input_given,dropping=False):
+        
+        CNN01=tf.nn.relu(
+            tf.nn.conv2d(data_input_given, layerCNN01_weights, strides=[1, 1, 1, 1], padding='SAME') + layerCNN01_biases)
+        
+        CNN02=tf.nn.relu(
+            tf.nn.conv2d(CNN01, layerCNN02_weights, strides=[1, 1, 1, 1], padding='SAME') + layerCNN02_biases)
+            
+        CNN03=tf.nn.relu(
+            tf.nn.conv2d(CNN02, layerCNN03_weights, strides=[1, 1, 1, 1], padding='SAME') + layerCNN03_biases)
+        
+        CNN04 = tf.nn.relu(
+            tf.nn.conv2d(CNN03, layer0_weights, strides=[1, 1, 1, 1], padding='SAME') + layer0_biases)
+        
+        Pool04=tf.nn.max_pool(CNN04, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
+        
+
+        CNN1 = tf.nn.relu(
+            tf.nn.conv2d(Pool04, layer1_weights, strides=[1, 1, 1, 1], padding='SAME') + layer1_biases)
+        
+        print("CNN0 Done")
+
+        # Pooling Layer
+
+        Pool1 = tf.nn.max_pool(CNN1, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
+        print('Pool1 DOne')
+        print(Pool1.shape)
+
+        # second Convolution layer
+
+        CNN2 = tf.nn.relu(tf.nn.conv2d(Pool1, layer2_weights, strides=[1, 1, 1, 1], padding='SAME')) + layer2_biases
+        print('CNN2 Done')
+        print(CNN2.shape)
+        # Second Pooling
+
+        Pool2 = tf.nn.max_pool(CNN2, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
+        print('pool2 Done')
+        print(Pool2.shape)
+        # Third Convolutional Layer
+
+        CNN3 = tf.nn.relu(tf.nn.conv2d(Pool2, layer3_weights, strides=[1, 1, 1, 1], padding='SAME')) + layer3_biases
+        print('CNN3 Done')
+        print(CNN3.shape)
+        # Third Pooling Layer
+
+        Pool3 = tf.nn.max_pool(CNN3, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
+        print('Pool3 DOne')
+        print(Pool3.shape)
+        # Fully Connected Layer
+        Pool4 = tf.nn.max_pool(Pool3, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
+
+        print(Pool4.shape)
+
+        shape = Pool4.get_shape().as_list()
+
+        # print(shape)
+
+        reshape = tf.reshape(Pool4, [shape[0], shape[1] * shape[2] * shape[3]])
+
+        print(reshape.shape)
+
+        FullyCon = tf.nn.relu(tf.matmul(reshape, layer4_weights) + layer4_biases)
+
+        print(FullyCon.shape)
+        
+        if dropping==False:
+            print("Training")
+            dropout = tf.nn.dropout(FullyCon, 0.6)
+            final_logit = tf.matmul(dropout, layer5_weights) + layer5_biases
+            print(final_logit.shape)
+            first_index = final_logit[0]
+            print(first_index)
+            return final_logit
+        
+        else:
+            print("Testing")
+            final_logit = tf.matmul(FullyCon, layer5_weights) + layer5_biases
+            print(final_logit.shape)
+            first_index = final_logit[0]
+            print(first_index)
+            return final_logit
+
+
+    train_input = layer_multiplication(data_placeholder)
+    test_prediction = tf.nn.softmax(layer_multiplication(tf_test_dataset,True))
+    print(train_input.shape)
+    print(test_prediction.shape)
+
+    loss = (tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=label_placeholder, logits=train_input))
+            + 0.01 * tf.nn.l2_loss(layer0_weights)
+            + 0.01 * tf.nn.l2_loss(layer1_weights) 
+            + 0.01 * tf.nn.l2_loss(layer2_weights)
+            + 0.01 * tf.nn.l2_loss(layer3_weights)
+            + 0.01 * tf.nn.l2_loss(layer4_weights)
+            + 0.01 * tf.nn.l2_loss(layer5_weights)
+            + 0.01 * tf.nn.l2_loss(layerCNN01_weights)
+            + 0.01 * tf.nn.l2_loss(layerCNN02_weights)
+            + 0.01 * tf.nn.l2_loss(layerCNN03_weights)
+            )
+
+    optimizer = tf.train.GradientDescentOptimizer(name='Stochastic', learning_rate=decay_rate).minimize(loss,
+                                                                                                        global_step=global_step)
+        
+    #optimizer=tf.train.AdamOptimizer(learning_rate=decay_rate).minimize(loss,global_step=global_step)
+    
+    #optimizer=tf.train.RMSPropOptimizer(learning_rate=decay_rate,decay=0.9).minimize(loss,global_step=global_step)
+
+    num_steps = 300000
+
+    prediction = []
+
+    cwd=os.getcwd()
+    saver=tf.train.Saver()
+    with tf.Session(graph=graph) as session:
+        tf.global_variables_initializer().run()
+        print('Initialized')
+        for i in range(num_steps):
+    
+            offset = (i * batch_size) % (onehot.shape[0] - batch_size)
+            batch_data = train_data[offset:(offset + batch_size), :, :]
+            batch_labels = onehot[offset:(offset + batch_size), :]
+            
+            if(i%500==0):
+                
+                feed_dict = {data_placeholder: batch_data, label_placeholder: batch_labels}
+                _, l, predictions = session.run(
+                    [optimizer, loss, train_input], feed_dict=feed_dict)
+                print('Minibatch loss at step %d: %f' % (i, l))
+                print(session.run(decay_rate))
+
+        prediction1 =session.run(test_prediction,feed_dict={tf_test_dataset:test_data})
+
+        class_label=tf.one_hot(tf.nn.top_k(prediction1).indices,tf.shape(prediction1)[0])
+        one_hot_label_prediction=class_label.eval()
+
+
+        for item in one_hot_label_prediction:
+            decode = tf.argmax(item, axis=1)
+            prediction.append(session.run(decode))
+
+
+
+        other_op=label.inverse_transform(prediction)
+
+        print(len(other_op))
+        print(type(other_op))
+        other_op=list(other_op)
+
+        submit = pd.DataFrame(index= only_index,data=other_op)
+        print(submit)
+        print(type(submit))
+        submit.to_csv('prediction.csv')
+        
+        put_file(credentials_1,'prediction.csv')
+        print("File Submitted")
+
+
+    
+
+
+
+In [ ]:
+
+    
+ 
+
+
+    
+
+
+
+In [ ]:
+
+    
+ 
+
+
+    
+

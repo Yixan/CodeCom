@@ -1,0 +1,68 @@
+"""
+目的：tf 常用方法使用.
+
+
+Z = n
+- `tf.Graph()`
+- `tf.Variable()`
+- `tf.placeholder()`
+- `tf.nn.sigmoid_cross_entropy_with_logits()`
+- `tf.reduce_sum()`
+- `tf.nn.l2_loss()`
+- `tf.sigmoid()`
+- `tf.multiply()`
+- `tf.concat()` 在某个维度上连接 tensor.
+- `tf.gather()`
+- `tf.square()`
+- `tf.square()`
+- `tf.constant()`
+- `tf.transpose()`
+- `tf.sparse_to_dense()`
+- `tf.matmul()`
+- `tf.nn.dropout()`
+- `tf.nn.moments()`
+- `tf.random_uniform()`
+- `tf.random_normal()`
+- `tf.train.FtrlOptimizer()`
+- `tf.train.GradientDescentOptimizer()`
+- `tf.tanh()`
+- `tf.nn.relu()`
+- `tf.train.AdagradOptimizer()`
+- `tf.train.AdamOptimizer()`
+- `tf.name_scope()`
+
+
+
+"""
+import tensorflow as tf
+sess = tf.Session()
+"""
+两步走，
+- 第一步，根据类型创建一个 placeholder,
+- 第二步，将参数通过 feed_dict 的方式喂给 session 和变量.
+
+三步走：placeholder + 计算表达式 + run 并且喂数据.
+"""
+x = tf.placeholder(tf.float32)
+y = tf.placeholder(tf.float32)
+z = x + y + 1
+z_result = sess.run(z, feed_dict={x: 2.0, y: 3.2})
+print(z_result)
+x_constant = tf.constant([[1, 2, 3], [5, 98, 20]])
+r_s_1 = tf.reduce_sum(x_constant, axis=0)
+r_s_2 = tf.reduce_sum(x_constant, axis=1)
+r_1_result = sess.run(r_s_1)
+r_2_result = sess.run(r_s_2)
+print(r_1_result)
+print(r_2_result)
+v_1 = tf.constant(2)
+v_2 = tf.constant(3)
+mul_12 = tf.multiply(v_1, v_2)
+mul_12_result = sess.run(mul_12)
+print(mul_12_result)
+t_1 = [[1, 4, 3], [2, 5, 6]]
+t_2 = [[8, 9, 7], [10, 9, 26]]
+concat_1 = tf.concat([t_1, t_2], 0)
+concat_2 = tf.concat([t_1, t_2], 1)
+print(sess.run(concat_1))
+print(sess.run(concat_2))

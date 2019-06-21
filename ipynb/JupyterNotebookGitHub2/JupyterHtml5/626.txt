@@ -1,0 +1,372 @@
+
+In [2]:
+
+    
+# These are all the modules we'll be using later. Make sure you can import them
+# before proceeding further.
+from __future__ import print_function
+import numpy as np
+import tensorflow as tf
+from six.moves import cPickle as pickle
+
+
+    
+
+
+
+In [3]:
+
+    
+pickle_file = '/home/smart/Documents/Deepankar/ML/tensorflow_tutorial/notMNIST/notMNIST_large/notMNIST.pickle'
+
+with open(pickle_file, 'rb') as f:
+  save = pickle.load(f)
+  train_dataset = save['train_dataset']
+  train_labels = save['train_labels']
+  valid_dataset = save['valid_dataset']
+  valid_labels = save['valid_labels']
+  test_dataset = save['test_dataset']
+  test_labels = save['test_labels']
+  del save  # hint to help gc free up memory
+  print('Training set', train_dataset.shape, train_labels.shape)
+  print('Validation set', valid_dataset.shape, valid_labels.shape)
+  print('Test set', test_dataset.shape, test_labels.shape)
+
+
+    
+
+
+
+In [5]:
+
+    
+image_size = 28
+num_labels = 10
+
+def reformat(dataset, labels):
+  dataset = dataset.reshape((-1, image_size * image_size)).astype(np.float32)
+  # Map 1 to [0.0, 1.0, 0.0 ...], 2 to [0.0, 0.0, 1.0 ...]
+  labels = (np.arange(num_labels) == labels[:,None]).astype(np.float32)
+  return dataset, labels
+train_dataset, train_labels = reformat(train_dataset, train_labels)
+valid_dataset, valid_labels = reformat(valid_dataset, valid_labels)
+test_dataset, test_labels = reformat(test_dataset, test_labels)
+print('Training set', train_dataset.shape, train_labels.shape)
+print('Validation set', valid_dataset.shape, valid_labels.shape)
+print('Test set', test_dataset.shape, test_labels.shape)
+
+
+    
+
+
+
+In [6]:
+
+    
+def accuracy(predictions, labels):
+  return (100.0 * np.sum(np.argmax(predictions, 1) == np.argmax(labels, 1))
+          / predictions.shape[0])
+
+
+    
+
+
+
+In [34]:
+
+    
+batch_size = 128
+hidden_nodes = 1024
+reg = 1e-2
+
+def nn_feedforward(x, w1, w2, b1, b2):
+    z1 = tf.matmul(x, w1) + b1
+    a1 = tf.nn.relu(z1)
+    z2 = tf.matmul(a1, w2) + b2
+    
+    return z2
+
+new_graph = tf.Graph()
+with new_graph.as_default():
+    
+    # declare placeholders for training data and define constants 
+    # for validation and test data
+    x_train = tf.placeholder(dtype=tf.float32, shape=(batch_size, image_size*image_size))
+    y_train = tf.placeholder(dtype=tf.float32, shape=(batch_size, num_labels))
+    x_val = tf.constant(valid_dataset)
+    x_test = tf.constant(test_dataset)
+    
+    # declare variables
+    w1 = tf.Variable(tf.truncated_normal([image_size*image_size, hidden_nodes]))
+    b1 = tf.Variable(tf.zeros([hidden_nodes]))
+    w2 = tf.Variable(tf.truncated_normal([hidden_nodes, num_labels]))
+    b2 = tf.Variable(tf.zeros([num_labels]))
+    
+    # feedforward and activations and cross-entropy loss
+    z2 = nn_feedforward(x_train, w1, w2, b1, b2)
+    loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=y_train, logits=z2) +
+                         reg*tf.nn.l2_loss(w1) +
+                         reg*tf.nn.l2_loss(w2))
+    
+    # initialise the SGD optimiser
+    optimiser = tf.train.GradientDescentOptimizer(0.3).minimize(loss)
+    
+    # predictions on each dataset
+    y_train_pred = tf.nn.softmax(z2)
+    y_val_pred = tf.nn.softmax(nn_feedforward(x_val, w1, w2, b1, b2))
+    y_test_pred = tf.nn.softmax(nn_feedforward(x_test, w1, w2, b1, b2))
+    
+
+
+    
+
+
+
+In [35]:
+
+    
+num_steps = 5001
+
+with tf.Session(graph=new_graph) as new_session:
+
+    # randomly initialise global variables
+    tf.global_variables_initializer().run()
+    print("Initialised")
+    
+    for step in xrange(num_steps):
+        # generate mini-batch
+        offset = (step * batch_size) % (train_labels.shape[0] - batch_size)
+        batch_data = train_dataset[offset:(offset + batch_size), :]
+        batch_labels = train_labels[offset:(offset + batch_size), :]
+        
+        # initialise the feed_dict
+        feed_dict = {x_train: batch_data, y_train: batch_labels}
+        
+        # run the session
+        _, l, y_pred = new_session.run([optimiser, loss, y_train_pred], feed_dict=feed_dict)
+        
+        # print the predictions after every 500 steps
+        if (step % 500 == 0):
+            print("Minibatch loss at step %d: %f" % (step, l))
+            print("Minibatch accuracy: %.1f%%" % accuracy(y_pred, batch_labels))
+            print("Validation accuracy: %.1f%%" % accuracy(y_val_pred.eval(), valid_labels))
+            print("----####----")
+        
+    print("Test accuracy: %.1f%%" % accuracy(y_test_pred.eval(), test_labels))
+    new_session.close()
+    
+
+
+    
+
+
+
+In [32]:
+
+    
+batch_size = 64
+hidden_nodes = 1024
+# reg = 1e-2
+
+def nn_feedforward(x, w1, w2, b1, b2, istrain=True):
+    if(istrain is True):
+        x = tf.nn.dropout(x, keep_prob=0.5)
+    z1 = tf.matmul(x, w1) + b1
+    a1 = tf.nn.relu(z1)
+    if(istrain is True):
+        a1 = tf.nn.dropout(a1, keep_prob=0.5)
+    z2 = tf.matmul(a1, w2) + b2
+    
+    return z2
+
+new_graph = tf.Graph()
+with new_graph.as_default():
+    
+    # declare placeholders for training data and define constants 
+    # for validation and test data
+    x_train = tf.placeholder(dtype=tf.float32, shape=(batch_size, image_size*image_size))
+    y_train = tf.placeholder(dtype=tf.float32, shape=(batch_size, num_labels))
+    x_val = tf.constant(valid_dataset)
+    x_test = tf.constant(test_dataset)
+    
+    # declare variables
+    w1 = tf.Variable(tf.truncated_normal([image_size*image_size, hidden_nodes]))
+    b1 = tf.Variable(tf.zeros([hidden_nodes]))
+    w2 = tf.Variable(tf.truncated_normal([hidden_nodes, num_labels]))
+    b2 = tf.Variable(tf.zeros([num_labels]))
+    
+    # feedforward and activations and cross-entropy loss
+    z2 = nn_feedforward(x_train, w1, w2, b1, b2)
+    loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=y_train, logits=z2))
+    
+    # initialise the SGD optimiser
+    optimiser = tf.train.GradientDescentOptimizer(0.1).minimize(loss)
+    
+    # predictions on each dataset
+    y_train_pred = tf.nn.softmax(z2)
+    y_val_pred = tf.nn.softmax(nn_feedforward(x_val, w1, w2, b1, b2, istrain=False))
+    y_test_pred = tf.nn.softmax(nn_feedforward(x_test, w1, w2, b1, b2, istrain=False))
+    
+
+
+    
+
+
+
+In [33]:
+
+    
+num_steps = 5001
+
+with tf.Session(graph=new_graph) as new_session:
+
+    # randomly initialise global variables
+    tf.global_variables_initializer().run()
+    print("Initialised")
+    
+    for step in xrange(num_steps):
+        # generate mini-batch
+        offset = (step * batch_size) % (train_labels.shape[0] - batch_size)
+        batch_data = train_dataset[offset:(offset + batch_size), :]
+        batch_labels = train_labels[offset:(offset + batch_size), :]
+        
+        # initialise the feed_dict
+        feed_dict = {x_train: batch_data, y_train: batch_labels}
+        
+        # run the session
+        _, l, y_pred = new_session.run([optimiser, loss, y_train_pred], feed_dict=feed_dict)
+        
+        # print the predictions after every 500 steps
+        if (step % 500 == 0):
+            print("Minibatch loss at step %d: %f" % (step, l))
+            print("Minibatch accuracy: %.1f%%" % accuracy(y_pred, batch_labels))
+            print("Validation accuracy: %.1f%%" % accuracy(y_val_pred.eval(), valid_labels))
+            print("----####----")
+        
+    print("Test accuracy: %.1f%%" % accuracy(y_test_pred.eval(), test_labels))
+    new_session.close()
+    
+
+
+    
+
+
+
+In [37]:
+
+    
+from IPython.core.debugger import Tracer
+
+batch_size = 128
+input_dim = image_size*image_size
+hidden_layers = 2
+hidden_nodes = 1024
+params = {}
+reg = 1e-2
+l2_pen = 0
+
+def nn_feedforward(x, w, b):
+    z = tf.matmul(x, w) + b
+    return z
+    
+def nn_relu(z):
+    a = tf.nn.relu(z)
+    return a
+
+# computes forward pass
+def nn_computeforward(a):
+    for h in xrange(hidden_layers):
+        z = nn_feedforward(a, params['w%s' % (h+1)], params['b%s' %(h+1)])
+        a = nn_relu(z)
+    score = tf.matmul(a, params['w%s' % (hidden_layers+1)]) + params['b%s' % (hidden_layers+1)]
+    
+    return score
+
+new_graph = tf.Graph()
+with new_graph.as_default():
+    
+    # declare placeholders for training data and define constants 
+    # for validation and test data
+    x_train = tf.placeholder(dtype=tf.float32, shape=(batch_size, input_dim))
+    y_train = tf.placeholder(dtype=tf.float32, shape=(batch_size, num_labels))
+    x_val = tf.constant(valid_dataset)
+    x_test = tf.constant(test_dataset)
+    
+    # declare variables
+    input_dim = image_size*image_size
+    temp = np.repeat(hidden_nodes, hidden_layers)
+    dims = [input_dim] + temp.tolist() + [num_labels]
+    # Tracer()()
+    for h in xrange(hidden_layers+1):
+        params['w%s' % (h+1)] = tf.Variable(tf.truncated_normal([dims[h], dims[h+1]]))
+        params['b%s' %(h+1)] = tf.Variable(tf.zeros([dims[h+1]]))
+    
+    # compute forward pass
+    score = nn_computeforward(x_train)
+    
+    # compute L2-penalty and cross-entropy loss
+    for h in xrange(hidden_layers):
+        l2_pen += tf.nn.l2_loss(params['w%s' % (h+1)])
+    loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=y_train, logits=score) + reg*l2_pen)
+    
+    # initialise the SGD optimiser
+    optimiser = tf.train.AdagradOptimizer(0.5,initial_accumulator_value=1e-2).minimize(loss)
+    
+    # predictions on each dataset
+    y_train_pred = tf.nn.softmax(score)
+    y_val_pred = tf.nn.softmax(nn_computeforward(x_val))
+    y_test_pred = tf.nn.softmax(nn_computeforward(x_test))
+    
+
+
+    
+
+
+
+In [ ]:
+
+    
+num_steps = 20001
+
+with tf.Session(graph=new_graph) as new_session:
+
+    # randomly initialise global variables
+    tf.global_variables_initializer().run()
+    print("Initialised")
+    
+    for step in xrange(num_steps):
+        # generate mini-batch
+        offset = (step * batch_size) % (train_labels.shape[0] - batch_size)
+        batch_data = train_dataset[offset:(offset + batch_size), :]
+        batch_labels = train_labels[offset:(offset + batch_size), :]
+        
+        # initialise the feed_dict
+        feed_dict = {x_train: batch_data, y_train: batch_labels}
+        
+        # run the session
+        _, l, y_pred = new_session.run([optimiser, loss, y_train_pred], feed_dict=feed_dict)
+        
+        # print the predictions after every 500 steps
+        if (step % 500 == 0):
+            print("Minibatch loss at step %d: %f" % (step, l))
+            print("Minibatch accuracy: %.1f%%" % accuracy(y_pred, batch_labels))
+            print("Validation accuracy: %.1f%%" % accuracy(y_val_pred.eval(), valid_labels))
+            print("----####----")
+        
+    print("Test accuracy: %.1f%%" % accuracy(y_test_pred.eval(), test_labels))
+    new_session.close()
+    
+
+
+    
+
+
+
+In [ ]:
+
+    
+ 
+
+
+    
+

@@ -1,0 +1,52 @@
+import pandas as pd
+import numpy as np
+import keras
+from tqdm import tqdm
+from keras.models import Sequential
+from keras.layers import Merge
+from keras.layers.core import Dense, Activation, Dropout
+from keras.layers.embeddings import Embedding
+from keras.layers.recurrent import LSTM, GRU
+from keras.layers.normalization import BatchNormalization
+from keras.utils import np_utils
+from keras.layers import TimeDistributed, Lambda
+from keras.layers import Convolution1D, GlobalMaxPooling1D
+from keras.callbacks import ModelCheckpoint
+from keras import backend as K
+from keras.layers.advanced_activations import PReLU
+import pickle
+from sklearn import metrics
+from sklearn.model_selection import train_test_split
+from keras.layers import Layer
+from keras.models import Model
+from keras.layers.core import  Lambda,Dropout,Dense, Flatten, Activation
+from keras.layers.embeddings import Embedding
+from keras.layers.wrappers import Bidirectional
+from keras.layers.convolutional import Conv1D
+from keras.layers.recurrent import GRU,LSTM
+from keras.layers.pooling import MaxPooling2D
+from keras.layers import Concatenate, Input, concatenate,dot
+from keras.layers.normalization import BatchNormalization
+from keras import initializers as initializations
+from keras import regularizers
+from keras import constraints
+from keras import backend as K
+from keras.callbacks import EarlyStopping, ModelCheckpoint
+import sys
+reload(sys)
+sys.setdefaultencoding('utf-8')
+class AttentionWithContext(Layer):
+                 W_regularizer=None, u_regularizer=None, b_regularizer=None,
+                 W_constraint=None, u_constraint=None, b_constraint=None,
+                 bias=True, **kwargs):lf.supports_masking = Truelf.init = initializations.get('glorot_uniform')lf.W_regularizer = regularizers.get(W_regularizer)lf.u_regularizer = regularizers.get(u_regularizer)lf.b_regularizer = regularizers.get(b_regularizer)lf.W_constraint = constraints.get(W_constraint)lf.u_constraint = constraints.get(u_constraint)lf.b_constraint = constraints.get(b_constraint)lf.bias = biasuper(AttentionWithContext, self).__init__(**kwargs)f build(self, input_shape):ert len(input_shape) == 3f.W = self.add_weight((input_shape[-1], input_shape[-1],),
+                                 initializer=self.init,
+                                 name='{}_W'.format(self.name),
+                                 regularizer=self.W_regularizer,
+                                 constraint=self.W_constraint)f self.bias:lf.b = self.add_weight((input_shape[-1],),
+                                     initializer='zero',
+                                     name='{}_b'.format(self.name),
+                                     regularizer=self.b_regularizer,
+                                     constraint=self.b_constraint)lf.u = self.add_weight((input_shape[-1],),
+                                 initializer=self.init,
+                                 name='{}_u'.format(self.name),
+                                 regularizer=self.u_regularizer,

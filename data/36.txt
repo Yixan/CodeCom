@@ -1,0 +1,131 @@
+from keras.layers import Dense, Dropout, TimeDistributed
+from keras.layers.recurrent import LSTM
+from keras.models import Sequential, Model
+from keras.initializers import Constant
+from keras.optimizers import Adam, RMSprop, SGD
+from keras.applications import ResNet50 as ResNet
+from collections import deque
+from keras import backend as K
+from keras.layers import Activation, Lambda, Input, Concatenate, Reshape, Flatten, concatenate
+from keras.layers import Input, Dense, Activation, Dropout, Conv3D, MaxPooling3D, Flatten,ZeroPadding3D, \
+    TimeDistributed, SpatialDropout3D,BatchNormalization, Lambda, GRU, SpatialDropout1D
+from keras.layers import concatenate
+def get_model(features_length, image_shape, len_classes, seq_length, model_name, optimizer_name, learning_rate, decay,_units, lstm_dropout, dense_dropout, dense_units, resnet=False):
+        rm = LSTMModel(lstm_units, len_classes, seq_length, features_length=features_length,rning_rate=learning_rate, decay=decay, model_name=model_name, lstm_dropout=lstm_dropout,timizer_name=optimizer_name, dense_units=dense_units, dense_dpo=dense_dropout)
+    else:
+        rm = ResNetLSTMModel(lstm_units, len_classes, seq_length, image_shape=image_shape, decay=decay,arning_rate=learning_rate, lstm_dropout=lstm_dropout, optimizer_name=optimizer_name,ense_units=dense_units, dense_dropout=dense_dropout)
+    return rm
+def ctc_lambda_func(args):
+    y_pred, labels, input_length, label_length = args
+    y_pred = y_pred[:, 2:, :]
+    return K.ctc_batch_cost(labels, y_pred, input_length, label_length)
+class ResNetLSTMModel:
+    def __init__(self, units, nb_classes, seq_length, model_name="resnet", image_shape=(48, 48, 1),optimizer_name="adam",ning_rate=1e-3, decay=1e-6, lstm_dropout=0.5, dense_units=512, dense_dropout=0.5):
+        self.feature_queue = deque()
+        self.image_shape = image_shape
+        self.seq_length = seq_length
+        self.nb_classes = nb_classes
+        self.feature_queue = deque()
+        self.optimizer_name = optimizer_name
+        self.learning_rate = learning_rate
+        self.decay = decay
+        self.model_name = model_name + "-" + "LstmUnits_" + str(units) + "-" + "LstmDO_" + str(lstm_dropout) + "-" \
+                          + "Lr_" + str(learning_rate)
+        metrics = ['accuracy']
+        self.input_shape = (seq_length, image_shape[0], image_shape[1], image_shape[2])
+        self.model = self.build_resnet(units, lstm_dropout, dense_units, dense_dropout)
+        self.layer = 1
+        self.direction = "single direction"
+        self.compile(self.learning_rate)
+    def build_resnet(self, units, dropout=0.5, dense_units=512, dense_dropout=0.5):
+        resnet = ResNet(include_top=False, pooling=None)
+        input_data = Input(name='the_input', shape=self.input_shape, dtype='float32')
+        labels = Input(name='labels', shape=[self.nb_classes], dtype='float32')
+        input_length = Input(name='input_length', shape=[1], dtype='int64')
+        label_length = Input(name='label_length', shape=[1], dtype='int64')
+        res_list = []
+        for j in range(self.seq_length):
+            def slice(x):
+                return x[:, j, :, :]
+            inner = resnet(Lambda(slice)(input_data))
+            res_list.append(inner)
+        m = concatenate(res_list, axis=1)
+        inner = Reshape((self.seq_length, 2048))(m)
+        inner = TimeDistributed(Dense(dense_units // 16, activation='relu'))(inner)
+        lstm = LSTM(units, return_sequences=True, dropout=dropout, bias_initializer=Constant(value=5))(inner)
+        y_pred = TimeDistributed(Dense(self.nb_classes, activation="softmax"))(lstm)
+        loss_out = Lambda(ctc_lambda_func, output_shape=(1,), name='ctc')([y_pred, labels, input_length, label_length])
+        model = Model(inputs=input_data, outputs=y_pred)
+        model.summary()
+        optimizer = Adam(lr=0.0001)
+        model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
+        self.direction = "single direction"
+        return model
+    def compile(self, lr=None):
+        if lr is not None:
+            self.learning_rate = lr
+        if self.optimizer_name == "adam":
+            optimizer = Adam(lr=self.learning_rate, decay=self.decay)
+        elif self.optimizer_name == "rmsprop":
+            optimizer = RMSprop(self.learning_rate)
+        self.model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
+class LSTMModel:
+    def __init__(self, units, nb_classes, seq_length, model_name="lstm", features_length=2048, optimizer_name="adam",ning_rate=1e-3, decay=1e-6, lstm_dropout=0.5, dense_units=512, dense_dpo=0.5):
+        self.nb_classes = nb_classes
+        self.feature_queue = deque()
+        self.optimizer_name = optimizer_name
+        self.learning_rate = learning_rate
+        self.decay = decay
+        self.model_name = model_name + "-" + "LstmUnits_" + str(units) + "-" + "LstmDO_" + str(lstm_dropout) + "-" + \
+                          "Lr_" + str(learning_rate)
+        self.input_shape = (seq_length, features_length)
+        if model_name == "lstm":
+            m, l, d = lstm(self.input_shape, self.nb_classes, units, lstm_dropout, dense_units, dense_dpo)
+        elif model_name == 'two-layer':
+            m, l, d = two_layer_lstm(self.input_shape, self.nb_classes, units, lstm_dropout, dense_units, dense_dpo)
+        elif model_name == "three-layer":
+            m, l, d = three_layer_lstm(self.input_shape, self.nb_classes, units, lstm_dropout, dense_units, dense_dpo)
+        else:
+            raise ValueError("Unknown model type \"{}\", choose out of (lstm, only)".format(model_name))
+        self.model = m
+        self.layer = l
+        self.direction = d
+        print(self.model.summary())
+    def compile(self, lr=None):
+        if lr is not None:
+            self.learning_rate = lr
+        if self.optimizer_name == "adam":
+            optimizer = Adam(lr=self.learning_rate, decay=self.decay)
+        elif self.optimizer_name == "rmsprop":
+            optimizer = RMSprop(self.learning_rate)
+        self.model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
+def two_layer_lstm(input_shape, nb_classes, units, dropout=0.5, dense_units=512, dense_dropout=0.5):
+    model = Sequential()
+    model.add(TimeDistributed(Dense(dense_units), input_shape=input_shape))
+    model.add(LSTM(units, return_sequences=True, bias_initializer=Constant(value=5), dropout=dropout))
+    model.add(Dropout(dense_dropout))
+    model.add(LSTM(units, return_sequences=True, dropout=dropout, bias_initializer=Constant(value=5)))
+    model.add(TimeDistributed(Dense(dense_units, activation='relu')))
+    model.add(Dropout(dense_dropout))
+    model.add(TimeDistributed(Dense(nb_classes, activation='softmax')))
+    return model, 2, "single direciton"
+def three_layer_lstm(input_shape, nb_classes, units, dropout=0.5, dense_units=512, dense_dropout=0.5):
+    model = Sequential()
+    model.add(TimeDistributed(Dense(dense_units), input_shape=input_shape))
+    model.add(LSTM(units, return_sequences=True, dropout=dropout, bias_initializer=Constant(value=5)))
+    model.add(Dropout(dense_dropout))
+    model.add(LSTM(units, return_sequences=True, dropout=dropout, bias_initializer=Constant(value=5)))
+    model.add(Dropout(dense_dropout))
+    model.add(LSTM(units, return_sequences=True, dropout=dropout, bias_initializer=Constant(value=5)))
+    model.add(TimeDistributed(Dense(dense_units, activation='relu')))
+    model.add(Dropout(dense_dropout))
+    model.add(TimeDistributed(Dense(nb_classes, activation='softmax')))
+    return model, 3, "single direciton"
+def lstm(input_shape, nb_classes, units, dropout=0.5, dense_units=512, dense_dropout=0.5):
+    model = Sequential()
+    model.add(TimeDistributed(Dense(dense_units), input_shape=input_shape))
+    model.add(LSTM(units, return_sequences=True, dropout=dropout, bias_initializer=Constant(value=5)))
+    model.add(TimeDistributed(Dense(dense_units, activation='relu')))
+    model.add(Dropout(dense_dropout))
+    model.add(TimeDistributed(Dense(nb_classes, activation='softmax')))
+    return model, 1, "single direction"

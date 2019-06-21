@@ -1,0 +1,99 @@
+
+In [39]:
+
+    
+import tensorflow as tf
+
+from tensorflow.examples.tutorials.mnist import input_data
+mnist = input_data.read_data_sets("MNIST_data/", one_hot=True)
+
+X = tf.placeholder("float", [None, 784])
+
+Y = tf.placeholder("float", [None, 10])
+
+W1 = tf.Variable(tf.truncated_normal([28*28, 200] ,stddev=0.1))
+B1 = tf.Variable(tf.zeros([200]))
+W2 = tf.Variable(tf.truncated_normal([200, 10], stddev=0.1))
+B2 = tf.Variable(tf.zeros([10]))
+XX = tf.reshape(X, [-1, 28*28])
+Y1 = tf.nn.relu(tf.matmul(XX, W1) + B1)
+
+Ylogits = tf.matmul(Y1, W2) + B2
+Y2 = tf.nn.softmax(Ylogits)
+
+diff= tf.nn.softmax_cross_entropy_with_logits(logits=Ylogits, labels=Y)
+diff = tf.reduce_mean(diff)*100
+eta = tf.constant(0.001)
+train_step = tf.train.AdamOptimizer(eta).minimize(diff)
+acct_mat = tf.equal(tf.argmax(Y2, 1), tf.argmax(Y, 1))
+acct_res = tf.reduce_sum(tf.cast(acct_mat, tf.float32))
+
+sess = tf.InteractiveSession()
+sess.run(tf.global_variables_initializer())
+
+for i in range(10000):
+    batch_xs, batch_ys = mnist.train.next_batch(10)
+    sess.run(train_step, {X: batch_xs, Y : batch_ys})
+    if i % 1000 == 0:
+        res = sess.run(acct_res, {X: mnist.test.images[:1000], Y : mnist.test.labels[:1000]})
+        print(res)
+
+
+    
+
+
+
+In [57]:
+
+    
+import tensorflow as tf
+
+from tensorflow.examples.tutorials.mnist import input_data
+mnist = input_data.read_data_sets("MNIST_data/", one_hot=True)
+
+X = tf.placeholder("float", [None, 784])
+
+Y = tf.placeholder("float", [None, 10])
+
+W1 = tf.Variable(tf.truncated_normal([28*28, 200] ,stddev=0.1))
+B1 = tf.Variable(tf.zeros([200]))
+W2 = tf.Variable(tf.truncated_normal([200, 10], stddev=0.1))
+B2 = tf.Variable(tf.zeros([10]))
+XX = tf.reshape(X, [-1, 28*28])
+Y1 = tf.nn.relu(tf.matmul(XX, W1) + B1)
+
+Ylogits = tf.matmul(Y1, W2) + B2
+Y2 = tf.nn.softmax(Ylogits)
+global_step = tf.Variable(0, trainable=False)
+diff= tf.nn.softmax_cross_entropy_with_logits(logits=Ylogits, labels=Y)
+diff = tf.reduce_mean(diff)*100
+step = 100
+for i in range(step,0):
+  lr = 0.0001 + tf.train.exponential_decay(0.001, step, 2000, 1/math.e)
+train_step = tf.train.AdamOptimizer(lr).minimize(diff)
+acct_mat = tf.equal(tf.argmax(Y2, 1), tf.argmax(Y, 1))
+acct_res = tf.reduce_sum(tf.cast(acct_mat, tf.float32))
+
+sess = tf.InteractiveSession()
+sess.run(tf.global_variables_initializer())
+
+for i in range(10000):
+    batch_xs, batch_ys = mnist.train.next_batch(10)
+    sess.run(train_step, {X: batch_xs, Y : batch_ys})
+    if i % 1000 == 0:
+        res = sess.run(acct_res, {X: mnist.test.images[:1000], Y : mnist.test.labels[:1000]})
+        print(res)
+
+
+    
+
+
+
+In [0]:
+
+    
+ 
+
+
+    
+

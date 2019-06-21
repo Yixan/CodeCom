@@ -1,0 +1,48 @@
+from keras.preprocessing.image import ImageDataGenerator
+from keras.models import Sequential
+from keras.layers.core import Dense, Dropout, Activation, Flatten, Reshape
+from keras.layers.convolutional import Convolution2D, MaxPooling2D
+from keras.layers.recurrent import LSTM, SimpleRNN
+from keras.optimizers import SGD, Adam
+from keras.utils import np_utils
+def build_MLP_net(nb_classes, input_shape):
+    model.add(Convolution2D(512, 3, 3, border_mode='same',input_shape=input_shape))
+    model.add(Activation('relu'))
+    model.add(Dropout(0.25))
+    model.add(Flatten())
+    model.add(Dense(4608))
+    model.add(Activation('relu'))
+    model.add(Dropout(0.25))
+    model.add(Dense(4608))
+    model.add(Activation('relu'))
+    model.add(Dropout(0.25))
+    model.add(Dense(1000))
+    model.add(Activation('relu'))
+    model.add(Dropout(0.25))
+    model.add(Dense(nb_classes))
+    model.add(Activation('sigmoid'))
+    model.compile(loss='binary_crossentropy', optimizer=Adam())
+    print 'We have a model!'
+    return model
+def build_LSTM_net(nb_classes, input_shape):
+    img_model.add(Convolution2D(512, 3, 3, border_mode='same',input_shape=input_shape))
+    img_model.add(Flatten())
+    img_model.add(Dense(512))
+    language_model = Sequential()
+    language_model.add(Embedding(nb_classes, 256, input_length=max_caption_len))
+    language_model.add(LSTM(output_dim=128, return_sequences=True))
+    language_model.add(TimeDistributedDense(128))
+    image_model.add(RepeatVector(max_caption_len))
+    model = Sequential()
+    model.add(Merge([image_model, language_model], mode='concat', concat_axis=-1))
+    model.add(LSTM(256, return_sequences=False))
+    model.add(Dense(nb_classes))
+    model.add(Activation('softmax'))
+    model.compile(loss='categorical_crossentropy', optimizer='rmsprop')
+def build_random(nb_classes):
+        model = Sequential()
+        model.add(Dense(1))
+        model.add(Dense(nb_classes))
+        model.add(Activation('sigmoid'))
+        model.compile(loss='binary_crossentropy', optimizer=Adam())
+        return model

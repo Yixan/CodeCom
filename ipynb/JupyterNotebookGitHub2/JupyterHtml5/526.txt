@@ -1,0 +1,620 @@
+
+In [ ]:
+
+    
+import numpy as np
+import tensorflow as tf
+from sklearn.utils import shuffle
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import f1_score
+from tensorflow.examples.tutorials.mnist import input_data
+
+rng = np.random.RandomState(1234)
+random_state = 42
+
+
+    
+
+
+
+In [ ]:
+
+    
+tf.reset_default_graph() # グラフのリセット
+
+# Step1. プレースホルダー・変数の設定
+## placeholder: データを流し込む変数. データ毎に変わる
+x = tf.placeholder(tf.float32, name='x')
+t = tf.placeholder(tf.float32, name='t')
+
+## Variable: 変数(重み). データ間で共有される
+w = tf.Variable(0.0, name='w')
+b = tf.Variable(0.0, name='b')
+
+# Step2. グラフの構築
+y = w*x + b
+
+# Step3. 誤差関数の設定
+cost = tf.reduce_mean((y - t)**2)
+
+# Step4. 重みの更新則の設定
+gw, gb = tf.gradients(cost, [w, b]) # 勾配の計算
+updates = [
+    w.assign(w - 0.1*gw), # 勾配降下法
+    b.assign(b - 0.1*gb)
+]
+train = tf.group(*updates)
+
+# Step.5. 学習 (y = 2*x + 3)
+data_X = np.array([0., 1., 2., 3., 4.])
+data_y = np.array([3., 5., 7., 9., 11.])
+
+sess = tf.Session()
+sess.run(tf.global_variables_initializer()) # 重みの初期化
+for i in range(100):
+    _cost, _ = sess.run([cost, train], feed_dict={x: data_X, t: data_y})
+    if (i+1)%10==0:
+        print('iteration:: %d, cost:: %.3f' % (i+1, _cost))
+
+# Step6. 予測
+print('pred_y:', sess.run(y, feed_dict={x: [5]}))
+
+sess.close()
+
+
+    
+
+
+
+In [ ]:
+
+    
+x = tf.placeholder(tf.float32)
+
+y = x**2
+
+with tf.Session() as sess:
+    print(sess.run(y, feed_dict={x: 3}))
+
+
+    
+
+
+
+In [ ]:
+
+    
+w = tf.Variable(0.0, name='w')
+
+with tf.Session() as sess:
+    sess.run(tf.global_variables_initializer())
+    print(w.eval()) # print(sess.run(w))でも同じです
+
+
+    
+
+
+
+In [ ]:
+
+    
+w = tf.Variable(0.0)
+b = tf.Variable(1.0)
+
+with tf.Session() as sess:
+    sess.run(tf.variables_initializer([w]))
+    print(w.eval()) 
+    print(b.eval()) # 初期化していないので, エラーが出ます.
+
+
+    
+
+
+
+In [ ]:
+
+    
+x = tf.placeholder(tf.float32)
+
+exp_x = tf.exp(x)
+log_x = tf.log(x)
+sqrt_x = tf.sqrt(x)
+
+with tf.Session() as sess:
+    print(sess.run([exp_x, log_x, sqrt_x], feed_dict={x: 1}))
+
+
+    
+
+
+
+In [ ]:
+
+    
+x = tf.placeholder(tf.float32)
+
+sigmoid_x = tf.nn.sigmoid(x)
+tanh_x = tf.nn.tanh(x)
+relu_x = tf.nn.relu(x)
+
+with tf.Session() as sess:
+    print(sess.run([sigmoid_x, tanh_x, relu_x], feed_dict={x: 1}))
+
+
+    
+
+
+
+In [ ]:
+
+    
+x = tf.placeholder(tf.float32)
+
+sum_x = tf.reduce_sum(x, 0)
+mean_x = tf.reduce_mean(x, 0)
+
+with tf.Session() as sess:
+    print(sess.run([sum_x, mean_x], feed_dict={x: np.arange(10)}))
+
+
+    
+
+
+
+In [ ]:
+
+    
+a = tf.ones([2,2])
+b = tf.ones([2,2])
+
+c = tf.matmul(a, b)
+
+with tf.Session() as sess:
+    print(c.eval())
+
+
+    
+
+
+
+In [ ]:
+
+    
+a = tf.ones([2,2])
+b = tf.ones(2)
+
+# c = tf.matmul(a, b) # エラー
+c = tf.matmul(a, b[:, tf.newaxis])
+
+with tf.Session() as sess:
+    print(c.eval())
+
+
+    
+
+
+
+In [ ]:
+
+    
+a = tf.ones([2,3,4])
+b = tf.ones([2,3])
+
+c = tf.einsum('ijk,ij->k', a, b)
+sum_c = tf.einsum('ijk,ij->', a, b)
+
+with tf.Session() as sess:
+    print(c.eval())
+    print(sum_c.eval())
+
+
+    
+
+
+
+In [ ]:
+
+    
+x = tf.placeholder(tf.float32, name='x')
+y = tf.placeholder(tf.float32, name='y')
+
+absl = tf.cond(x > y, lambda: x - y, lambda: y - x)
+
+with tf.Session() as sess:
+    print(sess.run(absl, feed_dict={x: 100, y:  50}))
+    print(sess.run(absl, feed_dict={x:  50, y: 100}))
+
+
+    
+
+
+
+In [ ]:
+
+    
+x = tf.placeholder(tf.float32, name='x')
+y = tf.placeholder(tf.float32, name='y')
+
+absl = tf.cond(tf.greater(x, y), lambda: x - y, lambda: y - x)
+
+with tf.Session() as sess:
+    print(sess.run(absl, feed_dict={x: 100, y:  50}))
+    print(sess.run(absl, feed_dict={x:  50, y: 100}))
+
+
+    
+
+
+
+In [ ]:
+
+    
+x = tf.placeholder(tf.float32, name='x')
+y = x**2
+
+grads = tf.gradients(y, x)
+
+with tf.Session() as sess:
+    print(sess.run(grads, feed_dict={x: 1.}))
+    print(sess.run(grads, feed_dict={x: 2.}))
+
+
+    
+
+
+
+In [ ]:
+
+    
+x1 = tf.placeholder(tf.float32, name='x1')
+x2 = tf.placeholder(tf.float32, name='x2')
+y = 3*x1**2 + 2*x2**4
+
+grads = tf.gradients(y, [x1, x2])
+
+with tf.Session() as sess:
+    print(sess.run(grads, feed_dict={x1: 1, x2: 2}))
+    print(sess.run(grads, feed_dict={x1: 3, x2: 4}))
+
+
+    
+
+
+
+In [ ]:
+
+    
+a = tf.Variable(0.0, name='w')
+
+add_one = a.assign_add(1.)
+
+with tf.Session() as sess:
+    sess.run(tf.global_variables_initializer())
+    for i in range(10):
+        print(sess.run(add_one))
+
+
+    
+
+
+
+In [ ]:
+
+    
+a = tf.Variable(0.0, name='w')
+b = tf.Variable(10.0, name='b')
+
+add_one = a.assign_add(1.)
+sub_one = b.assign_sub(1.)
+
+updates = [
+    add_one,
+    sub_one
+]
+
+train = tf.group(*updates)
+
+with tf.Session() as sess:
+    sess.run(tf.global_variables_initializer())
+    for i in range(10):
+        sess.run(train)
+        print('a:', a.eval(), end=',  ')
+        print('b:', b.eval())
+
+
+    
+
+
+
+In [ ]:
+
+    
+import tensorboard as tb
+
+a = tf.placeholder(tf.float32)
+b = tf.placeholder(tf.float32)
+
+c = a + b
+
+with tf.Session() as sess:
+    print(sess.run([c], feed_dict={a:2, b:3}))
+
+tb.show_graph(sess.graph)    # 単純な足し算のグラフの表示 (がしたいが...)
+
+
+    
+
+
+
+In [ ]:
+
+    
+# 今までの実行によりデフォルトグラフ上に溜まったオペレーション
+tf.get_default_graph().get_operations()
+
+
+    
+
+
+
+In [ ]:
+
+    
+tf.global_variables() # Variables
+
+
+    
+
+
+
+In [ ]:
+
+    
+tf.reset_default_graph() # グラフのリセット
+print(tf.get_default_graph().get_operations())
+print(tf.global_variables())
+
+# 再び足し算のグラフを構築・表示
+a = tf.placeholder(tf.float32)
+b = tf.placeholder(tf.float32)
+
+c = a + b
+
+with tf.Session() as sess:
+    print(sess.run(c, feed_dict={a:2, b:3}))
+
+print(tf.get_default_graph().get_operations())
+print(tf.global_variables())
+tb.show_graph(tf.Session().graph)
+
+
+    
+
+
+
+In [ ]:
+
+    
+# 線形回帰の例
+
+# グラフのリセット
+tf.reset_default_graph()
+
+# プレースホルダーと変数の宣言
+x = tf.placeholder(tf.float32, name='x')
+t = tf.placeholder(tf.float32, name='t')
+W = tf.Variable(tf.random_uniform([5,3], -1.0, 1.0), name='W')
+b = tf.Variable(tf.zeros([3]), name='b')
+
+# グラフの構築
+y = tf.add(tf.matmul(x, W), b, name='y')
+
+# 誤差関数の定義
+loss = tf.reduce_mean((y - t)**2, name='loss')
+
+tb.show_graph(tf.Session().graph)
+
+
+    
+
+
+
+In [ ]:
+
+    
+# グラフのリセット
+tf.reset_default_graph()
+
+x = tf.placeholder(tf.float32, name='x')
+t = tf.placeholder(tf.float32, name='t')
+
+with tf.name_scope('variables'):
+    W = tf.Variable(tf.random_uniform([5,3], -1.0, 1.0), name='W')
+    b = tf.Variable(tf.zeros([3]), name='b')
+
+with tf.name_scope('model'):
+    y = tf.add(tf.matmul(x, W), b, name='y')
+
+with tf.name_scope('training'):
+    loss = tf.reduce_mean(tf.square(y - t), name='loss')
+
+tb.show_graph(tf.Session().graph)
+
+
+    
+
+
+
+In [ ]:
+
+    
+tf.reset_default_graph() # グラフのリセット
+
+g0 = tf.get_default_graph() # デフォルトグラフオブジェクトを取得することも可能
+
+g1 = tf.Graph() # グラフオブジェクトの作成1
+
+a = tf.constant(2, name='a0') # これはdefault graphへの配置になるので注意
+b = a**a
+
+with g1.as_default(): # デフォルトに設定した上で, グラフを構築・操作
+    a = tf.constant(2, name='a')
+    b = a**a
+
+g2 = tf.Graph() # グラフオブジェクトの作成2
+
+with g2.as_default(): # デフォルトに設定し, グラフを構築
+    a = tf.constant(4, name='a')
+    x = tf.constant(3, name='x')
+    y = a**x
+
+
+    
+
+
+
+In [ ]:
+
+    
+tb.show_graph(g0)
+
+
+    
+
+
+
+In [ ]:
+
+    
+with tf.Session(graph=g1) as sess:
+    print(sess.run(b))
+tb.show_graph(g1)
+
+
+    
+
+
+
+In [ ]:
+
+    
+with tf.Session(graph=g2) as sess:
+    print(sess.run(y))
+tb.show_graph(g2)
+
+
+    
+
+
+
+In [ ]:
+
+    
+tf.reset_default_graph() # グラフのリセット
+
+# Step1. プレースホルダーと変数の定義
+## プレースホルダー
+x = tf.placeholder(tf.float32, name='x')
+t = tf.placeholder(tf.float32, name='t')
+
+## 変数
+W = tf.Variable(rng.uniform(low=-0.08, high=0.08, size=(2, 1)).astype('float32'), name='W')
+b = tf.Variable(np.zeros(1).astype('float32'), name='b')
+
+# Step2. グラフの構築
+y = tf.nn.sigmoid(tf.matmul(x, W) + b)
+
+# Step3. 誤差関数の定義
+# cost = -tf.reduce_mean(t*tf.log(y) + (1 - t)*tf.log(1 - y))
+cost = -tf.reduce_mean(t*tf.log(tf.clip_by_value(y, 1e-10, 1.0)) + (1 - t)*tf.log(tf.clip_by_value(1 - y, 1e-10, 1.0))) # tf.log(0)によるnanを防ぐ
+
+# Step4. 更新則の設定
+gW, gb = tf.gradients(cost, [W, b])
+updates = [
+    W.assign_add(-0.01*gW),
+    b.assign_add(-0.01*gb)
+]
+train = tf.group(*updates)
+
+# OR
+train_X = np.array([[0, 1], [1, 0], [0, 0], [1, 1]])
+train_y = np.array([[1], [1], [0], [1]])
+
+# Step5. 学習
+with tf.Session() as sess:
+    sess = tf.Session()
+    sess.run(tf.global_variables_initializer())
+    for i in range(10000):
+        _cost, _ = sess.run([cost, train], feed_dict={x: train_X, t: train_y})
+        if (i+1)%1000==0:
+            print(_cost)
+
+
+    
+
+
+
+In [ ]:
+
+    
+tf.reset_default_graph() # グラフのリセット
+
+# Step1. プレースホルダーと変数の定義
+## Placeholders
+x = tf.placeholder(tf.float32, [None, 784])
+t = tf.placeholder(tf.float32, [None, 10])
+
+## 変数
+W1 = tf.Variable(rng.uniform(low=-0.08, high=0.08, size=(784, 200)).astype('float32'), name='W1')
+b1 = tf.Variable(np.zeros(200).astype('float32'), name='b1')
+W2 = tf.Variable(rng.uniform(low=-0.08, high=0.08, size=(200, 10)).astype('float32'), name='W2')
+b2 = tf.Variable(np.zeros(10).astype('float32'), name='b2')
+params = [W1, b1, W2, b2]
+
+# Step2. グラフの定義
+u1 = tf.matmul(x, W1) + b1
+z1 = tf.nn.sigmoid(u1)
+u2 = tf.matmul(z1, W2) + b2
+y = tf.nn.softmax(u2)
+
+# Step3. 誤差関数の定義
+# cost = -tf.reduce_mean(tf.reduce_sum(t*tf.log(y)))
+cost = -tf.reduce_mean(tf.reduce_sum(t*tf.log(tf.clip_by_value(y, 1e-10, 1.0)))) # tf.log(0)によるnanを防ぐ
+
+# Step4. 更新則の設定
+gW1, gb1, gW2, gb2 = tf.gradients(cost, params)
+updates = [
+    W1.assign_add(-0.01*gW1),
+    b1.assign_add(-0.01*gb1),
+    W2.assign_add(-0.01*gW2),
+    b2.assign_add(-0.01*gb2)
+]
+
+train = tf.group(*updates)
+
+valid = tf.argmax(y, 1)
+
+# MNIST
+mnist = input_data.read_data_sets('MNIST_data/', one_hot=True)
+mnist_X, mnist_y = mnist.train.images, mnist.train.labels
+train_X, valid_X, train_y, valid_y = train_test_split(mnist_X, mnist_y, test_size=0.1, random_state=random_state)
+
+n_epochs = 10
+batch_size = 100
+n_batches = train_X.shape[0] // batch_size
+
+# Step5. 学習
+with tf.Session() as sess:
+    sess.run(tf.global_variables_initializer())
+    for epoch in range(n_epochs):
+        train_X, train_y = shuffle(train_X, train_y, random_state=random_state)
+        for i in range(n_batches):
+            start = i * batch_size
+            end = start + batch_size
+            sess.run(train, feed_dict={x: train_X[start:end], t: train_y[start:end]})
+        pred_y, valid_cost = sess.run([valid, cost], feed_dict={x: valid_X, t: valid_y})
+        print('EPOCH:: %i, Validation cost: %.3f, Validation F1: %.3f' % (epoch + 1, valid_cost, f1_score(np.argmax(valid_y, 1).astype('int32'), pred_y, average='macro')))
+
+
+    
+

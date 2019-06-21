@@ -1,0 +1,114 @@
+
+In [1]:
+
+    
+import tensorflow.contrib.data as tf_Data
+import tensorflow as tf
+import numpy as np
+import csv
+
+def DecodeEachRow(EachRow):
+	EachRowDefaults = [[""], [""], [0.0], [""], [0.0], [""], [""], [""], [0.0], [0.0], [0.0],[0.0],[0.0]]
+	
+	Suburb, Address, Rooms, Type, Price, Method, SellerG, Date, Distance, Week, CPI, LastCPI,Distance2 = tf.decode_csv(EachRow,EachRowDefaults) 
+	
+	NaturalFeatureValues = [Rooms, Distance, Week, CPI, LastCPI, Distance2]
+	
+	return NaturalFeatureValues, Price
+	
+NumberOfNeuronsPerLayer = 6
+NumberOfLayers = 10
+BatchSize = 35
+CompleteData = tf.data.TextLineDataset("/root/Desktop/Melbourne_housing.csv").skip(1).map(DecodeEachRow)
+CompleteData = CompleteData.batch(BatchSize)
+CompleteData = CompleteData.repeat(150)
+LoopingIterator = CompleteData.make_one_shot_iterator()
+CompleteExample = LoopingIterator.get_next()
+
+
+
+HiddenLayer1Params = {'Weights':tf.Variable(tf.random_normal((NumberOfNeuronsPerLayer,NumberOfNeuronsPerLayer))),
+					  'Baises':tf.Variable(tf.ones((1,NumberOfNeuronsPerLayer)))}
+
+HiddenLayer2Params = {'Weights':tf.Variable(tf.random_normal((NumberOfNeuronsPerLayer,NumberOfNeuronsPerLayer))),
+					  'Baises':tf.Variable(tf.ones((1,NumberOfNeuronsPerLayer)))}
+
+HiddenLayer3Params = {'Weights':tf.Variable(tf.random_normal((NumberOfNeuronsPerLayer,NumberOfNeuronsPerLayer))),
+					  'Baises':tf.Variable(tf.ones((1,NumberOfNeuronsPerLayer)))}
+
+HiddenLayer4Params = {'Weights':tf.Variable(tf.random_normal((NumberOfNeuronsPerLayer,NumberOfNeuronsPerLayer))),
+					  'Baises':tf.Variable(tf.ones((1,NumberOfNeuronsPerLayer)))}
+
+HiddenLayer5Params = {'Weights':tf.Variable(tf.random_normal((NumberOfNeuronsPerLayer,NumberOfNeuronsPerLayer))),
+					  'Baises':tf.Variable(tf.ones((1,NumberOfNeuronsPerLayer)))}
+
+HiddenLayer6Params = {'Weights':tf.Variable(tf.random_normal((NumberOfNeuronsPerLayer,NumberOfNeuronsPerLayer))),
+					  'Baises':tf.Variable(tf.ones((1,NumberOfNeuronsPerLayer)))}
+
+
+OutputLayerParams = {'Weights':tf.Variable(tf.random_normal((NumberOfNeuronsPerLayer,1))),'Biases':tf.Variable(tf.ones((1,1)))}
+
+InputExample = tf.placeholder("float32",(BatchSize,NumberOfNeuronsPerLayer))
+ActualAnswerPerExample = tf.placeholder("float",(BatchSize,1))
+
+InterMediateOutputL1 = tf.add((tf.matmul(InputExample,HiddenLayer1Params['Weights'])),HiddenLayer1Params['Baises'])
+FiredOutputL1 = tf.nn.relu(InterMediateOutputL1)
+Mu,Var = tf.nn.moments(FiredOutputL1,[0])
+FiredOutputL1 = tf.nn.batch_normalization(FiredOutputL1,Mu,Var,offset=10,scale=0.025,variance_epsilon=0.01,name=None)
+
+InterMediateOutputL2 = tf.add((tf.matmul(FiredOutputL1,HiddenLayer2Params['Weights'])),HiddenLayer2Params['Baises'])
+FiredOutputL2 = tf.nn.relu(InterMediateOutputL2)
+Mu,Var = tf.nn.moments(FiredOutputL2,[0])
+FiredOutputL2 = tf.nn.batch_normalization(FiredOutputL2,Mu,Var,offset=10,scale=0.025,variance_epsilon=0.01,name=None)
+
+InterMediateOutputL3 = tf.add((tf.matmul(FiredOutputL2,HiddenLayer3Params['Weights'])),HiddenLayer3Params['Baises'])
+FiredOutputL3 = tf.nn.relu(InterMediateOutputL3)
+Mu,Var = tf.nn.moments(FiredOutputL3,[0])
+FiredOutputL3 = tf.nn.batch_normalization(FiredOutputL3,Mu,Var,offset=10,scale=0.025,variance_epsilon=0.01,name=None)
+
+InterMediateOutputL4 = tf.add((tf.matmul(FiredOutputL3,HiddenLayer4Params['Weights'])),HiddenLayer4Params['Baises'])
+FiredOutputL4 = tf.nn.relu(InterMediateOutputL4)
+Mu,Var = tf.nn.moments(FiredOutputL4,[0])
+FiredOutputL4 = tf.nn.batch_normalization(FiredOutputL4,Mu,Var,offset=10,scale=0.025,variance_epsilon=0.01,name=None)
+
+InterMediateOutputL5 = tf.add((tf.matmul(FiredOutputL4,HiddenLayer5Params['Weights'])),HiddenLayer5Params['Baises'])
+FiredOutputL5 = tf.nn.relu(InterMediateOutputL5)
+Mu,Var = tf.nn.moments(FiredOutputL5,[0])
+FiredOutputL5 = tf.nn.batch_normalization(FiredOutputL5,Mu,Var,offset=10,scale=0.025,variance_epsilon=0.01,name=None)
+
+InterMediateOutputL6 = tf.add((tf.matmul(FiredOutputL5,HiddenLayer6Params['Weights'])),HiddenLayer6Params['Baises'])
+FiredOutputL6 = tf.nn.relu(InterMediateOutputL6)
+Mu,Var = tf.nn.moments(FiredOutputL6,[0])
+FiredOutputL6 = tf.nn.batch_normalization(FiredOutputL6,Mu,Var,offset=10,scale=0.025,variance_epsilon=0.01,name=None)
+
+PredictedAns = tf.add((tf.matmul(FiredOutputL6,OutputLayerParams['Weights'])),OutputLayerParams['Biases'])
+
+
+Objective = tf.reduce_mean(tf.square(PredictedAns - ActualAnswerPerExample))
+Optimizer = tf.train.GradientDescentOptimizer(0.001).minimize(Objective)
+
+with open('/root/Desktop/Melbourne_housing.csv','r') as RawData:
+    FormattedData = list(csv.reader(RawData))
+
+with tf.Session() as session:
+    session.run(tf.global_variables_initializer())
+
+    for Iterations in range(int(0.75*len(FormattedData)/BatchSize)):
+        ExampleFeatures,ExampleAnswer = session.run(CompleteExample)
+        [_,CostFuncVal] = session.run([Optimizer,Objective],feed_dict={InputExample:ExampleFeatures,ActualAnswerPerExample:(ExampleAnswer).reshape(BatchSize,1)})
+        [L1Out,L2Out,L3Out,L4Out,L5Out,L6Out] = session.run([FiredOutputL1,FiredOutputL2,FiredOutputL3,FiredOutputL4,FiredOutputL5,FiredOutputL6])
+        print("The value of the cost Function is",CostFuncVal)
+
+
+    
+
+
+
+In [ ]:
+
+    
+ 
+
+
+    
+

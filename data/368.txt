@@ -1,0 +1,47 @@
+from __future__ import print_function
+import keras
+from keras.models import Sequential
+from keras.models import model_from_json
+from keras.layers.core import Dense, Dropout, Activation
+from keras.layers import LSTM
+from keras.layers.wrappers import TimeDistributed
+from keras.layers.normalization import BatchNormalization
+from keras.callbacks import ModelCheckpoint
+from keras.callbacks import TensorBoard
+from keras.optimizers import RMSprop
+from keras.callbacks import EarlyStopping
+import keras.backend as K
+from keras.utils import plot_model
+import input_data
+import build_model
+from LSTM_config import *
+def rmse(y_true, y_pred):
+    return K.sqrt(K.mean(K.square(y_pred - y_true), axis=-1))
+print('loading data...')
+train, validation, test = input_data.read_data_sets()
+flow_train = train.flow
+labels_train = train.labels
+flow_test = test.flow
+labels_test = test.labels
+flow_validation = validation.flow
+labels_validation = validation.labels
+print('build model...')
+model = Sequential()
+model.add(LSTM(input_shape=(TIME_STEPS, INPUT_SIZE),output_dim=64,eturn_sequences=True, ))
+model.add(Activation('tanh'))
+model.add(Dropout(drop_out))
+model.add(LSTM(output_dim=256))
+model.add(Activation('tanh'))
+model.add(Dropout(drop_out))
+model.add(Dense(OUTPUT_SIZE))
+model.summary()
+model.compile(loss='mse', optimizer='rmsprop', metrics=['mae', rmse, 'cosine'])
+checkpoint_callbacks = ModelCheckpoint(filepath = checkpoint_filepath,monitor='val_loss',verbose=1,save_best_only=True,mode='min')
+checkpoint_callbacks_list = [checkpoint_callbacks]
+tensorboard_callbacks = TensorBoard(log_dir=tensorboard_filepath,write_images=1,histogram_freq=1)
+tensorboard_callbacks_list = [tensorboard_callbacks]
+print('Train...')
+history = model.fit(flow_train,labels_train,epochs=EPOCHS,batch_size=BATCH_SIZE,verbose=1,alidation_data=(flow_validation, labels_validation))
+model.save(model_filepath)
+score = model.evaluate(flow_test, labels_test, verbose=0)
+print('Test socre:', score)

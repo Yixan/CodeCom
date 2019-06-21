@@ -1,0 +1,195 @@
+import pandas as pd
+import numpy as np
+from keras.datasets import imdb
+from keras.preprocessing import sequence
+from keras.preprocessing.text import Tokenizer
+f=open('C:\\Users\\User\\Documents\\GitHub\\master\\hw4\\training_label.txt','r',encoding = 'utf8')
+ftest=open('C:\\Users\\User\\Documents\\GitHub\\master\\hw4\\testing_label.txt','r',encoding = 'utf8' )
+lines=f.readlines()
+lines_test=ftest.readlines()
+type(lines)
+type(lines_test)
+for i in range(0,len(lines)):
+    lines[i]=lines[i].split('+++$+++')
+for j in range(0,len(lines_test)):
+s=[ i for i in  lines_test if i[0] !=''  ]
+s
+dftest=pd.DataFrame(s)
+y_train=df.iloc[:,0]
+test_txt=dftest.iloc[:,1]
+y_test=dftest.iloc[:,0]
+token = Tokenizer(num_words=3800) 
+token.fit_on_texts(train_txt)  
+A=token.word_index
+x_train_seq = token.texts_to_sequences(train_txt)
+x_test_seq = token.texts_to_sequences(test_txt)
+x_train = sequence.pad_sequences(x_train_seq, maxlen=380)
+x_test = sequence.pad_sequences(x_test_seq, maxlen=380)
+from keras.models import Sequential
+from keras.layers.core import Dense,Dropout,Activation,Flatten
+from keras.layers.embeddings import Embedding
+from keras.layers.recurrent import SimpleRNN
+modelRNN.add(SimpleRNN(units=16))
+modelRNN.add(Dense(units=256,activation='relu')) 
+modelRNN.add(Dense(units=1,activation='sigmoid'))
+modelRNN.summary()
+modelRNN.compile(loss='binary_crossentropy',optimizer='adam',etrics=['accuracy']) 
+train_history1_1 = modelRNN.fit(x_train,y_train, pochs=10, batch_size=100,verbose=2,validation_split=0.2)
+scores1_1 = modelRNN.evaluate(x_test, y_test,verbose=1)
+scores1_1[1]
+print(train_history1_1.history.keys())
+train_history1_1.history.values()
+modelRNN1.add(SimpleRNN(units=16))
+modelRNN1.add(Dense(units=256,activation='relu')) 
+modelRNN1.add(Dropout(0.7))
+modelRNN1.add(Dense(units=1,activation='sigmoid'))
+modelRNN1.summary()
+modelRNN1.compile(loss='binary_crossentropy',optimizer='adam',etrics=['accuracy']) 
+train_history1_2 = modelRNN1.fit(x_train,y_train, pochs=10, batch_size=100,verbose=2,validation_split=0.2)
+scores1_2 = modelRNN1.evaluate(x_test, y_test,verbose=1)
+scores1_2[1]
+from keras.models import Sequential
+from keras.layers.core import Dense,Dropout,Activation,Flatten
+from keras.layers.embeddings import Embedding
+from keras.layers.recurrent import LSTM
+from keras.callbacks import History 
+history = History()
+modelLSTM = Sequential() 
+modelLSTM.add(Embedding (output_dim=32,input_dim=3800, input_length=380))     
+modelLSTM.add(LSTM(32)) 
+modelLSTM .add(Dense(units=256,activation='relu')) 
+modelLSTM .add(Dense(units=1,activation='sigmoid'))
+modelLSTM .summary()
+modelLSTM.compile(loss='binary_crossentropy',optimizer='adam',etrics=['accuracy']) 
+train_history2_1 = modelLSTM.fit(x_train,y_train, pochs=10, batch_size=100,verbose=2,validation_split=0.2)
+scores2_1 = modelLSTM .evaluate(x_test, y_test,verbose=1)
+scores2_1[1]
+modelLSTM1 = Sequential() 
+modelLSTM1.add(Embedding (output_dim=32,input_dim=3800, input_length=380))     
+modelLSTM1.add(LSTM(32)) 
+modelLSTM1 .add(Dense(units=256,activation='relu')) 
+modelLSTM1 .add(Dense(units=1,activation='sigmoid'))
+modelLSTM1 .summary()
+modelLSTM1.compile(loss='binary_crossentropy',optimizer='adam',etrics=['accuracy']) 
+train_history2_2 = modelLSTM1.fit(x_train,y_train, pochs=10, batch_size=100,verbose=2,validation_split=0.2)
+scores2_2 = modelLSTM1 .evaluate(x_test, y_test,verbose=1)
+scores2_2[1]
+train_history1_1.history.values()
+train_history1_1.history.keys()
+train_history1_1.history['acc']
+train_history1_1.history['val_acc']
+train_history1_1.history['loss']
+train_history1_1.history['val_loss']
+train_history1_2.history.values()
+train_history2_1.history.values()
+train_history2_2.history.values()
+import numpy as np
+import matplotlib.pyplot as plt
+graphpath='C:\\Users\\User\\Documents\\GitHub\\master\\hw4\\'
+x = list(range(1,11))
+y1 = train_history1_1.history['acc']
+y2 = train_history1_1.history['val_acc']
+y = np.column_stack((y1, y2))
+plt.figure(1); plt.clf()
+plt.plot(x,y)
+plt.legend(['train', 'validation'])
+plt.xlabel('Epoch')
+plt.ylabel('acc')
+plt.title('Acc of RNN(without dropout)')
+plt.savefig(graphpath+'Acc of RNN(without dropout).jpg')
+x = list(range(1,11))
+y1 = train_history1_1.history['loss']
+y2 = train_history1_1.history['val_loss']
+y = np.column_stack((y1, y2))
+plt.figure(2); plt.clf()
+plt.plot(x,y)
+plt.legend(['train', 'validation'])
+plt.xlabel('Epoch')
+plt.ylabel('loss')
+plt.title('loss of RNN(without dropout)')
+plt.savefig(graphpath+' loss of RNN(without dropout).jpg')
+x = list(range(1,11))
+y1 = train_history1_2.history['acc']
+y2 = train_history1_2.history['val_acc']
+y = np.column_stack((y1, y2))
+plt.figure(1); plt.clf()
+plt.plot(x,y)
+plt.legend(['train', 'validation'])
+plt.xlabel('Epoch')
+plt.ylabel('acc')
+plt.title('Acc of RNN(with dropout)')
+plt.savefig(graphpath+' Acc of RNN(with dropout).jpg')
+x = list(range(1,11))
+y1 = train_history1_2.history['loss']
+y2 = train_history1_2.history['val_loss']
+y = np.column_stack((y1, y2))
+plt.figure(2); plt.clf()
+plt.plot(x,y)
+plt.legend(['train', 'validation'])
+plt.xlabel('Epoch')
+plt.ylabel('loss')
+plt.title('loss of RNN(with dropout)')
+plt.savefig(graphpath+' loss of RNN(with dropout).jpg')
+x = list(range(1,11))
+y1 = train_history2_1.history['acc']
+y2 = train_history2_1.history['val_acc']
+y = np.column_stack((y1, y2))
+plt.figure(1); plt.clf()
+plt.plot(x,y)
+plt.legend(['train', 'validation'])
+plt.xlabel('Epoch')
+plt.ylabel('acc')
+plt.title('Acc of LSTM(without dropout)')
+plt.savefig(graphpath+' Acc of LSTM(without dropout).jpg')
+x = list(range(1,11))
+y1 = train_history2_1.history['loss']
+y2 = train_history2_1.history['val_loss']
+y = np.column_stack((y1, y2))
+plt.figure(2); plt.clf()
+plt.plot(x,y)
+plt.legend(['train', 'validation'])
+plt.xlabel('Epoch')
+plt.ylabel('loss')
+plt.title('loss of LSTM(without dropout)')
+plt.savefig(graphpath+' loss of LSTM(without dropout).jpg')
+x = list(range(1,11))
+y1 = train_history2_2.history['acc']
+y2 = train_history2_2.history['val_acc']
+y = np.column_stack((y1, y2))
+plt.figure(1); plt.clf()
+plt.plot(x,y)
+plt.legend(['train', 'validation'])
+plt.xlabel('Epoch')
+plt.ylabel('acc')
+plt.title('Acc of LSTM(with dropout)')
+plt.savefig(graphpath+' Acc of LSTM(with dropout).jpg')
+x = list(range(1,11))
+y1 = train_history2_2.history['loss']
+y2 = train_history2_2.history['val_loss']
+y = np.column_stack((y1, y2))
+plt.figure(2); plt.clf()
+plt.plot(x,y)
+plt.legend(['train', 'validation'])
+plt.xlabel('Epoch')
+plt.ylabel('loss')
+plt.title('loss of LSTM(with dropout)')
+plt.savefig(graphpath+' loss of LSTM(with dropout).jpg')
+print(RNN_testing_acc)
+print(RNN_testing_acc_dropout)
+print(LSTM_testing_acc)
+print(LSTM_testing_acc_dropout)
+print(RNN_testing_acc,RNN_testing_acc_dropout,LSTM_testing_acc,LSTM_testing_acc_dropout)
+print("A",5,"B",4)
+lines[0]
+a=lines[0].split('+++$+++')
+for i in range(200000):
+    =lines[i].split('+++$+++')
+big=lines.split('+++$+++')
+a=[]
+for line in f:
+    a.append(line)
+for 
+for i in rane   
+for i in lines:
+    a.append()
+A=[]

@@ -1,0 +1,336 @@
+
+In [1]:
+
+    
+import tensorflow as tf
+tf.set_random_seed(10001)
+import numpy as np
+np.random.seed(100000001)
+import struct
+import os
+import sys; sys.path.insert(0, '..')
+np.random.seed(1)
+from matplotlib import pyplot as plt
+
+
+    
+
+
+
+In [2]:
+
+    
+class MNIST_GAN():
+    def __init__(self, directory):
+        self._directory = directory
+
+        self._data = self._load_binaries("train-images.idx3-ubyte")
+        self._data = np.append(self._data, self._load_binaries("t10k-images.idx3-ubyte"), axis = 0)
+        self._data = ((self._data / 255) * 2) - 1
+        self._data = self._data.reshape([-1, 28, 28, 1])
+
+
+    def _load_binaries(self, file_name):
+        path = os.path.join(self._directory, file_name)
+
+        with open(path, 'rb') as fd:
+            check, items_n = struct.unpack(">ii", fd.read(8))
+
+            if "images" in file_name and check == 2051:
+                height, width = struct.unpack(">II", fd.read(8))
+                images = np.fromfile(fd, dtype = 'uint8')
+                return np.reshape(images, (items_n, height, width))
+            else:
+                raise ValueError("Not a MNIST file: " + path)
+
+    def get_batch(self, batch_size):
+        samples_n = self._data.shape[0]
+        if batch_size <= 0:
+            batch_size = samples_n
+
+        random_indices = np.random.choice(samples_n, samples_n, replace = False)
+        data = self._data[random_indices]
+
+        for i in range(samples_n // batch_size):
+            on = i * batch_size
+            off = on + batch_size
+            yield data[on:off]
+
+
+    
+
+
+
+In [3]:
+
+    
+def feed_forward_layer(x, target_size, is_training, normalize = False, activation_function = None):
+    fan_in = int(x.shape[-1])
+
+    if activation_function == tf.nn.relu:
+        var_init = tf.random_normal_initializer(stddev = 2/fan_in)
+    else:
+        var_init = tf.random_normal_initializer(stddev = fan_in**(-1/2))
+    weights = tf.get_variable("weights", [x.shape[1], target_size], tf.float32, var_init)
+
+    var_init = tf.constant_initializer(0.0)
+    biases = tf.get_variable("biases", [target_size], tf.float32, var_init)
+
+    activation = tf.matmul(x, weights) + biases
+
+    if normalize:
+        activation = batch_norm(activation, [0], is_training)
+
+    return activation_function(activation) if callable(activation_function) else activation
+
+
+def conv_layer(x, kernel_quantity, kernel_size, stride_size, normalize = False, activation_function = None, is_training=False):
+    depth = x.shape[-1]
+    fan_in = int(x.shape[1] * x.shape[2])
+
+    if activation_function == tf.nn.relu or activation_function == tf.nn.leaky_relu:
+        var_init = tf.random_normal_initializer(stddev = 2/fan_in)
+    else:
+        var_init = tf.random_normal_initializer(stddev = fan_in**(-1/2))
+    kernels = tf.get_variable("kernels", [kernel_size, kernel_size, depth, kernel_quantity], tf.float32, var_init)
+
+    var_init = tf.constant_initializer(0.0)
+    biases = tf.get_variable("biases", [kernel_quantity], initializer = var_init)
+
+    activation = tf.nn.conv2d(x, kernels, strides = [1, stride_size, stride_size, 1], padding = "SAME") + biases
+
+    if normalize:
+        activation = batch_norm(activation, [0, 1, 2], is_training)
+
+    return activation_function(activation) if callable(activation_function) else activation
+
+
+def transposed_conv_layer(x, kernel_size, output_shape, stride_size, is_training, normalize = False, activation_function = False):
+    deconv_filter = tf.get_variable('deconv_filter', shape=kernel_size,
+                                        initializer=tf.random_normal_initializer(0.1))
+    deconv_bias = tf.get_variable('deconv_bias', shape=output_shape[-1])
+    deconv = tf.nn.conv2d_transpose(x, deconv_filter, output_shape, strides=stride_size,
+                                        padding='SAME')
+    if normalize:
+        deconv = batch_norm(deconv + deconv_bias, [0, 1, 2], is_training)
+
+    return activation_function(deconv) if callable(activation_function) else deconv
+
+
+def flatten(x):
+    size = int(np.prod(x.shape[1:]))
+    return tf.reshape(x, [-1, size])
+
+
+def _pop_batch_norm(x, pop_mean, pop_var, offset, scale):
+    return tf.nn.batch_normalization(x, pop_mean, pop_var, offset, scale, 1e-6)
+
+def _batch_norm(x, pop_mean, pop_var, mean, var, offset, scale):
+    decay = 0.99
+
+    dependency_1 = tf.assign(pop_mean, pop_mean * decay + mean * (1 - decay))
+    dependency_2 = tf.assign(pop_var, pop_var * decay + var * (1 - decay))
+
+    with tf.control_dependencies([dependency_1, dependency_2]):
+        return tf.nn.batch_normalization(x, mean, var, offset, scale, 1e-6)
+
+def batch_norm(x, axes, is_training):
+    depth = x.shape[-1]
+    mean, var = tf.nn.moments(x, axes = axes)
+
+    var_init = tf.constant_initializer(0.0)
+    offset = tf.get_variable("offset", [depth], tf.float32, var_init)
+    var_init = tf.constant_initializer(1.0)
+    scale = tf.get_variable("scale", [depth], tf.float32, var_init)
+
+    pop_mean = tf.get_variable("pop_mean", [depth], initializer = tf.zeros_initializer(), trainable = False)
+    pop_var = tf.get_variable("pop_var", [depth], initializer = tf.ones_initializer(), trainable = False)
+
+    return tf.cond(
+        is_training,
+        lambda: _batch_norm(x, pop_mean, pop_var, mean, var, offset, scale),
+        lambda: _pop_batch_norm(x, pop_mean, pop_var, offset, scale)
+    )
+
+
+    
+
+
+
+In [4]:
+
+    
+class GAN:
+    '''.. :py:class::``GAN``
+
+    This class encapsulates both generator and discriminator.
+
+    Attributes
+    ----------
+    input   :   tf.placeholder
+                Placeholder of shape (batch_size, 50) of uniform random values from [-1,1]
+    is_training :   tf.placeholder
+                    Bool placeholder for correct batch norm during inference
+    gen_output  :   tf.Tensor
+                    Output of the generator portion
+    dis_output  :   tf.Tensor
+                    Output of the discriminator portion
+    loss_dis    :   Cross-entropy loss of the discriminator
+    loss_gen    :   Cross-entropy loss of the generator
+    input_reals :   tf.placeholder
+                    Placeholder for feeding batch_size real input images
+    '''
+
+    def __init__(self, batch_size=32, learning_rate=0.0004):
+        ############################################################################################
+        #                                        GENERATOR                                         #
+        ############################################################################################
+        # note that we forego naming the ops since they are usually easily identified by their index
+        # and variable scope prefix
+        tf.reset_default_graph()
+        with tf.variable_scope('generator') as scope_gen:
+            self.input       = tf.placeholder(tf.float32, shape=(batch_size, 50))
+            self.is_training = tf.placeholder(tf.bool, shape=[])
+
+            # blow up to enough neurons
+            expanded_input   = feed_forward_layer(self.input, 64 * 4 * 4, self.is_training,
+                                                normalize=True, activation_function=tf.nn.relu)
+            with tf.variable_scope('layer1'):
+                layer_1   = tf.reshape(expanded_input, (-1, 4, 4, 64))
+
+            with tf.variable_scope('layer2'):
+                layer_2 = transposed_conv_layer(layer_1, (5, 5, 32, 64), (batch_size, 7, 7, 32),
+                                                (1, 2, 2, 1), self.is_training, normalize=True,
+                                                activation_function=tf.nn.relu)
+
+            with tf.variable_scope('layer3'):
+                layer_3 = transposed_conv_layer(layer_2, (5, 5, 16, 32), (batch_size, 14, 14, 16),
+                                                (1, 2, 2, 1), self.is_training, normalize=True,
+                                                activation_function=tf.nn.relu)
+
+            with tf.variable_scope('layer4'):
+                layer_4 = transposed_conv_layer(layer_3, (5, 5, 1, 16), (batch_size, 28, 28, 1),
+                                                (1, 2, 2, 1), self.is_training, normalize=False,
+                                                activation_function=tf.nn.tanh)
+            self.gen_output = layer_4
+
+            # collect all vars from this scope for the generator
+            variables_gen = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=scope_gen.name)
+
+        with tf.variable_scope('discriminator') as scope_dis:
+            self.input_reals = tf.placeholder(tf.float32, shape=(batch_size, 28, 28, 1))
+            inputs           = tf.concat([self.gen_output, self.input_reals], 0)
+            labels           = tf.concat([tf.zeros((batch_size, 1), tf.float32),
+                                          tf.ones((batch_size, 1), tf.float32)], 0)
+            act_fn = tf.nn.leaky_relu
+            with tf.variable_scope('layer1'):
+                conv1 = conv_layer(inputs, 8, 5, 2, activation_function=act_fn, normalize=False)
+            with tf.variable_scope('layer2'):
+                conv2 = conv_layer(conv1, 16, 5, 2, activation_function=act_fn, normalize=False)
+            with tf.variable_scope('layer3'):
+                conv3 = conv_layer(conv2, 32, 5, 2, activation_function=act_fn, normalize=False)
+            with tf.variable_scope('layer4'):
+                conv3_reshaped  = tf.reshape(conv3, shape=(batch_size * 2, 4 * 4 * 32))
+                self.dis_output = feed_forward_layer(conv3_reshaped,
+                                                     1,
+                                                     self.is_training,
+                                                     normalize=False,
+                                                     activation_function=tf.nn.sigmoid)
+
+            # collect all vars from this scope for the discriminator
+            variables_dis = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=scope_dis.name)
+
+            entropy_dis   = tf.nn.sigmoid_cross_entropy_with_logits(labels=labels, logits=self.dis_output)
+            self.loss_dis = tf.reduce_mean(entropy_dis)
+
+            entropy_gen = tf.nn.sigmoid_cross_entropy_with_logits(
+                labels=tf.ones((batch_size, 1), tf.float32), logits=self.dis_output[:batch_size]
+
+            )
+            self.loss_gen       = tf.reduce_mean(entropy_gen)
+            self.train_step_gen = tf.train.AdamOptimizer(learning_rate, beta1=0.5).minimize(self.loss_gen, var_list=variables_gen)
+            self.train_step_dis = tf.train.AdamOptimizer(learning_rate, beta1=0.5).minimize(self.loss_dis, var_list=variables_dis)
+
+    def train_step(self, session, vector, real_images, is_training):
+        '''Run one step of training.'''
+
+        fetches = [self.loss_dis, self.loss_gen, self.train_step_dis, self.train_step_gen]
+        feeds = {self.input: vector,
+                 self.input_reals: real_images,
+                 self.is_training: is_training}
+        loss_dis, loss_gen, _, _ = session.run(fetches, feed_dict=feeds)
+        return loss_dis, loss_gen
+
+    def generate_images(self, session, vectors):
+        fetches = self.gen_output
+        feeds = {self.input: vectors, self.is_training: False}
+        return session.run(fetches, feed_dict=feeds)
+
+
+    
+
+
+
+In [5]:
+
+    
+def plot_images(imgs):
+    n, h, w, c = imgs.shape
+    cols = int(np.sqrt(n))
+    rows = int(n / cols) + 1
+    fig, axarr = plt.subplots(rows, cols, figsize=(20, 20))
+    for index in range(n):
+        row = index // cols
+        col = index % cols
+        ax = axarr[row][col]
+        ax.imshow(imgs[index, :, :, 0], cmap='gray')
+
+    # delete empty plots
+    for index in range(n, rows*cols):
+        row = index // cols
+        col = index % cols
+        fig.delaxes(axarr[row][col])
+
+    plt.show()
+
+
+    
+
+
+
+In [6]:
+
+    
+mnist_helper = MNIST_GAN('data')
+epochs       = 2
+batch_size   = 32
+gan          = GAN(batch_size)
+
+losses_dis = []
+losses_gen = []
+with tf.Session() as session:
+    session.run(tf.global_variables_initializer())
+
+    for epoch in range(epochs):
+        print(f'Starting epoch {epoch+1}/{epochs}')
+        for batch in mnist_helper.get_batch(batch_size):
+            z = np.random.uniform(-1, 1, size=(batch_size, 50))
+            loss_dis, loss_gen = gan.train_step(session, z, batch, True)
+            losses_dis.append(loss_dis)
+            losses_gen.append(loss_gen)
+    imgs = gan.generate_images(session, np.random.uniform(-1, 1, size=(batch_size, 50)))
+    plot_images(imgs)
+
+fig = plt.figure(figsize=(20,20))
+ax  = fig.add_subplot(111)
+ax.set_title('Entropy of GAN')
+ax.set_xlabel('Training step')
+ax.set_ylabel('Sigmoid cross-entropy')
+ax.plot(losses_dis, label='Discriminator')
+ax.plot(losses_gen, label='Generator')
+ax.legend()
+plt.show()
+
+
+    
+

@@ -1,0 +1,182 @@
+import numpy as np
+import tensorflow as tf
+import Utility as util
+import math
+
+
+class ConvolutionNeuralNetwork:
+
+    def __init__(self, d, k):
+        self.D = d
+        self.K = k
+        self.NR_VALIDATION_DATA = 50
+        self.NR_ITERATION = 20000
+        self.BATCH_SIZE = 500
+        self.SHOW_ACC = 100
+        self.TRAIN_STEP = 0.0001
+        self.EPSILON = 0.001
+        self.W1_SHAPE = [5, 5, 3, 16]
+        self.B1_SHAPE = [16]
+        self.W2_SHAPE = [5, 5, 16, 20]
+        self.B2_SHAPE = [20]
+        self.W3_SHAPE = [5, 5, 20, 20]
+        self.B3_SHAPE = [20]
+        self.WFC_SHAPE = [320, k]
+        self.BFC_SHAPE = [k]
+
+    def training(self, features, labels):
+        features = self.__preprocessing(features)
+        train_features = features[self.NR_VALIDATION_DATA:]
+        train_labels = labels[self.NR_VALIDATION_DATA:]
+        validation_features = features[0:self.NR_VALIDATION_DATA]
+        validation_labels = labels[0:self.NR_VALIDATION_DATA]
+        sess = tf.InteractiveSession()
+        x = tf.placeholder(tf.float32, shape=[None, self.D])
+        y_ = tf.placeholder(tf.int64, shape=[None])
+        x_image = tf.reshape(x, [-1, 32, 32, 3])
+        W1 = self.__weight_variable(self.W1_SHAPE)
+        scale1 = tf.Variable(tf.ones(self.B1_SHAPE))
+        beta1 = tf.Variable(tf.zeros(self.B1_SHAPE))
+        W2 = self.__weight_variable(self.W2_SHAPE)
+        scale2 = tf.Variable(tf.ones(self.B2_SHAPE))
+        beta2 = tf.Variable(tf.zeros(self.B2_SHAPE))
+        W3 = self.__weight_variable(self.W3_SHAPE)
+        scale3 = tf.Variable(tf.ones(self.B3_SHAPE))
+        beta3 = tf.Variable(tf.zeros(self.B3_SHAPE))
+        WFC = self.__weight_variable(self.WFC_SHAPE)
+        bFC = self.__bias_variable(self.BFC_SHAPE)
+        Z1_conv = self.__convolution(x_image, W1)
+        batch_mean1, batch_var1 = tf.nn.moments(Z1_conv, [0])
+        BN1 = tf.nn.batch_normalization(Z1_conv, batch_mean1, batch_var1, beta1, scale1, self.EPSILON)
+        H1_conv = self.__activation(BN1)
+        H1_pool = self.__pool(H1_conv)
+        Z2_conv = self.__convolution(H1_pool, W2)
+        batch_mean2, batch_var2 = tf.nn.moments(Z2_conv, [0])
+        BN2 = tf.nn.batch_normalization(Z2_conv, batch_mean2, batch_var2, beta2, scale2, self.EPSILON)
+        H2_conv = self.__activation(BN2)
+        H2_pool = self.__pool(H2_conv)
+        Z3_conv = self.__convolution(H2_pool, W3)
+        batch_mean3, batch_var3 = tf.nn.moments(Z3_conv, [0])
+        BN3 = tf.nn.batch_normalization(Z3_conv, batch_mean3, batch_var3, beta3, scale3, self.EPSILON)
+        H3_conv = self.__activation(BN3)
+        H3_pool = self.__pool(H3_conv)
+        H3_pool_flatten = tf.reshape(H3_pool, [-1, self.WFC_SHAPE[0]])
+        HFC = tf.matmul(H3_pool_flatten, WFC) + bFC
+        y_conv = tf.nn.softmax(HFC)
+        cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(y_conv, y_)
+        cross_entropy_mean = tf.reduce_mean(cross_entropy)
+        train_step = tf.train.AdamOptimizer(self.TRAIN_STEP).minimize(cross_entropy_mean)
+        correct_prediction = tf.equal(tf.argmax(y_conv, 1), y_)
+        accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+        sess.run(tf.initialize_all_variables())
+        for i in range(self.NR_ITERATION):
+            batch = util.generate_batch(train_features, train_labels, self.BATCH_SIZE)
+            train_step.run(feed_dict={x: batch[0], y_: batch[1]})
+            if i % self.SHOW_ACC == 0:
+                train_accuracy = accuracy.eval(feed_dict={x: validation_features, y_: validation_labels})
+                print('Step - ', i, ' - Acc : ', train_accuracy)
+        W1_final = W1.eval()
+        beta1_final = beta1.eval()
+        scale1_final = scale1.eval()
+        W2_final = W2.eval()
+        beta2_final = beta2.eval()
+        scale2_final = scale2.eval()
+        W3_final = W3.eval()
+        beta3_final = beta3.eval()
+        scale3_final = scale3.eval()
+        WFC_final = WFC.eval()
+        bFC_final = bFC.eval()
+        sess.close()
+        return {'W1': W1_final, 'beta1': beta1_final, 'scale1': scale1_final, 'W2': W2_final, 'beta2': beta2_final, 'scale2': scale2_final, 'W3': W3_final, 'beta3': beta3_final, 'scale3': scale3_final, 'WFC': WFC_final, 'bFC': bFC_final}
+
+    def predict(self, test_features, test_labels, nn):
+        test_features = self.__preprocessing(test_features)
+        x = tf.placeholder(tf.float32, shape=[None, self.D])
+        W1 = tf.placeholder(tf.float32, shape=self.W1_SHAPE)
+        beta1 = tf.placeholder(tf.float32, shape=self.B1_SHAPE)
+        scale1 = tf.placeholder(tf.float32, shape=self.B1_SHAPE)
+        W2 = tf.placeholder(tf.float32, shape=self.W2_SHAPE)
+        beta2 = tf.placeholder(tf.float32, shape=self.B2_SHAPE)
+        scale2 = tf.placeholder(tf.float32, shape=self.B2_SHAPE)
+        W3 = tf.placeholder(tf.float32, shape=self.W3_SHAPE)
+        beta3 = tf.placeholder(tf.float32, shape=self.B3_SHAPE)
+        scale3 = tf.placeholder(tf.float32, shape=self.B3_SHAPE)
+        WFC = tf.placeholder(tf.float32, shape=self.WFC_SHAPE)
+        bFC = tf.placeholder(tf.float32, shape=self.BFC_SHAPE)
+        x_image = tf.reshape(x, [-1, 32, 32, 3])
+        Z1_conv = self.__convolution(x_image, W1)
+        batch_mean1, batch_var1 = tf.nn.moments(Z1_conv, [0])
+        BN1 = tf.nn.batch_normalization(Z1_conv, batch_mean1, batch_var1, beta1, scale1, self.EPSILON)
+        H1_conv = self.__activation(BN1)
+        H1_pool = self.__pool(H1_conv)
+        Z2_conv = self.__convolution(H1_pool, W2)
+        batch_mean2, batch_var2 = tf.nn.moments(Z2_conv, [0])
+        BN2 = tf.nn.batch_normalization(Z2_conv, batch_mean2, batch_var2, beta2, scale2, self.EPSILON)
+        H2_conv = self.__activation(BN2)
+        H2_pool = self.__pool(H2_conv)
+        Z3_conv = self.__convolution(H2_pool, W3)
+        batch_mean3, batch_var3 = tf.nn.moments(Z3_conv, [0])
+        BN3 = tf.nn.batch_normalization(Z3_conv, batch_mean3, batch_var3, beta3, scale3, self.EPSILON)
+        H3_conv = self.__activation(BN3)
+        H3_pool = self.__pool(H3_conv)
+        H3_pool_flatten = tf.reshape(H3_pool, [-1, self.WFC_SHAPE[0]])
+        HFC = tf.matmul(H3_pool_flatten, WFC) + bFC
+        y_conv = tf.nn.softmax(HFC)
+        sess = tf.InteractiveSession()
+        feed_dict = {x: test_features, W1: nn['W1'], beta1: nn['beta1'], scale1: nn['scale1'], W2: nn['W2'], beta2: nn['beta2'], scale2: nn['scale2'], W3: nn['W3'], beta3: nn['beta3'], scale3: nn['scale3'], WFC: nn['WFC'], bFC: nn['bFC']}
+        predicted_labels = sess.run(y_conv, feed_dict=feed_dict)
+        sess.close()
+        predicted_labels = np.argmax(predicted_labels, axis=1)
+        acc = np.mean(predicted_labels == test_labels)
+        return predicted_labels, acc
+
+    def __preprocessing(self, X):
+        X = X.astype(np.float64)
+        X = X - np.mean(X, dtype=np.float64)
+        X = X / np.std(X, dtype=np.float64)
+        return X
+
+    def __weight_variable(self, shape):
+        if len(shape) == 4:
+            initial = np.random.randn(shape[0], shape[1], shape[2], shape[3]) * math.sqrt(2.0 / (shape[0] * shape[1] * shape[2] * shape[3]))
+        else:
+            initial = np.random.randn(shape[0], shape[1]) * math.sqrt(2.0 / (shape[0] * shape[1]))
+        return tf.Variable(initial, dtype=tf.float32)
+
+    def __bias_variable(self, shape):
+        initial = tf.constant(0.1, shape=shape)
+        return tf.Variable(initial)
+
+    def __convolution(self, x, W):
+        return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
+
+    def __activation(self, x):
+        return tf.nn.relu(x)
+
+    def __pool(self, x):
+        return tf.nn.max_pool(x, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
+
+
+if __name__ == '__main__':
+    D = 3072
+    K = 10
+    learn_data = 'result/CNN1_BN/cifar_10'
+    final_accuracy = 0
+    batch_size = 500
+    cnn = ConvolutionNeuralNetwork(3072, 10)
+    X, y, X_test, y_test = util.load_CIFAR10('data/')
+    if util.file_exist(learn_data):
+        nn_parameter = util.unpickle(learn_data)
+    else:
+        nn_parameter = cnn.training(X, y)
+        util.pickle_nn(learn_data, nn_parameter)
+    util.create_file('result/CNN1_BN/submission.csv')
+    for i in range(0, X_test.shape[0], batch_size):
+        batch_test_feature = X_test[i:i + batch_size, :]
+        batch_test_labels = y_test[i:i + batch_size]
+        predicted_labels, accuracy = cnn.predict(batch_test_feature, batch_test_labels, nn_parameter)
+        final_accuracy += accuracy
+        util.append_data_to_file('result/CNN1_BN/submission.csv', predicted_labels, i)
+    nr_iteration = X_test.shape[0] / batch_size
+    final_accuracy /= nr_iteration
+    print('The final accuracy is : ', final_accuracy)

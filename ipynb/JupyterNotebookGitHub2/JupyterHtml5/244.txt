@@ -1,0 +1,169 @@
+
+In [1]:
+
+    
+import tensorflow as tf
+import numpy as np
+
+
+    
+
+
+
+In [2]:
+
+    
+X = tf.Variable([[0.4,0.2,0.4]])
+W = tf.Variable([[-0.5,-0.2],[-0.3,0.4],[-0.5,0.2]])
+b = tf.Variable([[0.1,0.2]])
+XWb = tf.matmul(X,W)+b
+y1 = tf.nn.relu(XWb)
+y2 = tf.nn.sigmoid(XWb)
+
+with tf.Session() as sess:
+    init = tf.global_variables_initializer()
+    sess.run(init)
+    print('WXb:')
+    print(sess.run(XWb)) #分別執行 sess.run
+    print('-----------------------------------------------------------')
+    print('y1(relu):')
+    print(sess.run(y1))
+    print('-----------------------------------------------------------')
+    print('y2(sigmoid):')
+    print(sess.run(y2))
+
+
+    
+
+
+
+In [3]:
+
+    
+W = tf.Variable(tf.random_normal([3,2])) #常態分佈亂數
+b = tf.Variable(tf.random_normal([1,2])) #常態分佈亂數
+X = tf.placeholder("float", [None,3]) # 宣告輸入變數
+
+y = tf.nn.relu(tf.matmul(X,W)+b)
+
+with tf.Session() as sess:
+    init = tf.global_variables_initializer()
+    sess.run(init)
+    X_array = np.array([[0.4,0.2,0.4]]) #輸入二維陣列 1x3
+    (_b,_W,_X,_y) = sess.run((b,W,X,y),feed_dict={X:X_array}) #執行一次 sess.run
+    print('b:'); print(_b)
+    print('-----------------------------------------------------------')
+    print('W:'); print(_W)
+    print('-----------------------------------------------------------')
+    print('X:'); print(_X)
+    print('-----------------------------------------------------------')
+    print('y:'); print(_y)
+
+
+    
+
+
+
+In [4]:
+
+    
+W = tf.Variable(tf.random_normal([3,2])) #常態分佈亂數
+b = tf.Variable(tf.random_normal([1,2])) #常態分佈亂數
+X = tf.placeholder("float", [None,3]) # 宣告輸入變數
+
+y = tf.nn.sigmoid(tf.matmul(X,W)+b)
+
+with tf.Session() as sess:
+    init = tf.global_variables_initializer()
+    sess.run(init)
+    X_array = np.array([[0.4,0.2,0.4],
+                       [0.3,0.4,0.5],
+                       [0.3,-0.4,0.5]]) #輸入二維陣列 3x3
+    (_b,_W,_X,_y) = sess.run((b,W,X,y),feed_dict={X:X_array}) #執行一次 sess.run
+    print('b:'); print(_b)
+    print('-----------------------------------------------------------')
+    print('W:'); print(_W)
+    print('-----------------------------------------------------------')
+    print('X:'); print(_X)
+    print('-----------------------------------------------------------')
+    print('y:'); print(_y)
+
+
+    
+
+
+
+In [5]:
+
+    
+def layer(output_dim, input_dim, inputs, activation=None):
+    W = tf.Variable(tf.random_normal([input_dim, output_dim]))
+    b = tf.Variable(tf.random_normal([1, output_dim]))
+    XWb = tf.matmul(inputs, W) + b
+    if activation is None:
+        outputs = XWb
+    else:
+        outputs = activation(XWb)
+    return outputs
+
+
+    
+
+
+
+In [6]:
+
+    
+X = tf.placeholder("float", [None, 4])
+h = layer(output_dim=3, input_dim=4, inputs=X, activation=tf.nn.relu)
+y = layer(output_dim=2, input_dim=3, inputs=h)
+
+with tf.Session() as sess:
+    init = tf.global_variables_initializer()
+    sess.run(init)
+    X_array = np.array([[0.4,0.2,0.4,0.5]]) #輸入二維陣列 1x4
+    (layer_X, layer_h, layer_y) = sess.run((X,h,y),feed_dict={X:X_array})
+    print('intput Layer X:'); print(layer_X)
+    print('-----------------------------------------------------------')
+    print('hidden Layer h:'); print(layer_h)
+    print('-----------------------------------------------------------')
+    print('output Layer y:'); print(layer_y)
+
+
+    
+
+
+
+In [8]:
+
+    
+X = tf.placeholder("float", [None, 4])
+h = layer(output_dim=3, input_dim=4, inputs=X, activation=tf.nn.relu)
+y = layer(output_dim=2, input_dim=3, inputs=h)
+
+with tf.Session() as sess:
+    init = tf.global_variables_initializer()
+    sess.run(init)
+    X_array = np.array([[0.4,0.2,0.4,0.2],
+                       [0.3,0.4,0.5,0.2],
+                       [0.3,-0.4,0.5,0.2]]) #輸入二維陣列 3x4
+    (layer_X, layer_h, layer_y) = sess.run((X,h,y),feed_dict={X:X_array})
+    print('intput Layer X:'); print(layer_X)
+    print('-----------------------------------------------------------')
+    print('hidden Layer h:'); print(layer_h)
+    print('-----------------------------------------------------------')
+    print('output Layer y:'); print(layer_y)
+
+
+    
+
+
+
+In [ ]:
+
+    
+ 
+
+
+    
+

@@ -1,0 +1,313 @@
+
+In [2]:
+
+    
+import numpy as np
+import tensorflow as tf
+import pickle
+import scipy.io
+import idx2numpy
+import random
+from matplotlib import pyplot as plt
+
+
+    
+
+
+
+In [20]:
+
+    
+import math
+
+
+    
+
+
+
+In [4]:
+
+    
+train = scipy.io.loadmat('mnist_default_train_28x28.mat')
+test = scipy.io.loadmat('mnist_default_test_28x28.mat')
+
+
+    
+
+
+
+In [8]:
+
+    
+train_labels = train['y']
+train_data = train['X']
+
+test_labels = test['y']
+test_data = test['X']
+
+
+    
+
+
+
+In [9]:
+
+    
+print(train_data.shape, train_labels.shape)
+print(test_data.shape, test_labels.shape)
+
+
+    
+
+
+
+In [18]:
+
+    
+WIDTH = 28
+
+graph = tf.Graph()
+
+with graph.as_default():
+    X = tf.placeholder(tf.float32, [None, WIDTH, WIDTH, 1])
+    Y_ = tf.placeholder(tf.float32, [None, 10])
+    
+    # Learning Rate - alpha
+    alpha = tf.placeholder(tf.float32)
+    
+    # Dropout Probablity
+    pkeep = tf.placeholder(tf.float32)
+    
+    # 5 Layers and their no of neurons
+    # 3 Convolutional Layers and a fully connected layer
+    K = 6     # First Conv Layer with depth 4
+    L = 12     # Second Conv Layer with depth 8
+    M = 24    # Third Conv layer with depth 12
+    N = 200   # Fully Connected layer with 200 neurons
+    # Last one will be softmax layer with 10 output channels
+    
+    W1 = tf.Variable(tf.truncated_normal([6, 6, 1, K], stddev=0.1))     # 6x6 patch, 1 input channel, K output channels
+    B1 = tf.Variable(tf.constant(0.1, tf.float32, [K]))
+    
+    W2 = tf.Variable(tf.truncated_normal([5, 5, K, L], stddev=0.1))
+    B2 = tf.Variable(tf.constant(0.1, tf.float32, [L]))
+    
+    W3 = tf.Variable(tf.truncated_normal([4, 4, L, M], stddev=0.1))
+    B3 = tf.Variable(tf.constant(0.1, tf.float32, [M]))
+    
+    W4 = tf.Variable(tf.truncated_normal([7 * 7 * M, N], stddev=0.1))
+    B4 = tf.Variable(tf.constant(0.1, tf.float32, [N]))
+    
+    W5 = tf.Variable(tf.truncated_normal([N, 10], stddev=0.1))
+    B5 = tf.Variable(tf.constant(0.1, tf.float32, [10]))
+    
+    # Model
+    stride = 1  # output is 28x28
+    Y1 = tf.nn.relu(tf.nn.conv2d(X, W1, strides=[1, stride, stride, 1], padding='SAME') + B1)
+    
+    stride = 2  # output is 14x14
+    Y2 = tf.nn.relu(tf.nn.conv2d(Y1, W2, strides=[1, stride, stride, 1], padding='SAME') + B2)
+    
+    stride = 2  # output is 7x7
+    Y3 = tf.nn.relu(tf.nn.conv2d(Y2, W3, strides=[1, stride, stride, 1], padding='SAME') + B3)
+
+    # reshape the output from the third convolution for the fully connected layer
+    YY = tf.reshape(Y3, shape=[-1, 7 * 7 * M])
+
+    Y4 = tf.nn.relu(tf.matmul(YY, W4) + B4)
+    YY4 = tf.nn.dropout(Y4, pkeep)
+    
+    Ylogits = tf.matmul(YY4, W5) + B5
+    
+    Y = tf.nn.softmax(Ylogits)
+    
+    cross_entropy = tf.nn.softmax_cross_entropy_with_logits(Ylogits, Y_)
+    cross_entropy = tf.reduce_mean(cross_entropy)*100
+
+    # accuracy of the trained model, between 0 (worst) and 1 (best)
+    correct_prediction = tf.equal(tf.argmax(Y, 1), tf.argmax(Y_, 1))
+    accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+    
+    train_step = tf.train.AdamOptimizer(alpha).minimize(cross_entropy)
+    
+    model_saver = tf.train.Saver()
+
+
+    
+
+
+
+In [22]:
+
+    
+num_steps = 10001
+batch_size = 100
+
+with tf.Session(graph=graph) as session:
+    tf.initialize_all_variables().run()
+    print('Initialized')
+    
+    for step in range(num_steps):
+        #  learning rate decay
+        max_learning_rate = 0.003
+        min_learning_rate = 0.0001
+        decay_speed = 2000.0
+        learning_rate = min_learning_rate + (max_learning_rate - min_learning_rate) * math.exp(-step/decay_speed)
+
+        offset = (step * batch_size) % (train_labels.shape[0] - batch_size)
+        batch_data = train_data[offset:(offset + batch_size), :, :, :]
+        batch_labels = train_labels[offset:(offset + batch_size), :]
+        
+        feed_dict = {X : batch_data, Y_ : batch_labels, pkeep : 0.80, alpha : learning_rate}
+        _, l, predictions = session.run([train_step, cross_entropy, accuracy], feed_dict=feed_dict)
+
+        if (step % 500 == 0): 
+            print('Loss at step %d: %f' % (step, l))
+            print('accuracy : ', predictions )
+            print('Learning rate : ', learning_rate)
+            print('    ')
+    
+    _, l, predictions = session.run([train_step, cross_entropy, accuracy], feed_dict={X : test_data, Y_ : test_labels, pkeep : 1.0, alpha : 0.002})
+    print('Test accuracy: ', predictions)
+    
+    save_path = model_saver.save(session, "CNN_MNIST_DEFAULT.ckpt")
+    print("Model saved in file: %s" % save_path)
+
+
+    
+
+
+
+In [ ]:
+
+    
+WIDTH = 28
+
+grapha = tf.Graph()
+
+with grapha.as_default():
+    X = tf.placeholder(tf.float32, [None, WIDTH, WIDTH, 1])
+    Y_ = tf.placeholder(tf.float32, [None, 10])
+    
+    # Learning Rate - alpha
+    alpha = tf.placeholder(tf.float32)
+    
+    # Dropout Probablity
+    pkeep = tf.placeholder(tf.float32)
+    
+    # 5 Layers and their no of neurons
+    # 3 Convolutional Layers and a fully connected layer
+    K = 6     # First Conv Layer with depth 4
+    L = 12     # Second Conv Layer with depth 8
+    M = 24    # Third Conv layer with depth 12
+    N = 200   # Fully Connected layer with 200 neurons
+    # Last one will be softmax layer with 10 output channels
+    
+    W1 = tf.Variable(tf.truncated_normal([6, 6, 1, K], stddev=0.1))     # 6x6 patch, 1 input channel, K output channels
+    B1 = tf.Variable(tf.constant(0.1, tf.float32, [K]))
+    
+    W2 = tf.Variable(tf.truncated_normal([5, 5, K, L], stddev=0.1))
+    B2 = tf.Variable(tf.constant(0.1, tf.float32, [L]))
+    
+    W3 = tf.Variable(tf.truncated_normal([4, 4, L, M], stddev=0.1))
+    B3 = tf.Variable(tf.constant(0.1, tf.float32, [M]))
+    
+    W4 = tf.Variable(tf.truncated_normal([7 * 7 * M, N], stddev=0.1))
+    B4 = tf.Variable(tf.constant(0.1, tf.float32, [N]))
+    
+    W5 = tf.Variable(tf.truncated_normal([N, 10], stddev=0.1))
+    B5 = tf.Variable(tf.constant(0.1, tf.float32, [10]))
+    
+    # Model
+    stride = 1  # output is 28x28
+    Y1 = tf.nn.relu(tf.nn.conv2d(X, W1, strides=[1, stride, stride, 1], padding='SAME') + B1)
+    
+    stride = 2  # output is 14x14
+    Y2 = tf.nn.relu(tf.nn.conv2d(Y1, W2, strides=[1, stride, stride, 1], padding='SAME') + B2)
+    
+    stride = 2  # output is 7x7
+    Y3 = tf.nn.relu(tf.nn.conv2d(Y2, W3, strides=[1, stride, stride, 1], padding='SAME') + B3)
+
+    # reshape the output from the third convolution for the fully connected layer
+    YY = tf.reshape(Y3, shape=[-1, 7 * 7 * M])
+
+    Y4 = tf.nn.relu(tf.matmul(YY, W4) + B4)
+    YY4 = tf.nn.dropout(Y4, pkeep)
+    
+    Ylogits = tf.matmul(YY4, W5) + B5
+    
+    Y = tf.nn.softmax(Ylogits)
+    
+    cross_entropy = tf.nn.softmax_cross_entropy_with_logits(Ylogits, Y_)
+    cross_entropy = tf.reduce_mean(cross_entropy)*100
+
+    # accuracy of the trained model, between 0 (worst) and 1 (best)
+    correct_prediction = tf.equal(tf.argmax(Y, 1), tf.argmax(Y_, 1))
+    accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+    
+    train_step = tf.train.AdamOptimizer(alpha).minimize(cross_entropy)
+    
+    model_saver = tf.train.Saver()
+
+
+    
+
+
+
+In [5]:
+
+    
+from PIL import Image
+img_name = ['1', '0']
+tags = np.array([[0,1,0,0,0,0,0,0,0,0],[1,0,0,0,0,0,0,0,0,0]])
+
+
+    
+
+
+
+In [6]:
+
+    
+images_ = []
+for img in img_name :
+    n = '_' + img + '_.jpg'
+    images_.append(Image.open(n).convert('L'))
+    
+for img in images_ :
+    img = img.convert('L')
+    
+images_array_ = []
+for i in images_ :
+    images_array_.append(np.array(i))
+    
+for i in range(len(images_array_)) :
+    images_array_[i] = images_array_[i][:,:,np.newaxis]
+    
+images_array_ = np.array(images_array_)
+
+images_array_ = (images_array_.astype(np.float32))
+tage = (tags.astype(np.int32))
+
+print(images_array_.shape, tags.shape)
+
+
+    
+
+
+
+In [ ]:
+
+    
+with tf.Session(graph=graph) as session:
+#     tf.initialize_all_variables().run()
+    model_saver.restore(session, "CNN_MNIST_DEFAULT.ckpt")
+    print("Model restored.") 
+    print('Initialized')
+    
+    _, l, predictions = session.run([train_step, cross_entropy, train_prediction], feed_dict={X : svhn_test_dataset, Y_ : svhn_test_labels, pkeep : 1.0, alpha : 0.002})
+    print('Test accuracy: ', acc(predictions, svhn_test_labels[:,1:6]))
+
+
+    
+

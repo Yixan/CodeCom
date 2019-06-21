@@ -1,0 +1,34 @@
+from keras.models import Sequential
+from keras.layers.core import Dense, Dropout, Activation
+from keras.layers.embeddings import Embedding
+from keras.layers.recurrent import LSTM
+from keras.models import load_model
+import numpy as np
+import data_proc
+import os
+def lstm_with_generator(numFile):
+    model = Sequential()
+    model.add(LSTM(128, input_shape=(20,12)))
+    model.add(Dropout(0.2))
+    model.add(Dense(1, activation='sigmoid'))
+    model.compile(loss='binary_crossentropy', optimizer='rmsprop',metrics=['accuracy'])
+    model.fit_generator(data_proc.generator_from_path("marketing_data/m0000/", file_set = [3,4,5,6,7,8]), steps_per_epoch=1970, epochs=15, validation_data =_proc.generator_from_path("marketing_data/m0000/", [9]), validation_steps = 378)
+    model = load_model('lstm.h5')
+    res = model.evaluate_generator(data_proc.generator_from_path("marketing_data/m0000/", [9]), steps=378)
+    print ("score:",res[0])
+    print ("acc",res[1])
+def lstm_train(X_train,Y_train,X_test,Y_test):
+	model = Sequential()
+	model.add(LSTM(128, input_shape=(20,12)))
+	model.add(Dropout(0.2))
+	model.add(Dense(1, activation='sigmoid'))
+	model.compile(loss='binary_crossentropy', optimizer='rmsprop',metrics=['accuracy'])
+	model.fit(X_train, Y_train, batch_size=16, epochs=15,validation_data=(X_test,Y_test))
+	res = model.evaluate(X_test, Y_test, batch_size=16)
+	print ("score:",res[0])
+	print ("acc",res[1])
+def lstm_predict(X_test):
+	model = load_model('lstm.h5')
+	return res
+if __name__=='__main__':
+	lstm_with_generator(5)

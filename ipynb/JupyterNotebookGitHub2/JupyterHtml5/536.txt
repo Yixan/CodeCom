@@ -1,0 +1,834 @@
+
+In [1]:
+
+    
+import uuid
+import time
+import pickle
+import sys
+import gym.spaces
+import itertools
+import numpy as np
+import random
+import tensorflow                as tf
+import tensorflow.contrib.layers as layers
+from collections import namedtuple
+import TicTacToe
+from collections import Counter
+import Players
+from importlib import reload
+reload(Players)
+reload(TicTacToe)
+
+
+    
+
+
+
+In [2]:
+
+    
+tf.reset_default_graph()
+
+def TicTacToe_model(observation_placeholder, scope, num_actions = 9):
+    '''A model for a TicTacToe Q-function
+    Inputs:
+        observation_placeholder: [None, ob_dim] placeholder representing inputs to our neural network
+        scope: a string that becomes the scope of all layers in this network
+        reuse: 
+        num_actions: an int representing the number of possible actions (the output dimension)
+    
+    The final layer outputs values in the range [-1,1], which matches the range of possible target q-values
+    placeholder = tf.contrib.layers.flatten(placeholder)
+    
+    The Q-function is thought of as a function of two varables Q(s,a). Here we treat it as a num_actions-dimensional
+    function of one variable, so that Q(s,a) = Q(s)[a]
+    
+    We initialize bias and weights to zero, except for the final layer, where the weights are initialized to one.  
+    
+    Returns:
+        model: [None, num_actions] variable representing the outputs of our q-function
+    '''
+    with tf.variable_scope(scope):
+        out = tf.contrib.layers.flatten(observation_placeholder)
+        out = tf.cast(out, tf.float32)
+        out = tf.layers.dense(out, 64  , bias_initializer = tf.zeros_initializer(), activation = tf.nn.softmax)
+        out = tf.layers.dense(out, 64  , bias_initializer = tf.zeros_initializer(), activation = tf.nn.softmax)
+        out = tf.layers.dense(out, 64  , bias_initializer = tf.zeros_initializer(), activation = tf.nn.softmax)
+        out = tf.layers.dense(out, num_actions , kernel_initializer = tf.zeros_initializer(), bias_initializer = tf.zeros_initializer(), activation = tf.nn.sigmoid)
+        out = (out*2)-1
+    return out
+
+    
+def sample_action(model, mask_placeholder):
+    '''Symbolically selects an action from logits with restrictions
+    Inputs: 
+        model: a [None, action_dim] variable consisting of logits
+        mask_placeholder: a [None, action_dim] placeholder that will be fed boolean vectors
+    
+    Returns:
+        A random legal action, where legal values are those which mask_placeholder assigns 1
+        The probabilities are weighted according to the logits
+    '''
+    out = model
+    dist = tf.distributions.Categorical(probs=maskedSoftmax(out, mask_placeholder))
+    return dist.sample()
+    
+    
+def maskedSoftmax(logits, mask):
+    '''Computes the softmax of our logits, given that some moves are illegal
+    Inputs:
+        Masked softmax over dim 1
+        param logits: [None, ac_dim]
+        param mask: [None, ac_dim]
+        
+        ***This code is edited from code we found online***
+        We do not want there to be any probability of making illegal moves. 
+        Intuitively, we are computing softmax of our logits, but pretending that the only entries 
+            are the legal ones.
+        This is actually implemented via SparseTensor calculations.
+        
+    Returns: 
+        result: [None, ac_dim] a sequence of probability distributions, with zero probability of illegal moves
+    '''
+    indices = tf.where(mask)
+    values = tf.gather_nd(logits, indices)
+    denseShape = tf.cast(tf.shape(logits), tf.int64)
+    
+    # Tensorflow will automatically set output probabilities to zero of 
+    # undesignated entries in sparse vector
+    sparseResult = tf.sparse_softmax(tf.SparseTensor(indices, values, denseShape))
+    
+    result = tf.scatter_nd(sparseResult.indices, sparseResult.values, sparseResult.dense_shape)
+    result.set_shape(logits.shape)
+    return result
+
+
+def batch_rollout(player,opponent, env, max_time_steps = 100):
+    '''Produces a batch of rollouts from the environment.
+    Inputs:
+        player: realization of Player.Player abstract class
+        opponent: realization of Player.Player abstract class
+        env: an environment
+        max_time_steps: an integer
+    
+    This function plays a number of rounds of a two-player game, and returns the trajectories observed by player
+    
+    Returns:
+        paths: a list of dictionaries. Each dictionary is a rollout, and takes the keys:
+            'observation': [None, obs_dime] np.array of the observations of player
+            'action': [None,] np.array of the actions of player
+            'reward': [None,] np.array of the rewards gotten by player
+        batch_winners: TODO
+    '''
+    paths = []
+    batch_winners = Counter({0: 0, 1: 0, 2:0})
+    time_steps = 0
+    while time_steps < max_time_steps:
+        path = sample_trajectory(player,opponent,env)
+        paths += [path]
+        batch_winners[env.current_winner] +=1
+        time_steps += len(path['observation'])
+    return paths, batch_winners
+    
+    
+    
+def sample_trajectory(player, opponent, env):
+    """Produces a single rollout of the environment following the player policy
+    Inputs:
+        player:   realization of Player.Player abstract class
+        opponent: realization of Player.Player abstract class
+        env:      environment which follows open ai gym environment structure and has a current_player int either 1 or 2
+        TODO: it doesn't quite match the reward structure, no?^
+       
+    Returns:
+    a list of dictionaries. Each dictionary is a rollout, and takes the keys:
+        'observation': [None, obs_dime] np.array of the observations of player
+        'action': [None,] np.array of the actions of player
+        'reward': [None,] np.array of the rewards gotten by player
+    """
+    
+    obs, acs, rewards, masks = [], [], [], []
+    ob = env.reset()
+    done = False
+    player_has_acted = False
+    action = None
+    
+    #Do rest of moves
+    while not done:
+        #Get current observation of current player
+        ob = env.get_observation(env.current_player)
+        legal_moves = env.legal_moves()
+        if env.current_player == 1:
+            #Reward is recorded as results of state,action pair... need to check player 1 has acted already
+            if player_has_acted:
+                rewards.append(env.get_reward(1))
+            else:
+                player_has_acted = True
+                
+            action = player.policy(np.array([ob]), np.array([legal_moves]))
+            obs.append(ob)
+            acs.append(action[0])
+            masks.append(legal_moves)
+        else:
+            action = opponent.policy(np.array([ob]), np.array([legal_moves]))
+        done, _ = env.step(action[0]) 
+
+    #Need to record final reward for player 1
+    rewards.append(env.get_reward(1))
+    
+    path = {"observation" : np.array(obs, dtype=np.int32), 
+                "reward" : np.array(rewards, dtype=np.float32), 
+                "action" : np.array(acs, dtype=np.int32),
+                "mask" : np.array(masks, dtype=np.int32)}
+    return path
+
+    
+    
+def sum_of_rewards(paths, gamma = .6): 
+    re_n = [path["reward"] for path in paths]
+    q_n = []
+    for seq_of_rewards in re_n:
+        for t in range(len(seq_of_rewards)):
+            weighted_sequence = seq_of_rewards[t:] * np.array([gamma**i for i in range(len(seq_of_rewards[t:]))])
+            q_n.append(np.sum(weighted_sequence))
+    adv_n = q_n
+    return adv_n
+        
+def standardize_advantage(adv_n):
+    adv_n = (adv_n - np.mean(adv_n)) 
+    adv_n = adv_n * (1.0/(np.std(adv_n)+.0000001))
+    return adv_n
+
+def get_log_prob(model, action_placeholder, mask_placeholder):
+    action_dim = 9 
+    logits = model
+    
+    indices = tf.where(mask_placeholder)
+    values = tf.gather_nd(logits, indices)
+    denseShape = tf.cast(tf.shape(logits), tf.int64)
+    
+    """THIS IS THE KEY: tensorflow will automatically set output probabilities to zero of undesignated entries in sparse vector"""
+    sparseResult = tf.sparse_softmax(tf.SparseTensor(indices, values, denseShape))
+    
+    probability_dist = tf.scatter_nd(sparseResult.indices, sparseResult.values, sparseResult.dense_shape)
+#     probability_dist = probability_dist.set_shape(logits.shape)
+    log_probability_dist = tf.scatter_nd(sparseResult.indices, tf.log(sparseResult.values), sparseResult.dense_shape)
+
+    """Want to emulate this:"""
+#     probability_dist = tf.nn.softmax(logits)
+#     legal_pseudo_probability_dist = probability_dist*values
+#     legalprobability_dist = tf.divide(legal_pseudo_probability_dist, tf.reduce_sum(legal_pseudo_probability_dist, axis= 1))
+    
+    prod = tf.multiply(probability_dist, tf.one_hot(action_placeholder, action_dim ))
+    
+    entropy = - tf.reduce_sum(probability_dist * log_probability_dist, axis = 1)
+    
+    
+    
+    log_prob = tf.log(tf.reduce_sum(prod , axis = 1 ))
+#    log_prob = -tf.nn.sparse_softmax_cross_entropy_with_logits(labels= action_placeholder, logits= tf.SparseTensor(indices, values, denseShape))
+    return log_prob, entropy
+
+def loss_and_update_op(log_prob, entropy, adv_n, entropy_coeff = .1):
+    loss = -tf.reduce_mean(log_prob * adv_n) -  entropy_coeff * entropy
+    optimizer = tf.train.AdamOptimizer(5e-3)
+    update_op = optimizer.minimize(loss)
+    return loss, update_op, optimizer
+    
+
+
+    
+
+
+
+In [5]:
+
+    
+#Main code for running policy gradient
+
+tf.reset_default_graph()
+
+#define the board, models *symbolically*
+observation_placeholder = tf.placeholder(shape = [None, 3,3], dtype = tf.int32)
+adv_n_placeholder = tf.placeholder(shape = [None], dtype = tf.float32)
+action_placeholder = tf.placeholder(shape = [None], dtype = tf.int32)
+mask_placeholder = tf.placeholder(shape=[None, 9], dtype = tf.int32)
+
+
+model = TicTacToe_model(observation_placeholder, 9, scope = "policy_gradient")
+#old_model = TicTacToe_model(board_placeholder, 9, scope = "model-2")
+model_input_s = sample_action(model, mask_placeholder)
+
+#Define Loss functions *symbolically*
+log_prob, entropy = get_log_prob(model, action_placeholder, mask_placeholder)
+loss, update_op, optimizer = loss_and_update_op(log_prob, entropy, adv_n_placeholder, entropy_coeff = 0)
+
+#start a session
+sess =tf.Session()
+sess.run(tf.global_variables_initializer())
+#Defines player, opponent
+player = Players.NN_Player(model, model_input_s, sess, observation_placeholder, mask_placeholder, duplicate=False, deterministic = False)
+opponent = Players.Random_Player()
+
+#Loads old player,opponent
+# temp_file_name = './bot_10_28_v6.ckpt'
+
+#Want to duplicate session
+# saver = tf.train.Saver()
+# saver.restore(sess, temp_file_name)
+
+
+# opponent = Players.NN_Player(model, model_input_s, sess, observation_placeholder, mask_placeholder)
+
+
+
+
+#start an environment
+env = TicTacToe.TicTacToe()
+
+number_updates_per_expert_update = 5
+number_expert_updates = 1000
+
+for k in range(number_expert_updates):
+    print("iteration number", k)
+    
+    batch_adv_n = []
+    iteration_winners = Counter({0:0,1:0,2:0})
+    
+    tic = time.time()
+    for i in range(number_updates_per_expert_update):
+        paths, batch_winners = batch_rollout(player, opponent, env, max_time_steps=1000)
+        iteration_winners += batch_winners
+        
+        adv_n = sum_of_rewards(paths)
+        batch_adv_n = batch_adv_n + adv_n
+        
+
+        boards = np.concatenate([path['observation'] for path in paths])
+        masks = np.concatenate([path['mask'] for path in paths])
+        actions = np.squeeze(np.concatenate([path["action"] for path in paths])).astype(int)
+        
+        sess.run(update_op, feed_dict = {mask_placeholder: masks, adv_n_placeholder: adv_n, observation_placeholder: boards , action_placeholder: actions})
+    
+    
+    #Unwind win data:
+#     print(iteration_winners)
+    print("mean adv", np.mean(batch_adv_n))
+    print("iteration time", time.time() - tic)
+#     print(paths[0])
+    
+    
+    expert_player = Players.Expert_Player()
+    _, expert_batch_winners = batch_rollout(player, expert_player, env, max_time_steps=900)
+    player_loss_percentage_vs_expert = expert_batch_winners[2]*1.0/(expert_batch_winners[0] + expert_batch_winners[1] + expert_batch_winners[2])
+    print("loss percent vs expert", player_loss_percentage_vs_expert)
+    opponent = Players.NN_Player(model, model_input_s, sess, observation_placeholder, mask_placeholder)
+            
+    
+
+
+    
+
+
+
+In [41]:
+
+    
+#Save current net
+
+temp_file_name = './bot_11_02_dqn_v1.ckpt'
+
+#Want to duplicate session
+saver = tf.train.Saver()
+saver.save(sess, temp_file_name)
+
+
+    
+
+
+
+In [42]:
+
+    
+#Load current net
+
+temp_file_name = './bot_11_02_dqn_v1.ckpt'
+
+#Want to duplicate session
+saver = tf.train.Saver()
+saver.restore(sess, temp_file_name)
+
+
+    
+
+
+
+In [64]:
+
+    
+from importlib import reload
+human = Players.Human_Player()
+opponent.epsilon = 0.
+env = TicTacToe.TicTacToe()
+paths, batch_winners = batch_rollout(opponent,human,env,max_time_steps=10000)
+print(batch_winners)
+    
+
+
+    
+
+
+
+In [21]:
+
+    
+reload(Players)
+
+
+def symbolic_Q_update(model, target_placeholder, action_placeholder, learning_rate = .01):
+    '''Produce the symbolic variables for loss, the update, and the optimizer
+    Inputs:
+        model: [None, action_dim] variable consisting of Q values
+        target_placeholder: [None,] placeholder that will be fed target values for the Q-function
+        action_placeholder: [None,] placeholder that will be fed the action values
+        learning_rate: float representing the size of gradient step
+        
+        The loss is the mean squared error ||Q(s,a) - Q'(s,a)||^2
+        We use AdamOptimizer with no bells or whistles
+        
+    Returns:
+        update_op: a method to be called when we desire to take a gradient step
+    '''
+    q_action_s = tf.reduce_sum(tf.multiply(model, tf.one_hot(action_placeholder, 9)), 1)
+    loss = tf.losses.mean_squared_error(q_action_s, target_placeholder)
+    optimizer = tf.train.AdamOptimizer(learning_rate)
+    update_op = optimizer.minimize(loss)
+    return update_op, loss
+
+def compute_target_values(player, next_state, masks, not_end_of_path, reward, decay = .99, verbose = False):
+    '''Computes the target values for our Q-function update
+    Inputs: 
+        model: [None, action_dim] variable consisting of Q values
+        next_state: [None, ob_dim] np.array of states
+        masks: [None, ac_dim] np.array of masks (legal moves)
+        not_end_of_path: [None,] np.array of 0,1 integers (0 denotes the end of a rolllout)
+        reward: [None,] np.array of real numbers representing the return of the action resulting in next_state
+        decay: real number in [0,1] representing the decay rate (often called gamma)
+        verbose: Boolean
+    
+    This function is used to compute the Bellman backup values used to update our Q-function. 
+        Recall: Q(s,a,s') <~~  r(s,a) +  max_a' [Q(s',a')]
+        The right side of this equation is called the target value.
+    
+    Returns:
+        target: [None,] batch of real numbers, indicating target values
+    ''' 
+    next_state_Qs = player.session.run(player.model, feed_dict= {player.observation_placeholder: next_state})
+    future_expected_reward = []
+    for next_state_Q, mask in zip(next_state_Qs,masks):
+        indices = np.where(mask)
+        values = next_state_Q[indices]
+        future_expected_reward.append(np.max(values))
+    future_reward_if_not_done = [eop * fer for eop, fer in zip(not_end_of_path.tolist(), future_expected_reward)]
+    target = reward + future_reward_if_not_done
+    if verbose:
+        print("not end of path", not_end_of_path)
+        print("future expected reward", future_expected_reward)
+        print("future reward if not done", future_reward_if_not_done)
+        print("reward", reward)
+        print("target", target)
+        print("--")
+    return target
+
+def sample_paths(paths, batch_size = 10):
+    '''From a collection of rollouts, this samples a random uniform batch
+    Inputs: 
+        paths: a list of dictionaries containing the data of a rollout
+        batch_size: integer determining batch size to be returned
+    
+    Returns:
+        state1: [batch_size, ob_dim] np.array of states
+        action: [batch_size,] np.array of actions
+        state2: [batch_size, ob_dim] np.array of states
+        reward: [batch_size,] np.array of states
+        mask:   [batch_size,ac_dim] np.array of masks
+        done:   [batch_size,] binary np.array. 
+            A 0 corresponds to a terminal game state, a 1 is a non-terminal game state
+    '''
+    
+    #Make the easy lists
+    observation_list = np.concatenate([path['observation'] for path in paths])
+    action_list = np.concatenate([path['action'] for path in paths])
+    reward_list = np.concatenate([path['reward'] for path in paths])
+    mask_list = np.concatenate([path['mask'] for path in paths])
+
+    #Make the done list
+    number_of_states = len(observation_list)
+    list_of_ones = [1] * number_of_states
+    partial_sum =0
+    for path in paths:
+        partial_sum += len(path['observation'])
+        list_of_ones[partial_sum-1] = 0
+    done_list = list_of_ones
+    
+
+    #Select randomly chosen entries
+    indices = np.random.choice(number_of_states, batch_size) 
+    state1 = np.array([observation_list[i] for i in indices])
+    action = np.array([action_list[i] for i in indices])
+    state2 = np.array([observation_list[(i+1) % number_of_states] for i in indices])
+    reward = np.array([reward_list[i] for i in indices])
+    mask = np.array([mask_list[(i+1) % number_of_states] for i in indices])
+    done = np.array([done_list[i] for i in indices])
+    
+    return state1, action, state2 , reward, mask, done
+
+    
+
+
+    
+
+
+
+In [45]:
+
+    
+tf.reset_default_graph()
+reload(Players)
+
+#Define the placeholders
+observation_placeholder = tf.placeholder(shape = [None, 3,3], dtype = tf.int32, name = "obs_placeholder")
+action_placeholder = tf.placeholder(shape = [None], dtype = tf.int32, name = "act_placeholder")
+
+#target place holder is r(s,a) + \gamma \max_a Q(s',a)
+target_placeholder = tf.placeholder(shape = [None], dtype = tf.float32, name = "target_placeholder")
+
+#Define the model and loss function
+model = TicTacToe_model(observation_placeholder, scope = "Q_learn")
+update_op = symbolic_Q_update(model, target_placeholder, action_placeholder)
+
+#Start a session
+sess = tf.Session()
+sess.run(tf.global_variables_initializer())
+
+#Define the players
+player = Players.NN_Player(model, model, sess, observation_placeholder, duplicate = False)
+opponent = Players.Random_Player()
+
+
+#Define the environment
+env = TicTacToe.TicTacToe()
+
+#Load current net
+temp_file_name = './bot_10_31_q_v2.ckpt'
+
+#Want to duplicate session
+#saver = tf.train.Saver()
+#saver.restore(sess, temp_file_name)
+
+replay_buffer = []
+first_state = None
+step = 0
+while True:
+    step += 1
+    
+    #Collect rollouts
+    paths, _ = batch_rollout(player, opponent, env, max_time_steps = 100)
+    
+    #Add rollouts to the replay buffer
+    if len(replay_buffer) > 100000:
+        replay_buffer = paths
+    else:
+        replay_buffer += paths
+    
+    #Collect samples from our replay buffer
+    states, actions, next_states, rewards, masks, not_end_of_path = sample_paths(replay_buffer, batch_size = 100)
+    
+    #Compute target values
+    target_values = compute_target_values(model, next_states, masks, not_end_of_path, rewards, verbose=False)
+    
+    #Update the network
+    sess.run(update_op, feed_dict= {observation_placeholder : states, action_placeholder : actions, target_placeholder : target_values })
+    
+    
+    #Occasionally, test the model and replace it with a previous iteration
+    if step%1000 ==0:
+        step = 0
+#        print(sess.run(model, feed_dict= {observation_placeholder : [np.array([[0,0,0],[0,0,0],[0,0,0]])] }))
+        player.epsilon = 0
+        expert_player = Players.Child_Player()
+        _, expert_batch_winners = batch_rollout(player, expert_player, env, max_time_steps=1000)
+        print(expert_batch_winners)
+        batch_percentages = np.array([expert_batch_winners[0], expert_batch_winners[1], expert_batch_winners[2]])*1.0/(expert_batch_winners[0] + expert_batch_winners[1] + expert_batch_winners[2])
+        player.epsilon = .2
+        print("batch percentages", batch_percentages.tolist())
+        opponent = Players.NN_Player(model, model, sess, observation_placeholder, duplicate = True)
+        
+
+    
+
+
+    
+
+
+
+In [ ]:
+
+    
+#training against expert policy, to see if this works at all
+
+
+    
+
+
+
+In [ ]:
+
+    
+print(sess.run(model, feed_dict= {observation_placeholder : [np.array([[0,0,0],[0,0,0],[0,0,0]])] }))
+print(sess.run(model, feed_dict= {observation_placeholder : [np.array([[0,0,0],[0,1,0],[0,0,-1]])] }))
+print(sess.run(model, feed_dict= {observation_placeholder : [np.array([[0,0,0],[0,-1,-1],[0,0,1]])] }))
+player.epsilon = 0
+expert_player = Players.Random_Player()
+_, expert_batch_winners = batch_rollout(player, expert_player, env, max_time_steps=1000)
+print(expert_batch_winners)
+batch_percentages = np.array([expert_batch_winners[0], expert_batch_winners[1], expert_batch_winners[2]])*1.0/(expert_batch_winners[0] + expert_batch_winners[1] + expert_batch_winners[2])
+player.epsilon = .2
+print("batch percentages", batch_percentages.tolist())
+opponent = Players.NN_Player(model, model, sess, observation_placeholder, duplicate = True)
+
+
+    
+
+
+
+In [34]:
+
+    
+###Taken from the bottom of Q-learning training, after 'replay_buffer'
+
+    states, actions, next_states, rewards, masks, not_end_of_path = sample_paths(replay_buffer, batch_size = 100)
+    target_values = compute_target_values(model, next_states, masks, not_end_of_path, rewards, verbose=False)
+#     for state, neof, act, target in zip(states, not_end_of_path, actions,target_values):
+#         if first_state is None:
+#             if neof == 0:
+#                 first_state = state
+#         elif np.max(np.abs(first_state-state))==0:
+#             print(state)
+#             print("current q values", sess.run(model,feed_dict= {observation_placeholder : [state]}))
+#             print("current action", act)
+#             print("current target", target)
+            
+            
+#     print(target_values[0])
+#    for i, shit in enumerate(zip(target_values, states, actions, next_states, rewards, masks, not_end_of_path)):
+#       print(i, shit)
+#    rewards_for_average =np.concatenate([rewards_for_average,rewards])
+#    test_obs = np.array([[[ 1, 2,  2],[ 0, 2,  2],[ 0,  1,  1]]])
+#    test_act = np.array([2])
+#    test_targ = np.array([-1.0])
+#    sess.run(update_op, feed_dict= {observation_placeholder : test_obs, action_placeholder : test_act, target_placeholder : test_targ })
+#    print(sess.run(model, feed_dict= {observation_placeholder : test_obs}) )
+#    vals = sess.run(model, feed_dict = {observation_placeholder: states})
+#    old = []
+    sess.run(update_op, feed_dict= {observation_placeholder : states, action_placeholder : actions, target_placeholder : target_values })
+    
+    if step%1000 ==0:
+        step = 0
+        print(sess.run(model, feed_dict= {observation_placeholder : [np.array([[0,0,0],[0,0,0],[0,0,0]])] }))
+        print(sess.run(model, feed_dict= {observation_placeholder : [np.array([[0,0,0],[0,1,0],[0,0,-1]])] }))
+        print(sess.run(model, feed_dict= {observation_placeholder : [np.array([[0,0,0],[0,-1,-1],[0,0,1]])] }))
+        player.epsilon = 0
+        expert_player = Players.Random_Player()
+        _, expert_batch_winners = batch_rollout(player, expert_player, env, max_time_steps=1000)
+        print(expert_batch_winners)
+        batch_percentages = np.array([expert_batch_winners[0], expert_batch_winners[1], expert_batch_winners[2]])*1.0/(expert_batch_winners[0] + expert_batch_winners[1] + expert_batch_winners[2])
+        player.epsilon = .2
+        print("batch percentages", batch_percentages.tolist())
+        opponent = Players.NN_Player(model, model, sess, observation_placeholder, duplicate = True)
+        
+
+    
+
+
+    
+
+
+
+In [ ]:
+
+    
+ 
+
+
+    
+
+
+
+In [40]:
+
+    
+tf.reset_default_graph()
+reload(Players)
+
+#Define the placeholders
+observation_placeholder = tf.placeholder(shape = [None, 3,3], dtype = tf.int32, name = "obs_placeholder")
+action_placeholder = tf.placeholder(shape = [None], dtype = tf.int32, name = "act_placeholder")
+
+#target place holder is r(s,a) + \gamma \max_a Q(s',a)
+target_placeholder = tf.placeholder(shape = [None], dtype = tf.float32, name = "target_placeholder")
+
+#Define the model and loss function
+model = TicTacToe_model(observation_placeholder, scope = "Q_learn")
+update_op = symbolic_Q_update(model, target_placeholder, action_placeholder)
+
+#Start a session
+sess = tf.Session()
+sess.run(tf.global_variables_initializer())
+
+#Define the players
+player = Players.NN_Player(model, model, sess, observation_placeholder, duplicate = False)
+opponent = Players.Random_Player()
+judge =  Players.NN_Player(model, model, player.session, observation_placeholder, duplicate = True)
+
+
+#Define the environment
+env = TicTacToe.TicTacToe()
+
+#Load current net
+temp_file_name = './bot_10_31_q_v2.ckpt'
+
+#Want to duplicate session
+#saver = tf.train.Saver()
+#saver.restore(sess, temp_file_name)
+
+replay_buffer = []
+first_state = None
+step = 0
+tic = time.time()
+total_buffer_time = 0
+total_runtime = 0
+while True:
+    step += 1
+
+    #Collect rollouts
+    tic_buffer = time.time()
+    paths, _ = batch_rollout(player, opponent, env, max_time_steps = 300)
+
+    #Add rollouts to the replay buffer
+    if len(replay_buffer) > 100000:
+        replay_buffer = replay_buffer[30000:]
+    
+    replay_buffer += paths
+    #Collect samples from our replay buffer
+    states, actions, next_states, rewards, masks, not_end_of_path = sample_paths(replay_buffer, batch_size = 100)
+    total_buffer_time +=  (time.time() - tic_buffer)
+
+    
+    tic_runtime = time.time()
+    #Compute target values
+    target_values = compute_target_values(judge, next_states, masks, not_end_of_path, rewards, verbose=False)
+
+    #Update the network
+    player.session.run(update_op, feed_dict= {observation_placeholder : states, action_placeholder : actions, target_placeholder : target_values })
+    total_runtime += (time.time() - tic_runtime)
+    
+    if step % 100 ==0:
+        _, player_batch_winners = batch_rollout(player, opponent, env, max_time_steps=1000)
+        _, judge_batch_winners = batch_rollout(judge, opponent, env, max_time_steps=1000)
+        frac_player_loss = (player_batch_winners[2]*1.0)/(player_batch_winners[0] + player_batch_winners[1] + player_batch_winners[2])
+        frac_judge_loss = (judge_batch_winners[2]*1.0)/(judge_batch_winners[0] + judge_batch_winners[1] + judge_batch_winners[2])
+        if frac_player_loss <= frac_judge_loss:
+            judge = Players.NN_Player(model, model, player.session, observation_placeholder, duplicate = True)
+
+
+    #Occasionally, test the model and replace it with a previous iteration
+    if step% 1000 ==0:
+        print("")
+        print("")
+        print("Time since last update", time.time() - tic)
+        print("Total gradient step runtime:",total_runtime)
+        print("Total buffer time:", total_buffer_time)
+        total_runtime = 0
+        total_buffer_time = 0
+        tic = time.time()
+        step = 0
+        
+        #Print current board distribution
+        initial_board = np.array(sess.run(model, feed_dict= {observation_placeholder : [np.array([[0,0,0],[0,0,0],[0,0,0]])] }))
+        print(np.reshape(initial_board, newshape = (3,3)))
+
+        player.epsilon = 0
+        expert_player = Players.Expert_Player()
+        child_player = Players.Child_Player()
+        _, expert_batch_winners = batch_rollout(player, expert_player, env, max_time_steps=500)
+        _, child_batch_winners = batch_rollout(player, child_player, env, max_time_steps=500)
+#         print(expert_batch_winners)
+        expert_batch_percentages = np.array([expert_batch_winners[0], expert_batch_winners[1], expert_batch_winners[2]])*1.0/(expert_batch_winners[0] + expert_batch_winners[1] + expert_batch_winners[2])
+        child_batch_percentages = np.array([child_batch_winners[0], child_batch_winners[1], child_batch_winners[2]])*1.0/(child_batch_winners[0] + child_batch_winners[1] + child_batch_winners[2])
+        player.epsilon = .2
+        print("percentages against expert", expert_batch_percentages.tolist())
+        print("percentages against child", child_batch_percentages.tolist())
+
+        print("Size of replay buffer:", len(replay_buffer))
+        print("")
+        print("")
+#         _, player_batch_winners = batch_rollout(player, expert_player, env, max_time_steps=1000)
+#         frac_player_loss = (player_batch_winners[2]*1.0)/(player_batch_winners[0] + player_batch_winners[1] + player_batch_winners[2])
+#        print(player_batch_winners)
+#         _, opponent_batch_winners = batch_rollout(opponent, expert_player, env, max_time_steps=1000)
+#         frac_opponent_loss = (opponent_batch_winners[2]*1.0)/(opponent_batch_winners[0] + opponent_batch_winners[1] + opponent_batch_winners[2])
+        
+        
+#         if frac_player_loss <= frac_opponent_loss:
+        opponent = Players.NN_Player(model, model, sess, observation_placeholder, duplicate = True)
+
+
+    
+
+
+    
+
+
+
+In [9]:
+
+    
+tic = time.time()
+x = batch_rollout(player, expert_player, env, max_time_steps=1000)
+print(time.time()-tic)
+
+
+    
+
+
+
+In [13]:
+
+    
+tic = time.time()
+
+
+    
+
+
+
+In [14]:
+
+    
+print("Time since last update", time.time() - tic)
+
+
+    
+
+
+
+In [ ]:
+
+    
+ 
+
+
+    
+

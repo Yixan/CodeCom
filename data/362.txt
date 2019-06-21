@@ -1,0 +1,69 @@
+import tensorflow as tf
+from tensorflow import keras
+from keras.models import Sequential
+from keras.layers import LSTM
+from keras.layers import TimeDistributed
+from keras.layers import Flatten
+from keras.layers import Dense
+from keras.layers import Lambda
+from keras.layers import Dropout
+from keras import backend as K
+def distributed_label(input_shape):
+    m = Sequential()
+    m.add(LSTM(8, return_sequences=True, input_shape=input_shape))
+    m.add(LSTM(16, return_sequences=True))
+    m.add(LSTM(8, return_sequences=True))
+    m.add(TimeDistributed(Dense(1, activation='sigmoid')))
+    m.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+    return m
+def distributed_into_one(input_shape):
+    m = Sequential()
+    m.add(LSTM(8, return_sequences=True, input_shape=input_shape))
+    m.add(LSTM(16, return_sequences=True))
+    m.add(TimeDistributed(Dense(1, activation='sigmoid')))
+    m.add(Lambda(lambda x: K.max(x, keepdims=True)))
+    m.add(Dense(1, activation='sigmoid'))
+    m.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+    return m
+def singleLabel_1(input_shape):
+    m = Sequential()
+    m.add(LSTM(8, return_sequences=True, input_shape=input_shape))
+    m.add(Flatten())
+    m.add(Dense(1, activation='sigmoid'))
+    m.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+    return m
+def singleLabel_2(input_shape):
+    m = Sequential()
+    m.add(LSTM(8, return_sequences=True, input_shape=input_shape))
+    m.add(LSTM(16, return_sequences=True))
+    m.add(Flatten())
+    m.add(Dense(1, activation='sigmoid'))
+    m.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+    return m
+def singleLabel_3(input_shape):
+    m = Sequential()
+    m.add(LSTM(8, return_sequences=True, input_shape=input_shape))
+    m.add(LSTM(16, return_sequences=True))
+    m.add(LSTM(8, return_sequences=True))
+    m.add(Flatten())
+    m.add(Dense(1, activation='sigmoid'))
+    m.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+    return m
+def singleLabel_HighNumber(input_shape):
+    m = Sequential()
+    m.add(LSTM(8, return_sequences=True, input_shape=input_shape, recurrent_dropout=0.2))
+    m.add(Dropout(0.2))
+    m.add(LSTM(50, return_sequences=True, recurrent_dropout=0.2))
+    m.add(Dropout(0.2))
+    m.add(LSTM(16, return_sequences=True, recurrent_dropout=0.2))
+    m.add(Dropout(0.2))
+    m.add(Flatten())
+    m.add(Dense(1, activation='sigmoid'))
+    m.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+    return m
+modelDict = {
+    'singleLabel_1': singleLabel_1,
+    'singleLabel_2': singleLabel_2,
+    'singleLabel_3': singleLabel_3,
+    'singleLabel_HighNUmber': singleLabel_HighNumber
+}

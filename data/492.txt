@@ -1,0 +1,52 @@
+import numpy as np
+from sklearn.preprocessing import MinMaxScaler
+from keras.models import Sequential
+from keras.layers.core import Dense, Activation, Dropout
+from keras.layers.recurrent import LSTM
+from utils import transform
+class LstmModel(object):
+    def __init__(self, series):
+        self.scaler = MinMaxScaler(feature_range=(0, 1))
+        self.series = self.scaler.fit_transform(series.reshape(-1, 1))
+    def transform_split(self, look_back=5, train_composition=0.7, use_time_step=True):
+            raise Exception('Train composition must be between 0-1')
+        train_size = int(len(self.series) * train_composition)
+        train = self.series[0:train_size]
+        test = self.series[train_size:]
+        train_x, train_y = transform.series_to_features_matrix(train, look_back)
+        test_x, test_y = transform.series_to_features_matrix(test, look_back)
+        train_x = transform.features_matrix_to_rnn_matrix(train_x, use_time_step)
+        test_x = transform.features_matrix_to_rnn_matrix(test_x, use_time_step)
+        return train_x, train_y, test_x, test_y, train_size
+    @staticmethod
+    def build_model(layers):
+        model.add(LSTM(input_dim=layers[0],output_dim=layers[1],return_sequences=True))
+        model.add(Dropout(0.2))
+        model.add(LSTM(layers[2],return_sequences=False))
+        model.add(Dropout(0.2))
+        model.add(Dense(output_dim=layers[3]))
+        model.add(Activation('tanh'))
+        model.compile(loss='mae', optimizer='adadelta')
+        return model
+    @staticmethod
+    def build_model2():
+        model = Sequential()
+        model.add(LSTM(4, input_dim=1))
+        model.add(Dense(1))
+        model.compile(loss='mean_squared_error', optimizer='adam')
+        return model
+    @staticmethod
+    def build_model3(layers):
+        model.add(LSTM(input_dim=layers[0],output_dim=layers[1],return_sequences=True))
+        model.add(Dropout(0.2))
+        model.add(LSTM(layers[2],return_sequences=True))
+        model.add(Dropout(0.2))
+        model.add(LSTM(layers[3],return_sequences=False))
+        model.add(Dropout(0.2))
+        model.add(Dense(output_dim=layers[4]))
+        model.add(Activation('tanh'))
+        model.compile(loss='mean_squared_error', optimizer='adam')
+        return model
+    @staticmethod
+    def fit(model, train_x, train_y, nb_epoch=100, batch_size=1, verbose=2):
+                         batch_size=batch_size, verbose=verbose) predict(self, model, test_x):turn self.scaler.inverse_transform(test_predict.reshape(-1, 1)) predict_future(self, model, test_x):ta = np.array([test_x[0]])amples, row, col = test_x.shape i in range(nb_samples):w_point = model.predict(data)_point = self.scaler.inverse_transform(new_point.reshape(-1, 1))[0]test_predict.append(new_point)ta = np.array([data[0][1:]])= np.insert(data, row-1, new_point, 1)eturn np.array(test_predict)ef plot(self):passef summary(self):pass__name__ == '__main__':mport mathort matplotlib.pyplot as pltm jsc import import_datam sklearn.metrics import mean_squared_errorth = '../data/data_waterlevel_final_clear.csv' = import_data.WaterlevelData(path)terlevel_data = RD.load_data() = 0= LstmModel(waterlevel_data['series'][:, pa])okBack = 3trainY, testX, testY, trainSize = LM.transform_split(lookBack, 0.999, False)print(testX.shape)m = LM.build_model3([3, 30, 100, 50, 1])y = LM.fit(modelLm, trainX, trainY, 5, 12)tPredict = LM.predict_future(modelLm, testX)int(testPredict.shape, waterlevel_data['series'][trainSize:, pa].shape)st_score = math.sqrt(mean_squared_error(terlevel_data['series'][trainSize+lookBack:, pa], testPredict))plt.plot(waterlevel_data['time'][trainSize+lookBack:],

@@ -1,0 +1,13 @@
+from keras.models import Sequential
+from keras.layers.embeddings import Embedding
+from keras.layers.recurrent import LSTM
+from keras.layers.core import Merge, Dense, Dropout
+import numpy as np
+class TGVModel:
+    def __init__(self, word_embedding_matrix, tags_embedding_matrix, trigram=25, word=64, tags=10, combining=32):
+        self.trigram_model = self.random_first_level_network(lstm_output_size=trigram)
+        self.word_network = self.first_level_network(word_embedding_matrix, lstm_output_size=word)
+        self.tags_network = self.first_level_network(tags_embedding_matrix, lstm_output_size=tags)
+        self.model = self.second_level_network(self.trigram_model, self.word_network, self.tags_network,combining_layer=combining)
+    def first_level_network(self, embedding_matrix, lstm_output_size=64):
+        model = Sequential()

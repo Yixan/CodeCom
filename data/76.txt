@@ -1,0 +1,17 @@
+import numpy as np
+import keras
+from keras.models import Sequential
+from keras.layers import Activation, Dense
+from keras.layers import LSTM
+from keras.layers import Dropout
+def build_model(inputs, output_size, neurons, activ_func, dropout, loss, optimizer):
+    model.add(LSTM(neurons, return_sequences = True, input_shape=(inputs.shape[1], inputs.shape[2]), activation = activ_func))
+    model.add(Dropout(dropout))
+    model.add(LSTM(neurons, return_sequences = True, activation = activ_func))
+    model.add(Dropout(dropout))
+    model.add(LSTM(neurons, activation = activ_func))
+    model.add(Dense(units = output_size))
+    model.add(Activation(activ_func))
+    model.compile(loss = loss, optimizer = optimizer, metrics = ['mae'])
+    model.summary()
+    return model

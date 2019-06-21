@@ -1,0 +1,358 @@
+
+In [2]:
+
+    
+import tensorflow as tf
+
+
+    
+
+
+
+In [3]:
+
+    
+hello_constant = tf.constant('Hello World!')
+with tf.Session() as sess:
+    output = sess.run(hello_constant)
+    print(output)
+
+
+    
+
+
+
+In [4]:
+
+    
+A = tf.constant(12334)
+
+
+    
+
+
+
+In [5]:
+
+    
+B = tf.constant([123,456,789])
+
+
+    
+
+
+
+In [6]:
+
+    
+with tf.Session() as sess:
+    output = sess.run(hello_constant)
+
+
+    
+
+
+
+In [7]:
+
+    
+x = tf.placeholder(tf.string)
+with tf.Session() as sess:
+    output = sess.run(x, feed_dict = {x: 'Hello World'})
+
+
+    
+
+
+
+In [8]:
+
+    
+x = tf.placeholder(tf.string)
+y = tf.placeholder(tf.int32)
+z = tf.placeholder(tf.float32)
+with tf.Session() as sess:
+    output = sess.run(x, feed_dict = {x: 'Test String', y: 123, z: 45.67})
+
+
+    
+
+
+
+In [4]:
+
+    
+x = tf.add(5,2)
+with tf.Session() as sess:
+    output = sess.run(x)
+    print(output)
+
+
+    
+
+
+
+In [13]:
+
+    
+y = tf.subtract(10, 4)
+z = tf.multiply(2, 5)
+
+
+    
+
+
+
+In [15]:
+
+    
+tf.subtract(tf.cast(tf.constant(2.0), tf.int32), tf.constant(1))
+
+
+    
+
+
+
+In [17]:
+
+    
+x = tf.Variable(5)
+
+
+    
+
+
+
+In [18]:
+
+    
+init = tf.global_variables_initializer()
+with tf.Session() as sess:
+    sess.run(init)
+
+
+    
+
+
+
+In [19]:
+
+    
+n_features = 120
+n_labels = 5
+weights = tf.Variable(tf.truncated_normal((n_features, n_labels)))
+
+
+    
+
+
+
+In [22]:
+
+    
+n_labels = 5
+bias = tf.Variable(tf.zeros(n_labels))
+
+
+    
+
+
+
+In [25]:
+
+    
+x = tf.nn.softmax([2.0,1.0,0.2])
+
+
+    
+
+
+
+In [26]:
+
+    
+import tensorflow as tf
+
+def run():
+    output = None
+    logit_data = [2.0, 1.0, 0.1]
+    logits = tf.placeholder(tf.float32)
+    
+    softmax = tf.nn.softmax(logits)
+    
+    with tf.Session() as sess:
+        output = sess.run(softmax, feed_dict={logits: logit_data})
+        
+    return output
+
+
+    
+
+
+
+In [27]:
+
+    
+run()
+
+
+    
+
+
+
+In [29]:
+
+    
+import numpy as np
+from sklearn import preprocessing
+
+labels = np.array([1,5,3,2,1,4,2,1,3])
+
+# create the encoder创建编码器
+lb = preprocessing.LabelBinarizer()
+
+# 编码器找到类别并分配one-hot向量
+lb.fit(labels)
+
+#最后把目标转换成独热编码向量
+lb.transform(labels)
+
+
+    
+
+
+
+In [40]:
+
+    
+x = tf.reduce_sum([1,2,3,4,5]) # 15
+
+
+    
+
+
+
+In [46]:
+
+    
+import tensorflow as tf
+
+softmax_data = [0.7, 0.2, 0.1]
+one_hot_data = [1.0, 0.0, 0.0]
+
+softmax = tf.placeholder(tf.float32)
+one_hot = tf.placeholder(tf.float32)
+
+cross_entropy = - tf.reduce_sum(tf.multiply(one_hot, tf.log(softmax)))
+with tf.Session() as sess:
+    print(sess.run(cross_entropy, feed_dict = {softmax: softmax_data, 
+                                              one_hot: one_hot_data}))
+    
+
+
+    
+
+
+
+In [13]:
+
+    
+import math
+def batches(batch_size, features, labels):
+    '''
+    create batches of features and labels
+    :param batch_size： The batch size
+    :param features: list of features
+    :param labels: list of labels
+    :return :Batches of (Features, Labels)
+    '''
+    assert len(features)==len(labels)
+    
+    output_batches = []
+    sample_size= len(features)
+    for start_i in range(0,sample_size,batch_size):
+        end_i= start_i+batch_size
+        batch = [features[start_i:end_i],labels[start_i:end_i]]
+        output_batches.append(batch)
+        
+    return output_batches
+
+from pprint import pprint
+
+# 4 samples of features
+example_features = [
+    ['F11','F12','F13','F14'],
+    ['F21','F22','F23','F24'],
+    ['F31','F32','F33','F34'],
+    ['F41','F42','F43','F44']]
+
+# 4 Samples of labels
+example_labels = [
+    ['L11','L12'],
+    ['L21','L22'],
+    ['L31','L32'],
+    ['L41','L42']]
+
+## pprint prints data structures like 2d arrays, so they are easier to read
+
+pprint(batches(3,example_features,example_labels))
+
+
+    
+
+
+
+In [2]:
+
+    
+import tensorflow as tf
+
+output = None
+hidden_layer_weights = [
+    [0.1, 0.2, 0.4],
+    [0.4, 0.6, 0.6],
+    [0.5, 0.9, 0.1],
+    [0.8 ,0.2, 0.8]]
+
+out_weights = [
+    [0.1, 0.6],
+    [0.2, 0.1],
+    [0.7, 0.9]]
+
+# weights and biases
+
+weights = [
+    tf.Variable(hidden_layer_weights),
+    tf.Variable(out_weights)
+]
+biases = [
+    tf.Variable(tf.zeros(3)),
+    tf.Variable(tf.zeros(2))
+]
+
+# Input
+features = tf.Variable([[1.0, 2.0, 3.0, 4.0],[-1.0,-2.0,-3.0,-4.0],
+                       [11.0, 12.0, 13.0, 14.0]])
+
+# Create Model
+hidden_layer = tf.add(tf.matmul(features,weights[0]),biases[0])
+hidden_layer = tf.nn.relu(hidden_layer)
+logits = tf.add(tf.matmul(hidden_layer,weights[1]),biases[1])
+
+with tf.Session() as sess:
+    sess.run(tf.global_variables_initializer())
+    print(sess.run(logits))
+
+
+    
+
+
+
+In [ ]:
+
+    
+ 
+
+
+    
+

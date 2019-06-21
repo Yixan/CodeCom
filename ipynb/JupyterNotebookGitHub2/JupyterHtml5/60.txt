@@ -1,0 +1,153 @@
+
+In [2]:
+
+    
+from tensorflow.examples.tutorials.mnist import input_data
+mnist = input_data.read_data_sets("MNIST_data", one_hot=True)
+
+
+    
+
+
+
+In [9]:
+
+    
+import tensorflow as tf
+
+
+
+# TF uses C++ backend to do computation, connection to backend is called session
+
+# IneractiveSession lets you interleave operations building and running the computation graph
+# When not using it, you must first build, then launching
+
+# SINGLE LAYER 
+
+session = tf.InteractiveSession()
+feature_size = 784
+num_labels = 10
+# Input and output placeholder for computation graph
+x      = tf.placeholder(tf.float32, shape=[None, feature_size])
+y_true = tf.placeholder(tf.float32, shape=[None, num_labels])
+
+# Variables in the computation graph
+W = tf.Variable(tf.zeros([feature_size, num_labels]))
+b = tf.Variable(tf.zeros([num_labels]))
+
+
+# Initialize variables withing a session. Initialize all variables:
+session.run(tf.global_variables_initializer())
+
+# Define logits
+y_pred = tf.matmul(x, W) + b
+
+# Define the loss function
+loss = tf.nn.softmax_cross_entropy_with_logits(labels=y_true, logits=y_pred)
+
+# Get the optimizer for updating the computation graph
+optimizer = tf.train.GradientDescentOptimizer(0.5).minimize(loss)
+
+for i in range(1000):
+    x_batch, y_batch = mnist.train.next_batch(100)
+    optimizer.run(feed_dict={x: x_batch, y_true: y_batch})
+
+correct_predictions = tf.equal(tf.argmax(y_pred, 1), tf.argmax(y_true, 1))
+accuracy = tf.reduce_mean(tf.cast(correct_predictions, tf.float32))
+print(accuracy.eval(feed_dict={x: mnist.test.images, y_true: mnist.test.labels}))
+
+
+    
+
+
+
+In [27]:
+
+    
+# Multilayer convolutional network
+# Want convolution to compute 32 features for each 5x5 patch
+
+# Functions for creating weight and bias variables
+def weight_variable(shape):
+    initial = tf.truncated_normal(shape=shape, stddev=0.1)
+    return tf.Variable(initial)
+
+def bias_variable(shape):
+    initial = tf.constant(0.1, shape=shape)
+    return tf.Variable(initial)
+
+# functions to abstract the convolution and pooling operations
+def conv2d(x, W):
+    return tf.nn.conv2d(x, W, strides=[1, 1 ,1, 1], padding="SAME")
+def max_pool_2x2(x):
+    return tf.nn.max_pool(x, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding="SAME")
+
+# Reshape input x to be 4D tensor with num_examples, width, height, channel_depth
+x_image = tf.reshape(x, [-1, 28, 28, 1])
+
+# First layer - convolutional
+W1 = weight_variable([5, 5, 1, 32]) # patch1, patch2, in depth, out depth
+b1 = bias_variable([32])
+
+conv1 = tf.nn.relu(conv2d(x_image, W1) + b1)
+pool1 = max_pool_2x2(conv1)
+
+# Second layer - convolutional
+W2 = weight_variable([5, 5, 32, 64])
+b2 = bias_variable([64])
+
+conv2 = tf.nn.relu(conv2d(pool1, W2) + b2)
+pool2 = max_pool_2x2(conv2)
+
+
+# Third layer - fully connected
+W3 = weight_variable([7 * 7 * 64, 1024])
+b3 = bias_variable([1024])
+
+# Transforming the 4D tensor to a 2D tensor, concatonating the width height and feature depth
+flatted = tf.reshape(pool2, [-1, 7 * 7* 64])
+FC1 = tf.nn.relu(tf.matmul(flatted, W3) + b3)
+
+# Layer 4 -  fully connected with dropout then to outputlayer
+# Dropout is useful to prevent overfitting, and shines the most in big graphs
+keep_prob = tf.placeholder(tf.float32)
+drop = tf.nn.dropout(FC1, keep_prob=keep_prob)
+
+W4 = weight_variable([1024, 10])
+b4 = bias_variable([10])
+
+y_pred = tf.matmul(drop, W4) + b
+
+
+
+# Train and evaluate
+# Will use ADAM optimizer, include keep_prob in feed_dict and log every 100th iteration
+loss = tf.nn.softmax_cross_entropy_with_logits(labels=y_true, logits=y_pred)
+optimizer = tf.train.AdamOptimizer(1e-4).minimize(loss)
+correct_prediction = tf.equal(tf.argmax(y_pred, 1), tf.argmax(y_true, 1))
+accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+
+with tf.Session() as session:
+    session.run(tf.global_variables_initializer())
+    for i in range(1000):
+        x_batch, y_batch = mnist.train.next_batch(100)
+        if i % 100 == 0:
+            train_accuracy = accuracy.eval(feed_dict={x: x_batch, y_true: y_batch, keep_prob: 1.0})
+            print("Step %d, training accuracy: %g" % (i, train_accuracy))
+        optimizer.run(feed_dict={x: x_batch, y_true: y_batch, keep_prob: 0.5})
+    print("Test accuracy %g" % accuracy.eval(feed_dict={x: mnist.test.images, y_true: mnist.test.labels, keep_prob: 1.0}))
+            
+
+
+    
+
+
+
+In [ ]:
+
+    
+ 
+
+
+    
+

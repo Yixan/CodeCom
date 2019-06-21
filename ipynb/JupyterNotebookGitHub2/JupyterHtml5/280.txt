@@ -1,0 +1,233 @@
+
+In [1]:
+
+    
+# Carregando o dataset
+from tensorflow.examples.tutorials.mnist import input_data
+
+mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
+
+
+    
+
+
+
+In [15]:
+
+    
+import tensorflow as tf
+import numpy as np
+
+# Inicializando os placeholders
+x = tf.placeholder(tf.float32, shape=[None, 28 * 28])
+y = tf.placeholder(tf.float32, shape=[None, 10])
+
+# Inicializando as variáveis
+W = tf.Variable(tf.zeros([28 * 28, 10]))
+b = tf.Variable(tf.zeros([10]))
+
+# Construindo o modelo
+prediction = tf.matmul(x, W) + b
+#prediction = tf.nn.softmax(logits)
+
+# Calculando o erro
+cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=prediction))
+train_step = tf.train.GradientDescentOptimizer(0.3).minimize(cross_entropy)
+
+# Inicializando o TensorFlow
+sess = tf.InteractiveSession()
+sess.run(tf.global_variables_initializer())
+
+# Treinando o modelo
+for i in range(1000):
+    x_batch, y_batch = mnist.train.next_batch(100)
+    sess.run(train_step, {x: x_batch, y: y_batch})
+
+# Avaliando o modelo
+correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(prediction, 1))
+accuracy = tf.reduce_mean(tf.cast(correct_prediction, dtype=tf.float32))
+print('Accuracy: %f' % sess.run(accuracy, feed_dict={x: mnist.test.images, y: mnist.test.labels}))
+
+
+    
+
+
+
+In [34]:
+
+    
+import tensorflow as tf
+import numpy as np
+import sys
+
+# **********************************************************************************************************
+# Construindo o modelo
+# **********************************************************************************************************
+# 1. Inicializando os placeholders
+x = tf.placeholder(tf.float32, shape=[None, 28 * 28])
+y_ = tf.placeholder(tf.float32, shape= [None, 10])
+
+# 2. Inicializando as variáveis como função do shape, e diferentes de zero para prevenir gradiente zero
+def weights(shape):
+    initial = tf.truncated_normal(shape, stddev=0.1)
+    return tf.Variable(initial)
+
+def biases(shape):
+    initial = tf.constant(0.1, shape=shape)
+    return tf.Variable(initial)
+
+# 3. Construindo as camadas
+def conv2d(x, W):
+    return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
+
+def max_pool_2x2(x):
+    return tf.nn.max_pool(x, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
+
+
+# a) Primeira camada
+W_conv1 = weights([5, 5, 1, 32]) # 32 features/outputs para cada patch/filtro 5x5, 1 canal de input
+b_conv1 = biases([32]) # 32 outputs
+x_image = tf.reshape(x, [-1, 28, 28, 1]) # largura, altura, e canais/cores (1: p&b)
+
+out = tf.nn.relu(conv2d(x_image, W_conv1) + b_conv1)
+out = max_pool_2x2(out)
+
+# b) Segunda camada
+W_conv2 = weights([5, 5, 32, 64])
+b_conv2 = biases([64])
+
+out = tf.nn.relu(conv2d(out, W_conv2) + b_conv2)
+out = max_pool_2x2(out)
+
+# c) Terceira camada: Fully Connected Layer
+# Dimensões: a imagem foi reduzida 2 vezes pelo fator 2: de 28 x 28 foi para 7 * 7
+# Profundidade: a imagem teve a profundidade (depth/features) aumentada de 1 para 64
+W_fc1 = weights([7 * 7 * 64, 1024])
+b_fc1 = biases([1024])
+
+out = tf.reshape(out, [-1, 7 * 7 * 64])
+out = tf.nn.relu(tf.matmul(out, W_fc1) + b_fc1)
+
+# d) Dropout para reduzir o overfitting
+keep_prob = tf.placeholder(tf.float32)
+out = tf.nn.dropout(out, keep_prob=keep_prob)
+
+# e) Camada final de leitura
+W_final = weights([1024, 10])
+b_final = biases([10])
+prediction = tf.matmul(out, W_final) + b_final
+
+# **********************************************************************************************************
+# Treinando o modelo
+# **********************************************************************************************************
+# 1. Definindo o erro
+cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=prediction))
+train_step = tf.train.GradientDescentOptimizer(0.3).minimize(cross_entropy)
+
+# 2. Definindo a acuracidade
+correct_prediction = tf.equal(tf.argmax(prediction, 1), tf.argmax(y_, 1))
+accuracy = tf.reduce_mean(tf.cast(correct_prediction, dtype=tf.float32))
+
+# 3. Rodando o modelo
+sess = tf.InteractiveSession()
+sess.run(tf.global_variables_initializer())
+
+for i in range(1000):
+    x_batch, y_batch = mnist.train.next_batch(200)
+    sess.run(train_step, feed_dict={x: x_batch, y_: y_batch, keep_prob: .6})
+    msg = 'Step %d  |  Accuracy: %.4f' % (i, sess.run(accuracy, feed_dict={x: x_batch, y_: y_batch, keep_prob: 1.0}))
+    sys.stdout.write("\r" + str(msg))
+    sys.stdout.flush()
+
+# **********************************************************************************************************
+# Avaliando o modelo
+# **********************************************************************************************************
+print('\n\nFinal Accuracy: %.4f' % sess.run(accuracy, feed_dict={x: mnist.test.images, y_: mnist.test.labels, keep_prob: 1}))
+
+
+    
+
+
+
+In [44]:
+
+    
+import tensorflow as tf
+import numpy as np
+import sys
+
+# *************************************************************************************
+# Construindo o modelo
+# *************************************************************************************
+# 1. Inicializando os flows
+x = tf.placeholder(tf.float32, shape=[None, 28 * 28])
+y = tf.placeholder(tf.float32, shape=[None, 10])
+
+# 2. Inicializando os pesos e biases de cada camada
+def weights(shape):
+    return tf.Variable(tf.truncated_normal(shape, stddev=0.1))
+
+def biases(shape):
+    return tf.Variable(tf.constant(0.1, shape=shape))
+
+# 3. Construindo a rede
+x_image = tf.reshape(x, [-1, 28, 28, 1])
+out = tf.nn.conv2d(x_image, weights([5, 5, 1, 4]), strides=[1, 1, 1, 1], padding='SAME')
+out = tf.nn.relu(out + biases([4]))
+
+out = tf.nn.conv2d(out, weights([4, 4, 4, 8]), strides=[1, 2, 2, 1], padding='SAME')
+out = tf.nn.relu(out + biases([8]))
+
+out = tf.nn.conv2d(out, weights([4, 4, 8, 12]), strides=[1, 2, 2, 1], padding='SAME')
+out = tf.nn.relu(out + biases([12]))
+
+out = tf.reshape(out, [-1, 7 * 7 * 12])
+out = tf.matmul(out, weights([7 * 7 * 12, 200])) + biases([200])
+
+keep_prob = tf.placeholder(tf.float32)
+out = tf.nn.dropout(out, keep_prob=keep_prob)
+
+W_final = weights([200, 10])
+b_final = biases([10])
+prediction = tf.matmul(out, W_final) + b_final
+
+# **********************************************************************************************************
+# Treinando o modelo
+# **********************************************************************************************************
+# 1. Definindo o erro
+cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=prediction))
+train_step = tf.train.GradientDescentOptimizer(0.3).minimize(cross_entropy)
+
+# 2. Definindo a acuracidade
+correct_prediction = tf.equal(tf.argmax(prediction, 1), tf.argmax(y, 1))
+accuracy = tf.reduce_mean(tf.cast(correct_prediction, dtype=tf.float32))
+
+# 3. Rodando o modelo
+sess = tf.InteractiveSession()
+sess.run(tf.global_variables_initializer())
+
+for i in range(1000):
+    x_batch, y_batch = mnist.train.next_batch(200)
+    sess.run(train_step, feed_dict={x: x_batch, y: y_batch, keep_prob: .6})
+    msg = 'Step %d  |  Accuracy: %.4f' % (i, sess.run(accuracy, feed_dict={x: x_batch, y: y_batch, keep_prob: 1.0}))
+    sys.stdout.write("\r" + str(msg))
+    sys.stdout.flush()
+
+# **********************************************************************************************************
+# Avaliando o modelo
+# **********************************************************************************************************
+print('\n\nFinal Accuracy: %.4f' % sess.run(accuracy, feed_dict={x: mnist.test.images, y: mnist.test.labels, keep_prob: 1}))
+
+
+    
+
+
+
+In [ ]:
+
+    
+ 
+
+
+    
+

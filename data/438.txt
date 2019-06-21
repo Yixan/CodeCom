@@ -1,0 +1,8 @@
+def network_model(inputs, num_pitch, weights_file=None):
+    model.add(tf.keras.layers.LSTM())
+    model.add(tf.keras.layers.LSTM(512, return_sequences=True))
+    model.add(tf.keras.layers.Dropout(0.3))
+    model.add(tf.keras.layers.Dropout(0.3))
+    model.compile(loss="categorical_crossentropy", optimizer="rmsprop")
+        model.load_weights(weights_file)
+    return model

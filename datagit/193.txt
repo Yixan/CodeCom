@@ -1,0 +1,486 @@
+# https://blog.goodaudience.com/first-experience-of-building-a-lstm-model-with-tensorflow-e632bde911e1
+import pandas as pd
+import numpy as np
+import pickle
+import matplotlib.pyplot as plt
+from scipy import stats
+import tensorflow as tf
+import seaborn as sns
+from pylab import rcParams
+from sklearn import metrics
+from sklearn.model_selection import train_test_split
+import tensorflow as tf
+import pandas as pd
+import numpy as np
+from tensorflow.contrib import rnn
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import f1_score, accuracy_score, recall_score, precision_score
+''''
+
+'''
+def reset_graph(seed=42):
+    tf.reset_default_graph()
+    tf.set_random_seed(seed)
+    np.random.seed(seed)
+reset_graph()
+
+
+n_steps = 2
+n_inputs = 3
+n_neurons = 5
+
+
+reset_graph()
+
+
+X = tf.placeholder(tf.float32, [None, n_steps, n_inputs])
+
+
+basic_cell = tf.keras.layers.SimpleRNNCell(units=n_neurons)
+outputs, states = tf.nn.dynamic_rnn(basic_cell, X, dtype=tf.float32)
+
+
+init = tf.global_variables_initializer()
+
+
+X_batch = np.array([
+        [[0, 1, 2], [9, 8, 7]], # instance 1
+        [[3, 4, 5], [0, 0, 0]], # instance 2
+        [[6, 7, 8], [6, 5, 4]], # instance 3
+        [[9, 0, 1], [3, 2, 1]], # instance 4
+    ])
+
+
+with tf.Session() as sess:
+    init.run()
+    outputs_val = outputs.eval(feed_dict={X: X_batch})
+    #print(outputs_val)
+
+
+'''
+########################################################################################
+'''
+def reset_graph(seed=42):
+    tf.reset_default_graph()
+    tf.set_random_seed(seed)
+    np.random.seed(seed)
+reset_graph()
+
+
+n_steps = 1
+n_inputs = 3
+n_neurons = 5
+
+
+reset_graph()
+
+
+
+
+X = tf.placeholder(tf.float32, [None, n_steps, n_inputs])
+
+
+basic_cell = tf.keras.layers.SimpleRNNCell(units=n_neurons)
+outputs, states = tf.nn.dynamic_rnn(basic_cell, X, dtype=tf.float32)
+
+
+init = tf.global_variables_initializer()
+
+
+X_batch = np.array([
+        [[0, 1, 2]],
+        [[3, 4, 5]],
+        [[6, 7, 8]],
+        [[9, 0, 1]],
+    ])
+
+
+with tf.Session() as sess:
+    init.run()
+    outputs_val = outputs.eval(feed_dict={X: X_batch})
+    #print(outputs_val)
+
+
+'''
+########################################################################################
+'''
+
+
+def reset_graph(seed=42):
+    tf.reset_default_graph()
+    tf.set_random_seed(seed)
+    np.random.seed(seed)
+reset_graph()
+
+
+n_steps = 2
+n_inputs = 3
+n_neurons = 1
+
+
+reset_graph()
+
+
+X = tf.placeholder(tf.float32, [None, n_steps, n_inputs])
+
+
+basic_cell = tf.keras.layers.SimpleRNNCell(units=n_neurons)
+outputs, states = tf.nn.dynamic_rnn(basic_cell, X, dtype=tf.float32)
+
+
+init = tf.global_variables_initializer()
+
+
+X_batch = np.array([
+        [[0, 8, 6],[4, 6, 7]]
+
+
+
+
+    ])
+#print(X_batch.shape)
+with tf.Session() as sess:
+    init.run()
+    #print(outputs)
+    outputs_val = outputs.eval(feed_dict={X: X_batch})
+    #print(outputs_val)
+'''
+########################################################################################
+'''
+def reset_graph(seed=42):
+    tf.reset_default_graph()
+    tf.set_random_seed(seed)
+    np.random.seed(seed)
+reset_graph()
+
+
+n_steps = 2
+n_inputs = 3
+n_neurons = 1
+
+
+reset_graph()
+
+
+X = tf.placeholder(tf.float32, [5, 1, 3])
+
+
+basic_cell = tf.keras.layers.SimpleRNNCell(units=n_neurons)
+outputs, states = tf.nn.dynamic_rnn(basic_cell, X, dtype=tf.float32)
+
+
+init = tf.global_variables_initializer()
+
+
+X_batch = np.array([
+        [[0, 8, 6]],
+        [[0, 8, 6]],
+        [[0, 8, 6]],
+        [[0, 8, 6]],
+        [[0, 8, 6]],
+
+
+    ])
+#print(X_batch.shape)
+with tf.Session() as sess:
+    init.run()
+    #print(outputs)
+    outputs_val = outputs.eval(feed_dict={X: X_batch})
+    #print(outputs_val)
+
+
+'''
+ ########################################################################################
+
+'''
+def reset_graph(seed=42):
+    tf.reset_default_graph()
+    tf.set_random_seed(seed)
+    np.random.seed(seed)
+reset_graph()
+
+
+n_steps = 2
+n_inputs = 3
+n_neurons = 1
+
+
+reset_graph()
+
+
+X = tf.placeholder(tf.float32, [None, 1, 7])
+
+
+basic_cell = tf.keras.layers.SimpleRNNCell(units=2)
+lstm_cell = tf.nn.rnn_cell.LSTMCell(2,
+                                    state_is_tuple=True)  # can use tf.nn.rnn_cell.GRUCell or tf.nn.rnn_cell.BasicRNNCell instead
+
+
+outputs, states = tf.nn.dynamic_rnn(lstm_cell, X, dtype=tf.float32)
+
+
+init = tf.global_variables_initializer()
+
+
+X_batch = np.array([
+    [[1., -3.68, -3.04, 2.32, -0.1531, -1.1523, 0.111]]
+
+
+])
+#print(X_batch.shape)
+with tf.Session() as sess:
+    init.run()
+    #print(outputs)
+    outputs_val = outputs.eval(feed_dict={X: X_batch})
+    #print(outputs_val)
+
+
+'''
+ ########################################################################################
+
+'''
+def reset_graph(seed=42):
+    tf.reset_default_graph()
+    tf.set_random_seed(seed)
+    np.random.seed(seed)
+reset_graph()
+
+
+reset_graph()
+
+
+X = tf.placeholder(tf.float32, [None, 1, 7])
+
+
+lstm_cell = tf.nn.rnn_cell.LSTMCell(3,state_is_tuple=True)
+cells = tf.nn.rnn_cell.MultiRNNCell([lstm_cell] * 1, state_is_tuple=True)
+init_state = cells.zero_state(1, tf.float32)
+outputs, states = tf.nn.dynamic_rnn(cells, X,initial_state=init_state, dtype=tf.float32)
+
+
+init = tf.global_variables_initializer()
+
+
+X_batch = np.array([
+    [[1., -3.68, -3.04, 2.32, -0.1531, -1.1523, 0.111]]
+
+
+])
+#print(X_batch.shape)
+with tf.Session() as sess:
+    init.run()
+    #print(outputs)
+    outputs_val = outputs.eval(feed_dict={X: X_batch})
+    #print(outputs_val)
+    #print(outputs_val.shape)
+
+
+
+
+'''
+ ########################################################################################
+
+'''
+def reset_graph(seed=42):
+    tf.reset_default_graph()
+    tf.set_random_seed(seed)
+    np.random.seed(seed)
+reset_graph()
+
+
+reset_graph()
+
+
+X = tf.placeholder(tf.float32, [None, 1, 7], name='input_placeholder')
+y = tf.placeholder(tf.float32, [None,1,7], name='labels_placeholder')
+#seq_lens = tf.placeholder(tf.int32, [1])
+
+
+lstm_cell = tf.nn.rnn_cell.LSTMCell(3,state_is_tuple=True)
+cells = tf.nn.rnn_cell.MultiRNNCell([lstm_cell] * 1, state_is_tuple=True)
+init_state = cells.zero_state(1, tf.float32)
+outputs, states = tf.nn.dynamic_rnn(cells, X,initial_state=init_state, dtype=tf.float32)
+
+
+outputs = tf.transpose(outputs, [1, 0, 2])
+last = tf.gather(outputs, int(outputs.get_shape()[0]) - 1)
+
+
+weight = tf.get_variable(name='weights', initializer=tf.truncated_normal([3, int(y.get_shape()[1])]))
+bias = tf.get_variable(name='bias',initializer=tf.constant(0.1, shape=[y.get_shape()[1]]))
+
+
+prediction = tf.nn.softmax(tf.matmul(last, weight) + bias)
+cross_entropy = -tf.reduce_sum(y * tf.log(tf.clip_by_value(prediction,1e-10,1.0)))
+optimizer = tf.train.AdamOptimizer()
+minimize = optimizer.minimize(cross_entropy)
+mistakes = tf.not_equal(tf.argmax(y, 1), tf.argmax(prediction, 1))
+error = tf.reduce_mean(tf.cast(mistakes, tf.float32))
+
+
+
+
+init = tf.global_variables_initializer()
+
+
+with tf.Session() as sess:
+    init.run()
+    X_train = np.array([
+        [[1., -3.68, -3.04, 2.32, -0.1531, -1.1523, 0.111]]
+    ])
+    y_train = np.array([
+        [[1535., -335353.68, -55.04, 2.32, -550.1531, -155.1523, 0.111]]
+    ])
+
+
+    X_test = np.array([
+        [[41., -3.68, -3.04, 2.32, -0.1531, -1.1523, 0.111]]
+    ])
+    y_test = np.array([
+        [[14535., -335353.68, -55.04, 2.32, -550.1531, -155.1523, 0.111]]
+    ])
+    print('X_train.shape')
+    #print(X_train.shape)
+    #print(outputs)
+    outputs_val = outputs.eval(feed_dict={X: X_train,y: y_train, })
+    #print('outputs_val')
+    #print(outputs_val)
+    minimize_val = sess.run(minimize,feed_dict={X: X_train,y: y_train})
+    incorrect_val = sess.run(error,feed_dict={X: X_test,y: y_test})
+    #print('incorrect_val')
+    #print(incorrect_val)
+    prediction_val = sess.run(prediction,feed_dict={X: X_test,y: y_test})
+    #print(prediction_val)
+
+
+'''
+2do : seq_lens checks    gather    loops   change the data shape 
+'''
+
+
+'''
+ ########################################################################################
+
+'''
+
+
+def reset_graph(seed=42):
+    tf.reset_default_graph()
+    tf.set_random_seed(seed)
+    np.random.seed(seed)
+reset_graph()
+
+
+
+
+X = tf.placeholder(tf.float32, [None, 1, 7], name='input_placeholder')
+y = tf.placeholder(tf.float32, [None,1,7], name='labels_placeholder')
+#seq_lens = tf.placeholder(tf.int32, [1])
+
+
+lstm_cell = tf.nn.rnn_cell.LSTMCell(3,state_is_tuple=True)
+cells = tf.nn.rnn_cell.MultiRNNCell([lstm_cell] * 1, state_is_tuple=True)
+init_state = cells.zero_state(1, tf.float32)
+outputs, states = tf.nn.dynamic_rnn(cells, X,initial_state=init_state, dtype=tf.float32)
+
+
+outputs = tf.transpose(outputs, [1, 0, 2])
+#last = tf.gather(outputs, int(outputs.get_shape()[0]) - 1)
+X_train = np.array([
+    [[1., -3.68, -3.04, 2.32, -0.1531, -1.1523, 0.111]]
+])
+print('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
+sess = tf.Session()
+print('used')
+used = sess.run(tf.sign(tf.reduce_max(tf.abs(X_train), 2)))
+print(used)
+length = tf.reduce_sum(used, 1)
+length = sess.run(tf.cast(length, tf.int32))
+print('length')
+print(length)
+batch_size = sess.run(tf.shape(outputs)[0])
+print('batch_size')
+print(batch_size)
+max_length = sess.run(tf.shape(outputs)[1])
+print('max_length')
+print(max_length)
+out_size = int(outputs.get_shape()[2])
+print('out_size')
+print(out_size)
+index = tf.range(0, batch_size) * max_length + (length - 1)
+flat = tf.reshape(outputs, [-1, out_size])
+relevant = tf.gather(flat, index)
+
+
+out_size = int(outputs.get_shape()[2])
+index = tf.range(0, 1) * 2
+flat = tf.reshape(outputs, [-1, out_size])
+relevant = tf.gather(flat, index)
+sess.close()
+print('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
+
+
+
+
+weight = tf.get_variable(name='weights', initializer=tf.truncated_normal([3, int(y.get_shape()[1])]))
+bias = tf.get_variable(name='bias',initializer=tf.constant(0.1, shape=[y.get_shape()[1]]))
+
+
+prediction = tf.nn.softmax(tf.matmul(relevant, weight) + bias)
+cross_entropy = -tf.reduce_sum(y * tf.log(tf.clip_by_value(prediction,1e-10,1.0)))
+optimizer = tf.train.AdamOptimizer()
+minimize = optimizer.minimize(cross_entropy)
+mistakes = tf.not_equal(tf.argmax(y, 1), tf.argmax(prediction, 1))
+error = tf.reduce_mean(tf.cast(mistakes, tf.float32))
+
+
+
+
+init = tf.global_variables_initializer()
+
+
+with tf.Session() as sess:
+    init.run()
+    X_train = np.array([
+        [[1., -3.68, -3.04, 2.32, -0.1531, -1.1523, 0.111]]
+    ])
+    y_train = np.array([
+        [[1, 1, 1, 1, 1, 1, 1]]
+    ])
+
+
+    X_test = np.array([
+        [[41., -3.68, -3.04, 2.32, -0.1531, -1.1523, 0.111]]
+    ])
+    y_test = np.array([
+        [[0, 0, 0, 0, 0, 0, 0]]
+    ])
+    print('X_train.shape')
+    print(X_train.shape)
+    print('outputs')
+    print(outputs)
+    outputs_val = outputs.eval(feed_dict={X: X_train,y: y_train, })
+    print('outputs_val')
+    print(outputs_val)
+    minimize_val = sess.run(minimize,feed_dict={X: X_train,y: y_train})
+    incorrect_val = sess.run(error,feed_dict={X: X_test,y: y_test})
+    print('incorrect_val')
+    print(incorrect_val)
+    prediction_val = sess.run(prediction,feed_dict={X: X_test,y: y_test})
+    print(prediction_val)
+
+
+'''
+2do : seq_lens checks    gather loops understand the prediction matrix  label shapes  tensorboarc
+'''
+'''
+ ########################################################################################
+
+'''
+
+
+
+
+
+
+

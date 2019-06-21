@@ -1,0 +1,72 @@
+from __future__ import print_function, division
+import tensorflow as tf
+import numpy as np
+from tf_utils import *
+
+
+class Network(object):
+
+    def __init__(self, config):
+        self.state_dim = config.state_dim
+        self.state_shape = config.state_shape
+        self.state_channels = self.state_shape[-1]
+        self.action_num = config.action_num
+        self.weight_decay = config.weight_decay
+        self.lr = config.lr
+        self.state = tf.placeholder(tf.float32, shape=[None, self.state_dim])
+        self.q_target = tf.placeholder(tf.float32, shape=[None])
+        self.actions = tf.placeholder(tf.float32, shape=[None, self.action_num])
+        self.q_difference = tf.placeholder(tf.float32, shape=[None, self.action_num])
+        self.state2 = tf.placeholder(tf.float32, shape=[None, self.state_dim])
+        self.q_predict, self.action_predict = self.build_network()
+        self.q_predict_with_action = tf.reduce_sum(self.q_predict * self.actions, axis=1)
+        losses = tf.square(self.q_predict_with_action - self.q_target)
+        self.l2_loss = tf.reduce_mean(losses)
+        self.w_norm = tf.add_n(tf.get_collection('weight_norms'))
+        self.a_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.action_predict, self.actions))
+        self.objective = self.l2_loss + self.a_loss + self.weight_decay * self.w_norm
+        self.train_step = tf.train.AdamOptimizer(self.lr).minimize(self.objective)
+
+    def build_network(self):
+        h_num = 400
+        w = weight_variable([self.state_dim, h_num])
+        b = bias_variable([h_num])
+        tf.add_to_collection('weight_norms', tf.nn.l2_loss(w))
+        h_s = tf.nn.relu(tf.nn.bias_add(tf.matmul(self.state, w), b))
+        h_s2 = tf.nn.relu(tf.nn.bias_add(tf.matmul(self.state2, w), b))
+        h2_num = 100
+        w = weight_variable([h_num, h2_num])
+        b = bias_variable([h2_num])
+        tf.add_to_collection('weight_norms', tf.nn.l2_loss(w))
+        h_s = tf.nn.relu(tf.nn.bias_add(tf.matmul(h_s, w), b))
+        h_s2 = tf.nn.relu(tf.nn.bias_add(tf.matmul(h_s2, w), b))
+        w = weight_variable([h2_num, self.action_num])
+        b = bias_variable([self.action_num])
+        tf.add_to_collection('weight_norms', tf.nn.l2_loss(w))
+        q = tf.nn.bias_add(tf.matmul(h_s, w), b)
+        h_a = tf.concat(1, [h_s, h_s2])
+        w = weight_variable([h2_num * 2, self.action_num])
+        b = bias_variable([self.action_num])
+        a = tf.nn.bias_add(tf.matmul(h_a, w), b)
+        return q, a
+
+    def get_q_output(self, sess, s):
+        return self.q_predict.eval(session=sess, feed_dict={self.state: s})
+
+    def update_with_targets(self, sess, s, a, targets):
+        self.train_step.run(session=sess, feed_dict={self.state: s, self.q_target: targets, self.actions: a})
+
+    def update_to_predict_action(self, sess, s, s2, a):
+        self.train_step_a.run(session=sess, feed_dict={self.state: s, self.state2: s2, self.actions: a})
+
+    def update_step(self, sess, s, s2, a, targets):
+        self.train_step.run(session=sess, feed_dict={self.state: s, self.state2: s2, self.actions: a, self.q_target: targets})
+
+    def get_loss(self, sess, s, a, targets):
+        return self.l2_loss.eval(session=sess, feed_dict={self.state: s, self.q_target: targets, self.actions: a})
+
+    def get_action_loss(self, sess, s, s2, a):
+        return self.a_loss.eval(session=sess, feed_dict={self.state: s, self.state2: s2, self.actions: a})
+
+    def get_weight_norm(self, sess):
+        return self.w_norm.eval(session=sess)

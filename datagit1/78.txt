@@ -1,0 +1,111 @@
+import pandas as pd
+import numpy as np
+import pickle
+import matplotlib.pyplot as plt
+from scipy import stats
+import tensorflow as tf
+import seaborn as sns
+from pylab import rcParams
+from sklearn import metrics
+from sklearn.model_selection import train_test_split
+import tensorflow as tf
+import pandas as pd
+import numpy as np
+from tensorflow.contrib import rnn
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import f1_score, accuracy_score, recall_score, precision_score
+import os
+vocab_size = 10
+
+
+def reset_graph(seed=42):
+    tf.reset_default_graph()
+    tf.set_random_seed(seed)
+    np.random.seed(seed)
+
+
+reset_graph()
+
+
+def build_modeld(hidden_units=100, num_classes=vocab_size, batch_size=1, num_layers=1, learning_rate=0.001):
+    x = tf.placeholder(tf.int32, [batch_size, None], name='input_placeholder')
+    y = tf.placeholder(tf.int64, [batch_size, None], name='labels_placeholder')
+    seq_lens = tf.placeholder(tf.int32, [batch_size])
+    embeddings = tf.get_variable('embedding_matrix', [num_classes, hidden_units])
+    rnn_inputs = tf.nn.embedding_lookup(embeddings, x)
+    lstm_cell = tf.nn.rnn_cell.LSTMCell(hidden_units, state_is_tuple=True)
+    cells = tf.nn.rnn_cell.MultiRNNCell([lstm_cell] * num_layers, state_is_tuple=True)
+    init_state = cells.zero_state(batch_size, tf.float32)
+    rnn_outputs, final_state = tf.nn.dynamic_rnn(cells, rnn_inputs, initial_state=init_state, sequence_length=seq_lens)
+    with tf.variable_scope('softmax'):
+        W = tf.get_variable('W', [hidden_units, num_classes])
+        b = tf.get_variable('b', [num_classes], initializer=tf.constant_initializer(0.0))
+    outputs = tf.reshape(rnn_outputs, [-1, hidden_units])
+    logits = tf.matmul(outputs, W) + b
+    error = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=tf.reshape(y, [-1])))
+    optimizer = tf.train.AdamOptimizer(learning_rate).minimize(error)
+    correct_predictions = tf.equal(tf.argmax(logits, 1), y)
+    accuracy = tf.reduce_mean(tf.cast(correct_predictions, tf.float32))
+    return dict(x=x, y=y, init_state=init_state, final_state=final_state, error=error, accuracy=accuracy, optimizer=optimizer, sequence_lengths=seq_lens)
+
+
+def run_epoch(session, model, data):
+    err = 0.0
+    acc = 0.0
+    iters = 0
+    training_state = None
+    for _sequence_length, _input, _target in data:
+        feed_dict = {model['x']: np.array([_input], dtype=np.int32), model['y']: np.array([_target], dtype=np.int64), model['sequence_lengths']: np.array(_sequence_length, dtype=np.int32)}
+        if training_state is not None:
+            feed_dict[model['init_state']] = training_state
+        err, training_state, acc, _ = session.run([model['error'], model['final_state'], model['accuracy'], model['optimizer']], feed_dict)
+        iters += _sequence_length[0]
+    return err / iters, acc / iters
+
+
+def train_model(train_data, epochs=10):
+    with tf.Graph().as_default(), tf.Session() as session:
+        initializer = tf.random_uniform_initializer(-0.1, 0.1)
+        with tf.variable_scope('model', reuse=None, initializer=initializer):
+            model = build_modeld()
+        session.run(tf.global_variables_initializer())
+        for i in range(epochs):
+            error, accuracy = run_epoch(session, model, train_data)
+            print('Epoch: %d -- Train Error: %.4f -- Accuracy: %.4f ' % (i + 1, error, accuracy))
+
+
+data = pd.read_csv('TesterHRY.csv')
+features = data.iloc[:, 0:7]
+labels = data.iloc[:, (-1)]
+X_train, X_test, y_train, y_test = train_test_split(features, labels, test_size=0.2, shuffle=False, random_state=42)
+i = 0
+batch_size = 1
+for i in range(int(len(X_train) / batch_size)):
+    start = i
+    end = i + batch_size
+    batch_x = np.array(X_train[start:end])
+    batch_y = np.array(y_train[start:end])
+    print(batch_x)
+    print(batch_x.shape)
+    print(batch_y)
+    print(batch_y.shape)
+print('BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB')
+_input = data.iloc[1:2, 0:7]
+_target = data.iloc[1:2, (-1)]
+x = _input.values
+print('xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
+print(x)
+print(x.shape)
+print(type(x))
+y = np.zeros(len(x[0]), dtype=float)
+print('yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy')
+print(y)
+print(y.shape)
+print(type(y))
+_sequence_length, _input, _target = len(x[0]), x, y
+x[0] = list(map(lambda x: x if x > 0 else x * -1, x[0]))
+print(x[0])
+print('000000000000000000000000000000')
+train_data = [([len(x[0])], x[0], y)]
+train_data = [([5.8], [1, 2, 3, 4, 5], [2, 3, 4, 5, 6])]
+train_model(train_data)

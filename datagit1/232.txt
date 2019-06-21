@@ -1,0 +1,224 @@
+import numpy as np
+import os
+import tensorflow as tf
+from six.moves import urllib
+import errno
+import os
+import zipfile
+from collections import Counter
+from collections import deque
+from sklearn.manifold import TSNE
+
+
+def reset_graph(seed=42):
+    tf.reset_default_graph()
+    tf.set_random_seed(seed)
+    np.random.seed(seed)
+
+
+import matplotlib
+import matplotlib.pyplot as plt
+plt.rcParams['axes.labelsize'] = 14
+plt.rcParams['xtick.labelsize'] = 12
+plt.rcParams['ytick.labelsize'] = 12
+PROJECT_ROOT_DIR = '.'
+CHAPTER_ID = 'rnn'
+
+
+def save_fig(fig_id, tight_layout=True):
+    path = os.path.join(PROJECT_ROOT_DIR, 'images', CHAPTER_ID, fig_id + '.png')
+    print('Saving figure', fig_id)
+    if tight_layout:
+        plt.tight_layout()
+    plt.savefig(path, format='png', dpi=300)
+
+
+reset_graph()
+(X_train, y_train), (X_test, y_test) = tf.keras.datasets.mnist.load_data()
+X_train = X_train.astype(np.float32).reshape(-1, 28 * 28) / 255.0
+X_test = X_test.astype(np.float32).reshape(-1, 28 * 28) / 255.0
+y_train = y_train.astype(np.int32)
+y_test = y_test.astype(np.int32)
+X_valid, X_train = X_train[:5000], X_train[5000:]
+y_valid, y_train = y_train[:5000], y_train[5000:]
+
+
+def shuffle_batch(X, y, batch_size):
+    rnd_idx = np.random.permutation(len(X))
+    n_batches = len(X) // batch_size
+    for batch_idx in np.array_split(rnd_idx, n_batches):
+        X_batch, y_batch = X[batch_idx], y[batch_idx]
+        yield X_batch, y_batch
+
+
+t_min, t_max = 0, 30
+resolution = 0.1
+
+
+def time_series(t):
+    return t * np.sin(t) / 3 + 2 * np.sin(5 * t)
+
+
+def next_batch(batch_size, n_steps):
+    t0 = np.random.rand(batch_size, 1) * (t_max - t_min - n_steps * resolution)
+    Ts = t0 + np.arange(0.0, n_steps + 1) * resolution
+    ys = time_series(Ts)
+    return ys[:, :-1].reshape(-1, n_steps, 1), ys[:, 1:].reshape(-1, n_steps, 1)
+
+
+t = np.linspace(t_min, t_max, int((t_max - t_min) / resolution))
+n_steps = 20
+t_instance = np.linspace(12.2, 12.2 + resolution * (n_steps + 1), n_steps + 1)
+
+
+class DeviceCellWrapper(tf.nn.rnn_cell.RNNCell):
+
+    def __init__(self, device, cell):
+        self._cell = cell
+        self._device = device
+
+    @property
+    def state_size(self):
+        return self._cell.state_size
+
+    @property
+    def output_size(self):
+        return self._cell.output_size
+
+    def __call__(self, inputs, state, scope=None):
+        with tf.device(self._device):
+            return self._cell(inputs, state, scope)
+
+
+reset_graph()
+WORDS_PATH = 'datasets/words'
+WORDS_URL = 'http://mattmahoney.net/dc/text8.zip'
+
+
+def mkdir_p(path):
+    try:
+        os.makedirs(path)
+    except OSError as exc:
+        if exc.errno == errno.EEXIST and os.path.isdir(path):
+            pass
+        else:
+            raise
+
+
+def fetch_word_data(words_url=WORDS_URL, words_path=WORDS_PATH):
+    os.makedirs(words_path, exist_ok=True)
+    zip_path = os.path.join(words_path, 'words.zip')
+    if not os.path.exists(zip_path):
+        urllib.request.urlretrieve(words_url, zip_path)
+    with zipfile.ZipFile(zip_path) as f:
+        data = f.read(f.namelist()[0])
+    return data.decode('ascii').split()
+
+
+words = fetch_word_data()
+vocabulary_size = 50000
+vocabulary = [('UNK', None)] + Counter(words).most_common(vocabulary_size - 1)
+vocabulary = np.array([word for word, _ in vocabulary])
+dictionary = {word: code for code, word in enumerate(vocabulary)}
+data = np.array([dictionary.get(word, 0) for word in words])
+
+
+def generate_batch(batch_size, num_skips, skip_window):
+    global data_index
+    assert batch_size % num_skips == 0
+    assert num_skips <= 2 * skip_window
+    batch = np.ndarray(shape=[batch_size], dtype=np.int32)
+    labels = np.ndarray(shape=[batch_size, 1], dtype=np.int32)
+    span = 2 * skip_window + 1
+    buffer = deque(maxlen=span)
+    for _ in range(span):
+        buffer.append(data[data_index])
+        data_index = (data_index + 1) % len(data)
+    for i in range(batch_size // num_skips):
+        target = skip_window
+        targets_to_avoid = [skip_window]
+        for j in range(num_skips):
+            while target in targets_to_avoid:
+                target = np.random.randint(0, span)
+            targets_to_avoid.append(target)
+            batch[i * num_skips + j] = buffer[skip_window]
+            labels[i * num_skips + j, 0] = buffer[target]
+        buffer.append(data[data_index])
+        data_index = (data_index + 1) % len(data)
+    return batch, labels
+
+
+data_index = 0
+batch_size = 128
+embedding_size = 128
+skip_window = 1
+num_skips = 2
+valid_size = 16
+valid_window = 100
+valid_examples = np.random.choice(valid_window, valid_size, replace=False)
+num_sampled = 64
+learning_rate = 0.01
+reset_graph()
+train_labels = tf.placeholder(tf.int32, shape=[batch_size, 1])
+valid_dataset = tf.constant(valid_examples, dtype=tf.int32)
+vocabulary_size = 50000
+embedding_size = 150
+init_embeds = tf.random_uniform([vocabulary_size, embedding_size], -1.0, 1.0)
+embeddings = tf.Variable(init_embeds)
+train_inputs = tf.placeholder(tf.int32, shape=[None])
+embed = tf.nn.embedding_lookup(embeddings, train_inputs)
+nce_weights = tf.Variable(tf.truncated_normal([vocabulary_size, embedding_size], stddev=1.0 / np.sqrt(embedding_size)))
+nce_biases = tf.Variable(tf.zeros([vocabulary_size]))
+loss = tf.reduce_mean(tf.nn.nce_loss(nce_weights, nce_biases, train_labels, embed, num_sampled, vocabulary_size))
+optimizer = tf.train.AdamOptimizer(learning_rate)
+trianing_op = optimizer.minimize(loss)
+norm = tf.sqrt(tf.reduce_mean(tf.square(embeddings), axis=1, keepdims=True))
+normalized_embeddings = embeddings / norm
+valid_embeddings = tf.nn.embedding_lookup(normalized_embeddings, valid_dataset)
+similarity = tf.matmul(valid_embeddings, normalized_embeddings, transpose_b=True)
+init = tf.global_variables_initializer()
+num_steps = 10001
+with tf.Session() as sess:
+    init.run()
+    average_loss = 0
+    for step in range(num_steps):
+        print('\rIteration:{}'.format(step), end='\t')
+        batch_inputs, batch_labels = generate_batch(batch_size, num_skips, skip_window)
+        feed_dict = {train_inputs: batch_inputs, train_labels: batch_labels}
+        _, loss_val = sess.run([trianing_op, loss], feed_dict=feed_dict)
+        average_loss += loss_val
+        if step % 2000 == 0:
+            if step > 0:
+                average_loss /= 2000
+            print('Average loss at step', step, ':', average_loss)
+            average_loss = 0
+        if step % 10000 == 0:
+            sim = similarity.eval()
+            for i in range(valid_size):
+                valid_word = vocabulary[valid_examples[i]]
+                top_k = 8
+                nearst = (-sim[(i), :]).argsort()[1:top_k + 1]
+                log_str = 'Nearest to %s:' % valid_word
+                for k in range(top_k):
+                    close_word = vocabulary[nearst[k]]
+                    log_str = '%s %s,' % (log_str, close_word)
+                print(log_str)
+    final_embedding = normalized_embeddings.eval()
+np.save('./my_final_embeddings.npy', final_embedding)
+
+
+def plot_with_labels(low_dim_embs, labels):
+    assert low_dim_embs.shape[0] >= len(labels), 'More labels than embeddings'
+    plt.figure(figsize=(18, 18))
+    for i, label in enumerate(labels):
+        x, y = low_dim_embs[(i), :]
+        plt.scatter(x, y)
+        plt.annotate(label, xy=(x, y), xytext=(5, 2), textcoords='offset points', ha='right', va='bottom')
+    plt.show()
+
+
+tsne = TSNE(perplexity=30, n_components=2, init='pca', n_iter=5000)
+plot_only = 500
+low_dim_embs = tsne.fit_transform(final_embedding[:plot_only, :])
+labels = [vocabulary[i] for i in range(plot_only)]
+plot_with_labels(low_dim_embs, labels)

@@ -1,0 +1,10 @@
+import keras
+from keras.models import Sequential
+from keras.layers import Dense, Dropout, Activation, Flatten, Embedding
+from keras.layers import Conv2D, MaxPooling2D, LSTM
+def get_mnist_net(model_name, input_shape):
+    if model_name == 'std':
+        return get_mnist_stdnet()
+    elif model_name == 'conv':
+        return get_mnist_convnet(input_shape)
+    else:

@@ -1,0 +1,304 @@
+import tensorflow as tf
+import numpy as np
+import matplotlib.pyplot as plt
+from tensorflow.examples.tutorials.mnist import input_data
+
+
+def constantTest():
+    m1 = tf.constant([[3, 3]])
+    m2 = tf.constant([[2], [3]])
+    predect = tf.matmul(m1, m2)
+    print(predect)
+    with tf.Session() as sess:
+        print(sess.run(predect))
+
+
+def variableTest():
+    a = tf.Variable(1.0)
+    newValue = tf.add(a, 1)
+    update = tf.assign(a, newValue)
+    init = tf.global_variables_initializer()
+    with tf.Session() as sess:
+        sess.run(init)
+        print(sess.run(a))
+        sess.run(update)
+        print(sess.run(a))
+
+
+def fetchTest():
+    input1 = tf.constant(3.0)
+    input2 = tf.constant(2.0)
+    input3 = tf.constant(5.0)
+    intermed = tf.add(input2, input3)
+    with tf.Session() as sess:
+        result = sess.run([input1, intermed])
+        print(result)
+
+
+def feedTest():
+    input1 = tf.placeholder(tf.float32)
+    input2 = tf.placeholder(tf.float32)
+    output = tf.add(input1, input2)
+    with tf.Session() as sess:
+        print(sess.run([output], feed_dict={input1: [7.0], input2: [2.0]}))
+
+
+def test4liner():
+    x_data = np.random.rand(100)
+    y_data = x_data * 0.1 + 0.2
+    b = tf.Variable(0.0)
+    k = tf.Variable(0.0)
+    y = k * x_data + b
+    with tf.name_scope('loss'):
+        loss = tf.reduce_mean(tf.square(y - y_data))
+    with tf.name_scope('train'):
+        optimizer = tf.train.GradientDescentOptimizer(0.2)
+        train = optimizer.minimize(loss)
+    init = tf.global_variables_initializer()
+    with tf.Session() as sess:
+        writer = tf.summary.FileWriter('logs', sess.graph)
+        sess.run(init)
+        for i in range(100):
+            sess.run(train)
+            if i % 10 == 0:
+                print(sess.run([k, b]))
+
+
+def test4regression():
+    x_data = np.linspace(-0.5, 0.5, 200)[:, (np.newaxis)]
+    noise = np.random.normal(0, 0.02, x_data.shape)
+    y_data = np.square(x_data) + noise
+    x = tf.placeholder(tf.float32, [None, 1])
+    y = tf.placeholder(tf.float32, [None, 1])
+    Weights_L1 = tf.Variable(tf.random_normal([1, 10]))
+    biases_L1 = tf.Variable(0.0)
+    Wx_plus_b_L1 = tf.matmul(x, Weights_L1) + biases_L1
+    L1 = tf.nn.tanh(Wx_plus_b_L1)
+    Weights_L2 = tf.Variable(tf.random_normal([10, 1]))
+    biases_L2 = tf.Variable(tf.zeros([1, 1]))
+    Wx_plus_b_L2 = tf.matmul(L1, Weights_L2) + biases_L2
+    prediction = tf.nn.tanh(Wx_plus_b_L2)
+    loss = tf.reduce_mean(tf.square(y - prediction))
+    train = tf.train.GradientDescentOptimizer(0.2).minimize(loss)
+    with tf.Session() as sess:
+        sess.run(tf.global_variables_initializer())
+        for i in range(2000):
+            sess.run(train, feed_dict={x: x_data, y: y_data})
+        prediction_value = sess.run(prediction, feed_dict={x: x_data})
+        plt.figure()
+        plt.scatter(x_data, y_data)
+        plt.plot(x_data, prediction_value, 'r-')
+        plt.show()
+
+
+def test4classifyMnist():
+    mnist = input_data.read_data_sets('mnist_data', one_hot=True)
+    batch_size = 100
+    n_batch = mnist.train.num_examples // batch_size
+    x = tf.placeholder(tf.float32, [None, 784])
+    y = tf.placeholder(tf.float32, [None, 10])
+    Weights_L1 = tf.Variable(tf.random_normal([784, 100]))
+    biases_L1 = tf.Variable(tf.zeros([100]) + 0.1)
+    Wx_plus_b_L1 = tf.matmul(x, Weights_L1) + biases_L1
+    L1 = tf.nn.sigmoid(Wx_plus_b_L1)
+    Weights_L2 = tf.Variable(tf.random_normal([100, 100]))
+    biases_L2 = tf.Variable(tf.zeros([100]))
+    Wx_plus_b_L2 = tf.matmul(L1, Weights_L2) + biases_L2
+    L2 = tf.nn.sigmoid(Wx_plus_b_L2)
+    Weights_L3 = tf.Variable(tf.random_normal([100, 10]))
+    biases_L3 = tf.Variable(tf.zeros([10]))
+    Wx_plus_b_L3 = tf.matmul(L2, Weights_L3) + biases_L3
+    prediction = tf.nn.softmax(Wx_plus_b_L3)
+    loss = tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=prediction)
+    train = tf.train.GradientDescentOptimizer(0.2).minimize(loss)
+    correct_prediction = tf.equal(tf.arg_max(y, 1), tf.arg_max(prediction, 1))
+    accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+    with tf.Session() as sess:
+        sess.run(tf.global_variables_initializer())
+        for i in range(20):
+            for batch in range(n_batch):
+                batch_xs, batch_ys = mnist.train.next_batch(batch_size)
+                sess.run(train, feed_dict={x: batch_xs, y: batch_ys})
+            acc = sess.run(accuracy, feed_dict={x: mnist.test.images, y: mnist.test.labels})
+            print('Iter ' + str(i) + ',Testing Accuracy ' + str(acc))
+
+
+def test4fitness2dropout():
+    mnist = input_data.read_data_sets('mnist_data', one_hot=True)
+    batch_size = 100
+    n_batch = mnist.train.num_examples // batch_size
+    keep_prob = tf.placeholder(tf.float32)
+    x = tf.placeholder(tf.float32, [None, 784])
+    y = tf.placeholder(tf.float32, [None, 10])
+    Weights_L1 = tf.Variable(tf.zeros([784, 100]))
+    biases_L1 = tf.Variable(tf.zeros([100]) + 0.1)
+    Wx_plus_b_L1 = tf.matmul(x, Weights_L1) + biases_L1
+    L1 = tf.nn.sigmoid(Wx_plus_b_L1)
+    L1 = tf.nn.dropout(L1, keep_prob)
+    Weights_L2 = tf.Variable(tf.zeros([100, 100]))
+    biases_L2 = tf.Variable(tf.zeros([100]))
+    Wx_plus_b_L2 = tf.matmul(L1, Weights_L2) + biases_L2
+    L2 = tf.nn.sigmoid(Wx_plus_b_L2)
+    L2 = tf.nn.dropout(L2, keep_prob)
+    Weights_L3 = tf.Variable(tf.zeros([100, 10]))
+    biases_L3 = tf.Variable(tf.zeros([10]))
+    Wx_plus_b_L3 = tf.matmul(L2, Weights_L3) + biases_L3
+    prediction = tf.nn.softmax(Wx_plus_b_L3)
+    loss = tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=prediction)
+    train = tf.train.AdamOptimizer().minimize(loss)
+    correct_prediction = tf.equal(tf.arg_max(y, 1), tf.arg_max(prediction, 1))
+    accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+    with tf.Session() as sess:
+        sess.run(tf.global_variables_initializer())
+        for i in range(20):
+            for batch in range(n_batch):
+                batch_xs, batch_ys = mnist.train.next_batch(batch_size)
+                sess.run(train, feed_dict={x: batch_xs, y: batch_ys, keep_prob: 0.7})
+            acc_test = sess.run(accuracy, feed_dict={x: mnist.test.images, y: mnist.test.labels, keep_prob: 1.0})
+            acc_train = sess.run(accuracy, feed_dict={x: mnist.train.images, y: mnist.train.labels, keep_prob: 1.0})
+            print('Iter ' + str(i) + ',Testing Accuracy ' + str(acc_test) + ',Training Accuracy ' + str(acc_train))
+
+
+def test4tensorboard():
+
+    def variable_summaries(var):
+        with tf.name_scope('summaries'):
+            mean = tf.reduce_mean(var)
+            tf.summary.scalar('mean', mean)
+            with tf.name_scope('stddex'):
+                stddev = tf.sqrt(tf.reduce_mean(tf.square(var - mean)))
+            tf.summary.scalar('stddev', stddev)
+            tf.summary.scalar('max', tf.reduce_max(var))
+            tf.summary.scalar('max', tf.reduce_min(var))
+            tf.summary.histogram('histogram', var)
+    mnist = input_data.read_data_sets('mnist_data', one_hot=True)
+    batch_size = 100
+    n_batch = mnist.train.num_examples // batch_size
+    keep_prob = tf.placeholder(tf.float32)
+    x = tf.placeholder(tf.float32, [None, 784])
+    y = tf.placeholder(tf.float32, [None, 10])
+    Weights_L1 = tf.Variable(tf.zeros([784, 100]))
+    biases_L1 = tf.Variable(tf.zeros([100]) + 0.1)
+    variable_summaries(Weights_L1)
+    variable_summaries(biases_L1)
+    Wx_plus_b_L1 = tf.matmul(x, Weights_L1) + biases_L1
+    L1 = tf.nn.sigmoid(Wx_plus_b_L1)
+    L1 = tf.nn.dropout(L1, keep_prob)
+    Weights_L2 = tf.Variable(tf.zeros([100, 100]))
+    biases_L2 = tf.Variable(tf.zeros([100]))
+    Wx_plus_b_L2 = tf.matmul(L1, Weights_L2) + biases_L2
+    L2 = tf.nn.sigmoid(Wx_plus_b_L2)
+    L2 = tf.nn.dropout(L2, keep_prob)
+    Weights_L3 = tf.Variable(tf.zeros([100, 10]))
+    biases_L3 = tf.Variable(tf.zeros([10]))
+    Wx_plus_b_L3 = tf.matmul(L2, Weights_L3) + biases_L3
+    prediction = tf.nn.softmax(Wx_plus_b_L3)
+    loss = tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=prediction)
+    tf.summary.scalar('loss', tf.reduce_mean(loss))
+    train = tf.train.AdamOptimizer().minimize(loss)
+    correct_prediction = tf.equal(tf.arg_max(y, 1), tf.arg_max(prediction, 1))
+    accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+    tf.summary.scalar('accuracy', tf.reduce_mean(accuracy))
+    merged = tf.summary.merge_all()
+    with tf.Session() as sess:
+        writer = tf.summary.FileWriter('logs', sess.graph)
+        sess.run(tf.global_variables_initializer())
+        for i in range(20):
+            for batch in range(n_batch):
+                batch_xs, batch_ys = mnist.train.next_batch(batch_size)
+                sess.run(train, feed_dict={x: batch_xs, y: batch_ys, keep_prob: 0.7})
+            summary, acc_test = sess.run([merged, accuracy], feed_dict={x: mnist.test.images, y: mnist.test.labels, keep_prob: 1.0})
+            writer.add_summary(summary, i)
+            acc_train = sess.run(accuracy, feed_dict={x: mnist.train.images, y: mnist.train.labels, keep_prob: 1.0})
+            print('Iter ' + str(i) + ',Testing Accuracy ' + str(acc_test) + ',Training Accuracy ' + str(acc_train))
+
+
+def test4cnn():
+    mnist = input_data.read_data_sets('mnist_data', one_hot=True)
+    batch_size = 100
+    n_batch = mnist.train.num_examples // batch_size
+
+    def weight_variable(shape):
+        initial = tf.truncated_normal(shape, stddev=0.1)
+        return tf.Variable(initial)
+
+    def bias_variable(shape):
+        initial = tf.constant(0.1, shape=shape)
+        return tf.Variable(initial)
+
+    def conv2d(x, W):
+        return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
+
+    def max_pool_2x2(x):
+        return tf.nn.max_pool(x, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
+    x = tf.placeholder(tf.float32, [None, 784])
+    y = tf.placeholder(tf.float32, [None, 10])
+    x_image = tf.reshape(x, [-1, 28, 28, 1])
+    W_convl = weight_variable([5, 5, 1, 32])
+    b_convl = bias_variable([32])
+    h_conv1 = tf.nn.relu(conv2d(x_image, W_convl) + b_convl)
+    h_pool1 = max_pool_2x2(h_conv1)
+    W_conv2 = weight_variable([5, 5, 32, 64])
+    b_conv2 = bias_variable([64])
+    h_conv2 = tf.nn.relu(conv2d(h_pool1, W_conv2) + b_conv2)
+    h_pool2 = max_pool_2x2(h_conv2)
+    W_fcl = weight_variable([7 * 7 * 64, 1024])
+    b_fcl = bias_variable([1024])
+    h_pool2_flat = tf.reshape(h_pool2, [-1, 7 * 7 * 64])
+    h_fcl = tf.nn.relu(tf.matmul(h_pool2_flat, W_fcl) + b_fcl)
+    keep_prob = tf.placeholder(tf.float32)
+    h_fcl_drop = tf.nn.dropout(h_fcl, keep_prob)
+    W_fc2 = weight_variable([1024, 10])
+    b_fc2 = bias_variable([10])
+    prediction = tf.nn.softmax(tf.matmul(h_fcl_drop, W_fc2) + b_fc2)
+    cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=prediction))
+    train_step = tf.train.AdamOptimizer(0.0001).minimize(cross_entropy)
+    correct_prediction = tf.equal(tf.arg_max(prediction, 1), tf.arg_max(y, 1))
+    accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+    with tf.Session() as sess:
+        sess.run(tf.global_variables_initializer())
+        for i in range(20):
+            for batch in range(n_batch):
+                batch_xs, batch_ys = mnist.train.next_batch(batch_size)
+                sess.run(train_step, feed_dict={x: batch_xs, y: batch_ys, keep_prob: 0.7})
+            acc = sess.run(accuracy, feed_dict={x: mnist.test.images, y: mnist.test.labels, keep_prob: 1.0})
+            print('Iter ' + str(i) + ',Testing Accuracy= ' + str(acc))
+
+
+def test4rnnLstm():
+    mnist = input_data.read_data_sets('mnist_data', one_hot=True)
+    n_inputs = 28
+    max_time = 28
+    lstm_size = 100
+    n_classes = 10
+    batch_size = 50
+    n_batch = mnist.train.num_examples // batch_size
+    x = tf.placeholder(tf.float32, [None, 784])
+    y = tf.placeholder(tf.float32, [None, 10])
+    weights = tf.Variable(tf.truncated_normal([lstm_size, n_classes], stddev=0.1))
+    biases = tf.Variable(tf.constant(0.1, shape=[n_classes]))
+
+    def RNN(X, weights, biases):
+        inputs = tf.reshape(X, [-1, max_time, n_inputs])
+        lstm_cell = tf.contrib.rnn.BasicLSTMCell(lstm_size)
+        outputs, final_state = tf.nn.dynamic_rnn(lstm_cell, inputs, dtype=tf.float32)
+        results = tf.nn.softmax(tf.matmul(final_state[1], weights) + biases)
+        return results
+    prediction = RNN(x, weights, biases)
+    cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=prediction, labels=y))
+    train_step = tf.train.AdamOptimizer(0.0001).minimize(cross_entropy)
+    correct_prediction = tf.equal(tf.arg_max(y, 1), tf.arg_max(prediction, 1))
+    accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+    init = tf.global_variables_initializer()
+    with tf.Session() as sess:
+        sess.run(init)
+        for epoch in range(6):
+            for batch in range(n_batch):
+                batch_xs, batch_ys = mnist.train.next_batch(batch_size)
+                sess.run(train_step, feed_dict={x: batch_xs, y: batch_ys})
+            acc = sess.run(accuracy, feed_dict={x: mnist.test.images, y: mnist.test.labels})
+            print('Iter' + str(epoch) + ',Testing Accuracy= ' + str(acc))
+
+
+if __name__ == '__main__':
+    test4tensorboard()

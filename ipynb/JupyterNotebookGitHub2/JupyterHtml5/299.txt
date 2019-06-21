@@ -1,0 +1,1268 @@
+
+In [ ]:
+
+    
+import tensorflow as tf
+
+# 输入张量
+input_tensor=tf.constant(
+    [
+        # 第1个高为3，宽为3，深度为2的三维张量
+        [
+            [[2,5],[3,3],[8,2]],
+            [[6,1],[1,2],[5,4]],
+            [[7,9],[2,8],[1,3]]
+        ]
+    ]
+    ,tf.float32
+)
+
+# 3个高为2，宽为2，深度为2的卷积核
+kernel=tf.constant(
+    [
+        [[[-1,1,0],[1,-1,-1],[0,0,-1],[0,0,0]]],
+        [[[0,0,0],[0,0,-1],[1,-1,1],[-1,1,0]]]
+    ]
+    ,tf.float32
+)
+
+# 卷积
+conv2d=tf.nn.conv2d(input_tensor,kernel,(1,1,1,1),'SAME')
+
+
+    
+
+
+
+In [ ]:
+
+    
+# 偏置
+bias=tf.constant([1,2,3],tf.float32)
+conv2d_add_bias=tf.add(conv2d,bias)
+
+
+    
+
+
+
+In [ ]:
+
+    
+# 激活函数
+active=tf.nn.relu(conv2d_add_bias)
+
+
+    
+
+
+
+In [ ]:
+
+    
+# pool操作
+active_maxPool=tf.nn.max_pool(active,(1,2,2,1),(1,1,1,1),'VALID')
+
+
+    
+
+
+
+In [ ]:
+
+    
+# 拉伸
+shape=active_maxPool.get_shape()
+num=shape[1].value*shape[2].value+shape[3].value
+flatten=tf.reshape(active_maxPool,[-1,num])
+# 打印结果
+session=tf.Session()
+print(session.run(flatten))
+
+
+    
+
+
+
+In [4]:
+
+    
+import tensorflow as tf
+
+# 输入张量
+input_tensor=tf.constant(
+    [
+        # 第1个高为3，宽为3，深度为2的三维张量
+        [
+            [[2,5],[3,3],[8,2]],
+            [[6,1],[1,2],[5,4]],
+            [[7,9],[2,8],[1,3]]
+        ]
+    ]
+    ,tf.float32
+)
+
+# 3个高为2，宽为2，深度为2的卷积核
+kernel=tf.constant(
+    [
+        [[[-1,1,0],[1,-1,-1]],[[0,0,-1],[0,0,0]]],
+        [[[0,0,0],[0,0,1]],[[1,-1,1],[-1,1,0]]]
+    ]
+    ,tf.float32
+)
+
+# 卷积
+conv2d=tf.nn.conv2d(input_tensor,kernel,(1,1,1,1),'SAME')
+
+# 偏置
+bias=tf.constant([1,2,3],tf.float32)
+conv2d_add_bias=tf.add(conv2d,bias)
+
+# 激活函数
+active=tf.nn.relu(conv2d_add_bias)
+
+# pool操作
+active_maxPool=tf.nn.max_pool(active,(1,2,2,1),(1,1,1,1),'VALID')
+
+# 拉伸
+shape=active_maxPool.get_shape()
+num=shape[1].value*shape[2].value*shape[3].value
+flatten=tf.reshape(active_maxPool,[-1,num])
+# 打印结果
+session=tf.Session()
+print(session.run(flatten))
+
+
+    
+
+
+
+In [5]:
+
+    
+import tensorflow as tf
+import numpy as np
+
+# 输入张量
+input_tensor=tf.placeholder(tf.float32,[None,3,3,2])
+
+# 3个高为2，宽为2，深度为2的卷积核
+kernel=tf.constant(
+    [
+        [[[-1,1,0],[1,-1,-1]],[[0,0,-1],[0,0,0]]],
+        [[[0,0,0],[0,0,1]],[[1,-1,1],[-1,1,0]]]
+    ]
+    ,tf.float32
+)
+
+# 卷积
+conv2d=tf.nn.conv2d(input_tensor,kernel,(1,1,1,1),'SAME')
+
+# 偏置
+bias=tf.constant([1,2,3],tf.float32)
+conv2d_add_bias=tf.add(conv2d,bias)
+
+# 激活函数
+active=tf.nn.relu(conv2d_add_bias)
+
+# pool操作
+active_maxPool=tf.nn.max_pool(active,(1,2,2,1),(1,1,1,1),'VALID')
+
+# 拉伸
+shape=active_maxPool.get_shape()
+num=shape[1].value*shape[2].value*shape[3].value
+flatten=tf.reshape(active_maxPool,[-1,num])
+# flatten=tf.contrib.layers.flatten(active_maxPool)
+
+session=tf.Session()
+print(session.run(flatten,feed_dict={
+    input_tensor:np.array([
+        # 第1个3行3列2深度的三维张量
+        [
+            [[2,5],[3,3],[8,2]],
+            [[6,1],[1,2],[5,4]],
+            [[7,9],[2,8],[1,3]]
+        ],
+         # 第2个3行3列2深度的三维张量
+        [
+            [[1,2],[3,6],[1,2]],
+            [[3,1],[1,2],[2,1]],
+            [[4,5],[2,7],[1,2]]
+        ],
+        [
+         # 第3个3行3列2深度的三维张量
+            [[2,3],[3,2],[1,2]],
+            [[4,1],[3,2],[1,2]],
+            [[1,0],[4,1],[4,3]]
+        ]
+    ],np.float32)
+}))
+
+
+    
+
+
+
+In [ ]:
+
+    
+# 6个高为5，宽为5，深度为1的卷积核
+k1=tf.Variable(tf.random_normal([5,5,1,6]),dtype=tf.float32)
+c1=tf.nn.conv2d(x,k1,[1,1,1,1],'VALID')
+#长度为6的偏置
+b1=tf.Variable(tf.random_normal([6]),dtype=tf.float32)
+# c1与b1求和，并激活函数
+c1_b1=tf.add(c1,b1)
+r1=tf.nn.relu(c1_b1)
+
+
+    
+
+
+
+In [ ]:
+
+    
+# 最大值池化操作，池化掩码的尺寸为高2宽2，步长为2
+p1=tf.nn.max_pool(r1,[1,2,2,1],[1,2,2,1],'VALID')
+
+
+    
+
+
+
+In [ ]:
+
+    
+# p1与16个高为5，宽为5，深度为6的卷积核的卷积
+k2=tf.Variable(tf.random_normal([5,5,6,16]),dtype=tf.float32)
+c2=tf.nn.conv2d(p1,k2,[1,1,1,1],'VALID')
+# 长度为16的偏置
+b2=tf.Variable(tf.random_normal([16]),dtype=tf.float32)
+# c2与b2求和，并输入激活函数
+c2_b2=tf.add(c2,b2)
+r2=tf.nn.relu(c2_b2)
+
+
+    
+
+
+
+In [ ]:
+
+    
+# 最大值池化操作，池化掩码的尺寸是高为2，宽为2，步长为2
+p2=tf.nn.max_pool(c2,[1,2,2,1],[1,2,2,1],'VALID')
+
+
+    
+
+
+
+In [6]:
+
+    
+# 拉伸为一维张量，作为一个全连接神经网络的输入
+flatten_p2=tf.reshape(p2,[-1,5*5*16])
+# 第1层的权重矩阵和偏置
+w1=tf.Variable(tf.random_normal([5*5*16,120]))
+bw1=tf.Variable(tf.random_normal([120]))
+# 第1层的线性组合与偏置求和，并作为relu激活函数的输入
+h1=tf.add(tf.matmul(flatten_p2，w1),bw1)
+sigma1=tf.nn.relu(h1)
+# 第2层的权重矩阵和偏置
+w2=tf.Variable(tf.random_normal([120,84]))
+bw2=tf.Variable(tf.random_normal([84]))
+# 第2层的线性组合与偏置求和，并作为relu激活函数的输入
+h2=tf.add(tf.matmul(sigma1,w2),bw2)
+sigma2=tf.nn.relu(h2)
+# 第3层线性组合与偏置求和
+w3=tf.Variable(tf.random_normal([84,10]))
+bw3=tf.Variable(tf.random_normal([10]))
+h3=tf.add(tf.matmul(sigma2,w3),bw3)
+# 将h3作为sigmod激活函数的输入，作为最后输出层的输出
+out=tf.nn.sigmoid(h3)
+
+session=tf.Session()
+
+# 初始化变量
+session.run(tf.global_variables_initializer())
+session.run(tf.local_variables_initializer())
+
+print(session.run(out,{x:np.random.normal(0,1,[]2,32,32,1)}))
+
+
+    
+
+
+
+In [16]:
+
+    
+import tensorflow as tf
+import numpy as np
+
+# 6个高为5，宽为5，深度为1的卷积核
+k1=tf.Variable(tf.random_normal([5,5,1,6]),dtype=tf.float32)
+x=np.random.normal(0,1,[2,32,32,1])
+c1=tf.nn.conv2d(x,k1,[1,1,1,1],'VALID')
+#长度为6的偏置
+b1=tf.Variable(tf.random_normal([6]),dtype=tf.float32)
+# c1与b1求和，并激活函数
+c1_b1=tf.add(c1,b1)
+r1=tf.nn.relu(c1_b1)
+
+# 最大值池化操作，池化掩码的尺寸为高2宽2，步长为2
+p1=tf.nn.max_pool(r1,[1,2,2,1],[1,2,2,1],'VALID')
+
+# p1与16个高为5，宽为5，深度为6的卷积核的卷积
+k2=tf.Variable(tf.random_normal([5,5,6,16]),dtype=tf.float32)
+c2=tf.nn.conv2d(p1,k2,[1,1,1,1],'VALID')
+# 长度为16的偏置
+b2=tf.Variable(tf.random_normal([16]),dtype=tf.float32)
+# c2与b2求和，并输入激活函数
+c2_b2=tf.add(c2,b2)
+r2=tf.nn.relu(c2_b2)
+
+# 最大值池化操作，池化掩码的尺寸是高为2，宽为2，步长为2
+p2=tf.nn.max_pool(c2,[1,2,2,1],[1,2,2,1],'VALID')
+
+# 拉伸为一维张量，作为一个全连接神经网络的输入
+flatten_p2=tf.reshape(p2,[-1,5*5*16])
+# 第1层的权重矩阵和偏置
+w1=tf.Variable(tf.random_normal([5*5*16,120]))
+bw1=tf.Variable(tf.random_normal([120]))
+# 第1层的线性组合与偏置求和，并作为relu激活函数的输入
+h1=tf.add(tf.matmul(flatten_p2,w1),bw1)
+sigma1=tf.nn.relu(h1)
+# 第2层的权重矩阵和偏置
+w2=tf.Variable(tf.random_normal([120,84]))
+bw2=tf.Variable(tf.random_normal([84]))
+# 第2层的线性组合与偏置求和，并作为relu激活函数的输入
+h2=tf.add(tf.matmul(sigma1,w2),bw2)
+sigma2=tf.nn.relu(h2)
+# 第3层线性组合与偏置求和
+w3=tf.Variable(tf.random_normal([84,10]))
+bw3=tf.Variable(tf.random_normal([10]))
+h3=tf.add(tf.matmul(sigma2,w3),bw3)
+# 将h3作为sigmod激活函数的输入，作为最后输出层的输出
+out=tf.nn.sigmoid(h3)
+
+session=tf.Session()
+
+# 初始化变量
+session.run(tf.global_variables_initializer())
+session.run(tf.local_variables_initializer())
+
+print(session.run(out))
+
+
+    
+
+
+
+In [17]:
+
+    
+import tensorflow as tf
+import numpy as np
+
+# 输入
+x=tf.placeholder(tf.float32,[None,224,224,3])
+keep_prob=tf.placeholder(tf.float32)
+
+# 第1步：与96个11x11x3的卷积核卷积。第2步：加上偏置。第3步：使用激活函数
+w1=tf.Variable(tf.random_normal([11,11,3,96]),dtype=tf.float32,name='w1')
+l1=tf.nn.conv2d(x,w1,[1,4,4,1],'SAME')
+b1=tf.Variable(tf.random_normal([96]),dtype=tf.float32,name='b1')
+l1=tf.nn.bias_add(l1,b1)
+l1=tf.nn.relu(l1)
+
+# 2x2最大值池化操作，移动步长为2
+pool_l1=tf.nn.max_pool(l1,[1,2,2,1],[1,2,2,1],'SAME')
+
+# 第1步：与256个5x5x96的卷积核卷积。第2步：加上偏置。第3步：使用激活函数
+w2=tf.Variable(tf.random_normal([5,5,96,256]),dtype=tf.float32,name='w2')
+l2=tf.nn.conv2d(pool_l1,w2,[1,1,1,1],'SAME')
+b2=tf.Variable(tf.random_normal([256]),dtype=tf.float32,name='b2')
+l2=tf.nn.bias_add(l2,b2)
+l2=tf.nn.relu(l2)
+
+# 2x2最大值池化操作，移动步长为2
+pool_l2=tf.nn.max_pool(l2,[1,2,2,1],[1,2,2,1],'SAME')
+
+# 第1步：与384个3x3x256的卷积核卷积。第2步：加上偏置。第3步：使用激活函数
+w3=tf.Variable(tf.random_normal([3,3,256,384]),dtype=tf.float32,name='w3')
+l3=tf.nn.conv2d(pool_l2,w3,[1,1,1,1],'SAME')
+b3=tf.Variable(tf.random_normal([384]),dtype=tf.float32,name='b3')
+l3=tf.nn.bias_add(l3,b3)
+l3=tf.nn.relu(l3)
+
+# 第1步：与384个3x3x384的卷积核卷积。第2步：加上偏置。第3步：使用激活函数
+w4=tf.Variable(tf.random_normal([3,3,384,384]),dtype=tf.float32,name='w4')
+l4=tf.nn.conv2d(l3,w4,[1,1,1,1],'SAME')
+b4=tf.Variable(tf.random_normal([384]),dtype=tf.float32,name='b4')
+l4=tf.nn.bias_add(l4,b4)
+l4=tf.nn.relu(l4)
+
+# 第1步：与256个3x3x384的卷积核卷积。第2步：加上偏置。第3步：使用激活函数
+w5=tf.Variable(tf.random_normal([3,3,384,256]),dtype=tf.float32,name='w5')
+l5=tf.nn.conv2d(l4,w5,[1,1,1,1],'SAME')
+b5=tf.Variable(tf.random_normal([256]),dtype=tf.float32,name='b5')
+l5=tf.nn.bias_add(l5,b5)
+l5=tf.nn.relu(l5)
+
+# 2x2最大值池化操作，移动步长为2
+pool_l5=tf.nn.max_pool(l5,[1,2,2,1],[1,2,2,1],'SAME')
+
+# 拉伸，作为全连接神经网络的输入层
+pool_l5_shape=pool_l5.get_shape()
+num=pool_l5_shape[1].value*pool_l5_shape[2].value*pool_l5_shape[3].value
+flatten=tf.reshape(pool_l5,[-1,num])
+
+# 第1个隐含层
+fcW1=tf.Variable(tf.random_normal([num,4096]),dtype=tf.float32,name='fcW1')
+fc_l1=tf.matmul(flatten,fcW1)
+fcb1=tf.Variable(tf.random_normal([4096]),dtype=tf.float32,name='fcb1')
+fc_l1=tf.nn.bias_add(fc_l1,fcb1)
+fc_l1=tf.nn.relu(fc_l1)
+fc_l1=tf.nn.dropout(fc_l1,keep_prob)
+
+# 第2个隐含层
+fcW2=tf.Variable(tf.random_normal([4096,4096]),dtype=tf.float32,name='fcW2')
+fc_l2=tf.matmul(fc_l1,fcW2)
+fcb2=tf.Variable(tf.random_normal([4096]),dtype=tf.float32,name='fcb2')
+fc_l2=tf.nn.bias_add(fc_l2,fcb2)
+fc_l2=tf.nn.relu(fc_l2)
+fc_l2=tf.nn.dropout(fc_l2,keep_prob)
+
+# 输出层
+fcW3=tf.Variable(tf.random_normal([4096,1000]),dtype=tf.float32,name='fcW3')
+out=tf.matmul(fc_l2,fcW3)
+fcb3=tf.Variable(tf.random_normal([1000]),dtype=tf.float32,name='fcb3')
+out=tf.nn.bias_add(out,fcb3)
+out=tf.nn.relu(out)
+
+session=tf.Session()
+session.run(tf.global_variables_initializer())
+result=session.run(out,feed_dict={x:np.ones([2,224,224,3],np.float32),keep_prob:0.5})
+
+print(np.shape(result))
+
+
+    
+
+
+
+In [ ]:
+
+    
+dropout(x,keep_prob,noise_shape=None,seed=None,name=None)
+
+
+    
+
+
+
+In [18]:
+
+    
+import tensorflow as tf
+
+# 输入的二维张量
+t=tf.constant(
+        [
+        [1,3,2,6],
+        [7,5,4,9]
+        ],tf.float32
+        )
+
+# dropout处理
+r=tf.nn.dropout(t,0.5)
+
+session=tf.Session()
+
+print(session.run(r))
+
+
+    
+
+
+
+In [27]:
+
+    
+import tensorflow as tf
+
+# 输入的二维张量
+t=tf.constant(
+        [
+        [1,3,2,6],
+        [7,5,4,9]
+        ],tf.float32
+        )
+
+# dropout处理
+r=tf.nn.dropout(t,0.5,noise_shape=[2,1])
+
+session=tf.Session()
+
+print(session.run(r))
+
+
+    
+
+
+
+In [29]:
+
+    
+import tensorflow as tf
+
+# 输入的二维张量
+t=tf.constant(
+        [
+        [1,3,2,6],
+        [7,5,4,9]
+        ],tf.float32
+        )
+
+# dropout处理
+r=tf.nn.dropout(t,0.5,noise_shape=[1,4])
+
+session=tf.Session()
+
+print(session.run(r))
+
+
+    
+
+
+
+In [31]:
+
+    
+import tensorflow as tf
+import numpy as np
+
+# 占位符
+x=tf.placeholder(tf.float32,[None,2])
+keep_prob=tf.placeholder(tf.float32)
+
+# 输入层到隐含层的权重矩阵
+w1=tf.constant([
+        [1,3,5],
+        [2,4,6]
+        ],tf.float32)
+
+# 隐含层的值
+h1=tf.matmul(x,w1)
+
+# dropout层
+h1_dropout=tf.nn.dropout(h1,keep_prob)
+
+# dropout层到输出层的权重矩阵
+w2=tf.constant(
+        [
+        [8,3],
+        [7,2],
+        [6,1]
+        ],tf.float32
+        )
+
+# 输出层的值
+o=tf.matmul(h1_dropout,w2)
+x_input=np.array([[2,3],[1,4]],np.float32)
+
+session=tf.Session()
+h1_arr,h1_dropout_arr,o_arr=s=session.run([h1,h1_dropout,o],feed_dict={x:x_input,keep_prob:0.5})
+
+print('隐含层的值：')
+print(h1_arr)
+print("dropout层的值：")
+print(h1_dropout_arr)
+print('输出层的值：')
+print(o_arr)
+
+
+    
+
+
+
+In [32]:
+
+    
+import tensorflow as tf
+import numpy as np
+
+# 占位符，已知数据
+x=tf.placeholder(tf.float32,(None,1))
+keep_pro=tf.placeholder(tf.float32)
+
+# 输入层到隐含层的权重矩阵
+w1=tf.Variable(tf.constant([[10]],tf.float32),dtype=tf.float32)
+l1=tf.matmul(x,w1)
+
+# dropout层
+l1_dropout=tf.nn.dropout(l1,keep_pro)
+
+# 隐含层到输出层的权重矩阵
+w2=tf.Variable(tf.constant([[6]],tf.float32),dtype=tf.float32)
+l=tf.matmul(l1_dropout,w2)
+
+# 利用网络输出值的构造函数f
+f=tf.reduce_sum(l)
+
+# 梯度下降法
+opti=tf.train.GradientDescentOptimizer(0.01).minimize(f)
+#"���������ֵ"
+x_array=np.array([[3]],np.float32)
+
+# 4次迭代，打印每一次迭代隐含层的值和网络权重
+with tf.Session() as session:
+    session.run(tf.global_variables_initializer())
+    for i in range(4):
+        _,l1_dropout_array=session.run([opti,l1_dropout],
+                            {x:x_array,keep_pro:0.5})
+        print('----第"{}"次迭代----'.format(i+1))
+        print("dropout层的值：")
+        print(l1_dropout_array)
+        print('网络当前的权重：')
+        print(session.run([w1,w2]))
+
+
+    
+
+
+
+In [ ]:
+
+    
+tf.placeholder(tf.float32,[None,224,224,3])
+
+
+    
+
+
+
+In [ ]:
+
+    
+with tf.variable_scope('layer1',reuse=tf.AUTO_REUSE):
+    # 64个3行3列3深度的卷积核
+    w1=tf.Variable(tf.random_normal([3,3,3,64]),dtype=tf.float32,name='w')
+    # 步长为1的same卷积
+    c1=tf.nn.conv2d(x,w1,[1,1,1,1],'SAME')
+    # 因为c1的深度为64，所以偏置的长度为64
+    b1=tf.Variable(tf.random_normal([64]),dtype=tf.float32,name='b')
+    # 卷积结果于偏置相加
+    c1=tf.nn.bias_add(c1,b1)
+    # relu激活函数
+    c1=tf.nn.relu(c1)
+
+
+    
+
+
+
+In [ ]:
+
+    
+with tf.variable_scope('layer2',reuse=tf.AUTO_REUSE):
+    # 64个3行3列3深度的卷积核
+    w2=tf.Variable(tf.random_normal([3,3,64,64]),dtype=tf.float32,name='w')
+    # 步长为1的same卷积
+    c2=tf.nn.conv2d(c1,w2,[1,1,1,1],'SAME')
+    # 因为c2的深度为64，所以偏置的长度为64
+    b2=tf.Variable(tf.random_normal([64]),dtype=tf.float32,name='b')
+    # 卷积结果与偏置相加
+    c2=tf.nn.bias_add(c2,b2)
+    # relu激活函数
+    c2=tf.nn.relu(c2)
+
+
+    
+
+
+
+In [ ]:
+
+    
+# 对c2进行same最大值池化操作，邻域掩码的尺寸为2行2列，步长为2
+p_c2=tf.nn.max_pool(c2,[1,2,2,1],[1,2,2,1],'SAME')
+
+
+    
+
+
+
+In [ ]:
+
+    
+with tf.variable_scope('layer3',reuse=tf.AUTO_REUSE):
+    # 128个3行3列64深度的卷积核
+    w3=tf.Variable(tf.random_normal([3,3,64,128]),dtype=tf.float32,name='w')
+    # 步长为1的same卷积
+    c3=tf.nn.conv2d(p_c2,w3,[1,1,1,1],'SAME')
+    # 因为c2的深度为128，所以偏置的长度为128
+    b3=tf.Variable(tf.random_normal([128]),dtype=tf.float32,name='b')
+    # 卷积结果与偏置相加
+    c3=tf.nn.bias_add(c3,b3)
+    # relu激活函数
+    c3=tf.nn.relu(c3)
+
+
+    
+
+
+
+In [ ]:
+
+    
+with tf.variable_scope('layer4',reuse=tf.AUTO_REUSE):
+    # 128个3行3列128深度的卷积核
+    w4=tf.Variable(tf.random_normal([3,3,128,128]),dtype=tf.float32,name='w')
+    # 步长为1的same卷积
+    c4=tf.nn.conv2d(c3,w4,[1,1,1,1],'SAME')
+    # 因为c2的深度为128，所以偏置的长度为128
+    b4=tf.Variable(tf.random_normal([128]),dtype=tf.float32,name='b')
+    # 卷积结果与偏置相加
+    c4=tf.nn.bias_add(c4,b4)
+    # relu激活函数
+    c4=tf.nn.relu(c4)
+
+
+    
+
+
+
+In [ ]:
+
+    
+# 对c4进行same最大值池化操作，邻域掩码的尺寸为2行2列，步长均为2
+p_c4=tf.nn.max_pool(c4,[1,2,2,1],[1,2,2,1],'SAME')
+
+
+    
+
+
+
+In [ ]:
+
+    
+with tf.variable_scope('layer5',reuse=tf.AUTO_REUSE):
+    # 1256个3行3列128深度的卷积核
+    w5=tf.Variable(tf.random_normal([3,3,128,256]),dtype=tf.float32,name='w')
+    # 步长为1的same卷积
+    c5=tf.nn.conv2d(p_c4,w5,[1,1,1,1],'SAME')
+    # 因为c2的深度为256，所以偏置的长度为256
+    b5=tf.Variable(tf.random_normal([256]),dtype=tf.float32,name='b')
+    # 卷积结果与偏置相加
+    c5=tf.nn.bias_add(c5,b5)
+    # relu激活函数
+    c5=tf.nn.relu(c5)
+
+
+    
+
+
+
+In [ ]:
+
+    
+with tf.variable_scope('layer6',reuse=tf.AUTO_REUSE):
+    # 256个3行3列256深度的卷积核
+    w6=tf.Variable(tf.random_normal([3,3,256,256]),dtype=tf.float32,name='w')
+    # 步长为1的same卷积
+    c6=tf.nn.conv2d(c5,w6,[1,1,1,1],'SAME')
+    # 因为c2的深度为256，所以偏置的长度为256
+    b6=tf.Variable(tf.random_normal([256]),dtype=tf.float32,name='b')
+    # 卷积结果与偏置相加
+    c6=tf.nn.bias_add(c6,b6)
+    # relu激活函数
+    c6=tf.nn.relu(c6)
+
+
+    
+
+
+
+In [ ]:
+
+    
+with tf.variable_scope('layer7',reuse=tf.AUTO_REUSE):
+    # 256个3行3列256深度的卷积核
+    w7=tf.Variable(tf.random_normal([3,3,256,256]),dtype=tf.float32,name='w')
+    # 步长为1的same卷积
+    c7=tf.nn.conv2d(c6,w7,[1,1,1,1],'SAME')
+    # 因为c2的深度为256，所以偏置的长度为256
+    b6=tf.Variable(tf.random_normal([256]),dtype=tf.float32,name='b')
+    # 卷积结果与偏置相加
+    c7=tf.nn.bias_add(c7,b7)
+    # relu激活函数
+    c7=tf.nn.relu(c7)
+
+
+    
+
+
+
+In [ ]:
+
+    
+p_c7=tf.nn.max_pool(c7,[1,2,2,1],[1,2,2,1],'SAME')
+
+
+    
+
+
+
+In [ ]:
+
+    
+with tf.variable_scope('layer8',reuse=tf.AUTO_REUSE):
+    # 512个3行3列256深度的卷积核
+    w8=tf.Variable(tf.random_normal([3,3,256,512]),dtype=tf.float32,name='w')
+    # 步长为1的same卷积
+    c8=tf.nn.conv2d(p_c7,w8,[1,1,1,1],'SAME')
+    # 因为c2的深度为512，所以偏置的长度为512
+    b8=tf.Variable(tf.random_normal([512]),dtype=tf.float32,name='b')
+    # 卷积结果与偏置相加
+    c8=tf.nn.bias_add(c8,b8)
+    # relu激活函数
+    c8=tf.nn.relu(c8)
+
+
+    
+
+
+
+In [ ]:
+
+    
+with tf.variable_scope('layer9',reuse=tf.AUTO_REUSE):
+    # 512个3行3列512深度的卷积核
+    w9=tf.Variable(tf.random_normal([3,3,512,512]),dtype=tf.float32,name='w')
+    # 步长为1的same卷积
+    c9=tf.nn.conv2d(c8,w9,[1,1,1,1],'SAME')
+    # 因为c2的深度为512，所以偏置的长度为512
+    b9=tf.Variable(tf.random_normal([512]),dtype=tf.float32,name='b')
+    # 卷积结果与偏置相加
+    c9=tf.nn.bias_add(c9,b9)
+    # relu激活函数
+    c9=tf.nn.relu(c9)
+
+
+    
+
+
+
+In [ ]:
+
+    
+with tf.variable_scope('layer10',reuse=tf.AUTO_REUSE):
+    # 512个3行3列512深度的卷积核
+    w10=tf.Variable(tf.random_normal([3,3,512,512]),dtype=tf.float32,name='w')
+    # 步长为1的same卷积
+    c10=tf.nn.conv2d(c9,w10,[1,1,1,1],'SAME')
+    # 因为c2的深度为512，所以偏置的长度为512
+    b10=tf.Variable(tf.random_normal([512]),dtype=tf.float32,name='b')
+    # 卷积结果与偏置相加
+    c10=tf.nn.bias_add(c10,b10)
+    # relu激活函数
+    c10=tf.nn.relu(c10)
+
+
+    
+
+
+
+In [ ]:
+
+    
+p_c10=tf.nn.max_pool(c10,[1,2,2,1],[1,2,2,1],'SAME')
+
+
+    
+
+
+
+In [ ]:
+
+    
+with tf.variable_scope('layer11',reuse=tf.AUTO_REUSE):
+    # 512个3行3列512深度的卷积核
+    w11=tf.Variable(tf.random_normal([3,3,512,512]),dtype=tf.float32,name='w')
+    # 步长为1的same卷积
+    c11=tf.nn.conv2d(p_c10,w11,[1,1,1,1],'SAME')
+    # 因为c2的深度为512，所以偏置的长度为512
+    b11=tf.Variable(tf.random_normal([512]),dtype=tf.float32,name='b')
+    # 卷积结果与偏置相加
+    c11=tf.nn.bias_add(c11,b11)
+    # relu激活函数
+    c11=tf.nn.relu(c11)
+
+
+    
+
+
+
+In [ ]:
+
+    
+with tf.variable_scope('layer12',reuse=tf.AUTO_REUSE):
+    # 512个3行3列512深度的卷积核
+    w12=tf.Variable(tf.random_normal([3,3,512,512]),dtype=tf.float32,name='w')
+    # 步长为1的same卷积
+    c12=tf.nn.conv2d(c12,w12,[1,1,1,1],'SAME')
+    # 因为c2的深度为512，所以偏置的长度为512
+    b12=tf.Variable(tf.random_normal([512]),dtype=tf.float32,name='b')
+    # 卷积结果与偏置相加
+    c12=tf.nn.bias_add(c12,b12)
+    # relu激活函数
+    c12=tf.nn.relu(c12)
+
+
+    
+
+
+
+In [ ]:
+
+    
+with tf.variable_scope('layer13',reuse=tf.AUTO_REUSE):
+    # 512个3行3列512深度的卷积核
+    w13=tf.Variable(tf.random_normal([3,3,512,512]),dtype=tf.float32,name='w')
+    # 步长为1的same卷积
+    c13=tf.nn.conv2d(c12,w13,[1,1,1,1],'SAME')
+    # 因为c2的深度为512，所以偏置的长度为512
+    b13=tf.Variable(tf.random_normal([512]),dtype=tf.float32,name='b')
+    # 卷积结果与偏置相加
+    c13=tf.nn.bias_add(c13,b13)
+    # relu激活函数
+    c13=tf.nn.relu(c13)
+
+
+    
+
+
+
+In [ ]:
+
+    
+p_c13=tf.nn.max_pool(c13,[1,2,2,1],[1,2,2,1],'SAME')
+
+
+    
+
+
+
+In [ ]:
+
+    
+shape=p_c13.get_shape()
+flatten_p_c13=tf.reshape(p_c13,[-1,shape[1]*shape[2]*shape[3]])
+
+
+    
+
+
+
+In [ ]:
+
+    
+with tf.variable_scope("layer14",reuse=tf.AUTO_REUSE):
+    # 权重矩阵和偏置
+    w14=tf.Variable(
+        tf.random_normal([shape[1].value*shape[2].value*shape[3].value,4096]),dtype=tf.float32,name='w'
+    )
+    b14=tf.Variable(tf.random_normal([4096]),dtype=tf.float32,name='b')
+    # 线性组合
+    fc14=tf.matmul(flatten_p_c13,w14)
+    fc14=tf.nn.bias_add(fc14,b14)
+    # relu线性组合激活
+    fc14=tf.nn.relu(fc14)
+
+
+    
+
+
+
+In [ ]:
+
+    
+with tf.variable_scope("layer15",reuse=tf.AUTO_REUSE):
+    # 权重矩阵和偏置
+    w15=tf.Variable(
+        tf.random_normal([4096,4096]),dtype=tf.float32,name='w'
+    )
+    b15=tf.Variable(tf.random_normal([4096]),dtype=tf.float32,name='b')
+    # 线性组合
+    fc15=tf.matmul(fc14,w15)
+    fc15=tf.nn.bias_add(fc15,b15)
+    # relu线性组合激活
+    fc15=tf.nn.relu(fc15)
+
+
+    
+
+
+
+In [ ]:
+
+    
+with tf.variable_scope("layer16",reuse=tf.AUTO_REUSE):
+    # 权重矩阵和偏置
+    w16=tf.Variable(
+        tf.random_normal([4096,1000]),dtype=tf.float32,name='w'
+    )
+    b16=tf.Variable(tf.random_normal([1000]),dtype=tf.float32,name='b')
+    # 线性组合
+    fc16=tf.matmul(fc15,w16)
+    fc16=tf.nn.bias_add(fc16,b16)
+
+
+    
+
+
+
+In [ ]:
+
+    
+print(shape[1].value*shape[2].value*shape[3].value)
+
+
+    
+
+
+
+In [1]:
+
+    
+import tensorflow as tf
+
+# 1个高为3，宽为3，深度为2的输入张量
+inputTensor=tf.constant(
+        [
+        [
+        [[2,5],[3,3],[8,2]],
+        [[6,1],[1,2],[5,4]],
+        [[7,9],[2,-3],[-1,3]]
+        ]
+        ],tf.float32
+        )
+#
+session=tf.Session()
+
+# 3个高为1，宽为1，深度为2的卷积核
+filter112_3=tf.constant(
+        [
+        [[[1,2,-1],[-1,-2,2]]]
+        ],tf.float32
+        )
+result1=tf.nn.conv2d(inputTensor,filter112_3,[1,1,1,1],'SAME')
+print(session.run(result1))
+
+# 2个高为2，宽为2，深度为2的卷积核
+filter222_2=tf.constant(
+        [
+        [[[3,-1],[1,2]],[[-2,1],[2,3]]],
+        [[[-1,1],[-3,7]],[[4,2],[5,4]]]
+        ],tf.float32)
+result2=tf.nn.conv2d(inputTensor,filter222_2,[1,1,1,1],'SAME')
+print(session.run(result2))
+
+# 最大值池化
+maxPool_33=tf.nn.max_pool(inputTensor,[1,3,3,1],[1,1,1,1],'SAME')
+print(session.run(maxPool_33))
+
+# 深度方向连接
+result=tf.concat([result1,result2,maxPool_33],3)
+print(session.run(result))
+
+
+    
+
+
+
+In [2]:
+
+    
+import tensorflow as tf
+
+x=tf.constant([1,10,23,15],tf.float32)
+
+# 计算均值和方差
+mean,variance=tf.nn.moments(x,[0])
+# BatchNormalize
+r=tf.nn.batch_normalization(x,mean,variance,0,1,1e-8)
+session=tf.Session()
+print(session.run(r))
+
+
+    
+
+
+
+In [3]:
+
+    
+import tensorflow as tf
+
+# 思维张量
+t=tf.constant(
+        [
+        # 第1个2行2列2深度的三维张量
+        [
+        [[1,12],[6,18]],
+        [[9,13],[4,11]],
+        ],
+        # 第2个2行2列2深度的三维张量
+        [
+        [[2,19],[7,17]],
+        [[3,15],[8,11]]
+        ]
+        ],tf.float32
+        )
+
+# 计算均值和方差 moments
+mean,variance=tf.nn.moments(t,[0,1,2])#[0,1,2]
+# BatchNormalize
+gamma=tf.Variable(tf.constant([2,5],tf.float32))
+beta=tf.Variable(tf.constant([3,8],tf.float32))
+r=tf.nn.batch_normalization(t,mean,variance,beta,gamma,1e-8)
+session=tf.Session()
+session.run(tf.global_variables_initializer())
+
+print('均值和方差：')
+print(session.run([mean,variance]))
+
+# BatchNormalize的结果
+print('BN操作后的结果：')
+print(session.run(r))
+
+
+    
+
+
+
+In [4]:
+
+    
+import tensorflow as tf
+
+# 初始化变量，即t=1时的值
+x=tf.Variable(initial_value=5,dtype=tf.float32,trainable=False,name='v')
+
+# 创建计算移动平均的对象
+exp_moving_avg=tf.train.ExponentialMovingAverage(0.7)
+update_moving_avg=exp_moving_avg.apply([x])
+
+session=tf.Session()
+session.run(tf.global_variables_initializer())
+for i in range(4):
+    # 打印指数移动平均值
+    session.run(update_moving_avg)
+    print('第{}次的移动平均值：'.format(i+1))
+    print(session.run(exp_moving_avg.average(x)))
+    session.run(x.assign_add(5))
+
+
+    
+
+
+
+In [6]:
+
+    
+import tensorflow as tf
+#"输入值的占位符"
+x=tf.placeholder(tf.float32,[None,1,2,3])
+#"设置是否是训练阶段的占位符"
+trainable=tf.placeholder(tf.bool)
+#"移动平均"
+ema=tf.train.ExponentialMovingAverage(0.7)
+ema_var_list=[]
+#"----------第一层-----------"
+#"2个1行1列3深度的卷积核"
+k1=tf.Variable(tf.constant([
+                [[[1,0],[0,1],[0,0]]],
+                ],tf.float32)
+        )
+#"偏置"
+b1=tf.Variable(tf.zeros(2))
+#"卷积结果加偏置"
+c1=tf.nn.conv2d(x,k1,[1,1,1,1],'SAME')+b1
+beta1=tf.Variable(tf.zeros(c1.get_shape()[-1].value))
+gamma1=tf.Variable(tf.ones(c1.get_shape()[-1].value))
+#"计算每一深度上的均值和方差"
+m1,v1=tf.nn.moments(c1,[0,1,2])
+ema_var_list+=[m1,v1]
+#"为了保存均值和方差的指数移动平均"
+m1_ema=tf.Variable(tf.zeros(c1.get_shape()[-1]),trainable=False)
+v1_ema=tf.Variable(tf.zeros(c1.get_shape()[-1]),trainable=False)
+#"BN操作"
+c1_BN=tf.cond(trainable,
+        lambda:tf.nn.batch_normalization(c1,m1,v1,beta1,gamma1,1e-8),
+        lambda: tf.nn.batch_normalization(c1,m1_ema,
+                                          v1_ema,beta1,gamma1,1e-8)
+        )
+#"relu激活"
+r1=tf.nn.relu(c1_BN)
+#"----------第二层-----------"
+#"2个1行1列2深度的卷积核"
+k2=tf.Variable(tf.constant(
+        [
+        [[[2,0],[0,2]]]
+        ],tf.float32
+        ))
+#"偏置"
+b2=tf.Variable(tf.zeros(2))
+#"卷积结果加偏置"
+c2=tf.nn.conv2d(r1,k2,[1,1,1,1],'SAME')+b2
+beta2=tf.Variable(tf.zeros(c2.get_shape()[-1]))
+gamma2=tf.Variable(tf.ones(c2.get_shape()[-1]))
+#"计算每一深度上的均值和方差"
+m2,v2=tf.nn.moments(c2,[0,1,2])
+ema_var_list+=[m2,v2]
+#"为了保存均值和方差的指数移动平均"
+m2_ema=tf.Variable(tf.zeros(c1.get_shape()[-1]),trainable=False)
+v2_ema=tf.Variable(tf.zeros(c1.get_shape()[-1]),trainable=False)
+#"BN操作"
+c2_BN=tf.cond(trainable,
+        lambda:tf.nn.batch_normalization(c2,m2,v2,beta2,gamma2,1e-8),
+        lambda:tf.nn.batch_normalization(c2,m2_ema,
+                                         v2_ema,beta2,gamma2,1e-8)
+        )
+#"relu激活"
+r2=tf.nn.relu(c2_BN)
+update_moving_avg=ema.apply(ema_var_list)
+#"创建会话"
+session=tf.Session()
+session.run(tf.global_variables_initializer())
+session.run(tf.local_variables_initializer())
+coord=tf.train.Coordinator()
+threads=tf.train.start_queue_runners(sess=session,coord=coord)
+num=2
+for i in range(num):
+    arrs=session.run(r2)
+    print('---第%(num)d 批array---'%{'num':i+1})
+    print(arrs)
+    _,c1_arr=session.run([update_moving_avg,c1],
+                        feed_dict={x:arrs,trainable:True})
+    print('---第%(num)d 次迭代后第1个卷积层(卷积结果加偏置)的值---'%{'num':i+1})
+    print(c1_arr)
+    #"将计算的指数移动平均的值赋值给 Variable 对象"
+    session.run(m1_ema.assign(ema.average(m1)))
+    session.run(v1_ema.assign(ema.average(v1)))
+    session.run(m2_ema.assign(ema.average(m2)))
+    session.run(v2_ema.assign(ema.average(v2)))
+    print('---第%(num)d 次迭代后第1个卷积层的均值的移动平均值---'%{'num':i+1})
+    print(session.run(m1_ema))
+coord.request_stop()
+coord.join(threads)
+session.close()
+
+
+    
+

@@ -1,0 +1,30 @@
+import numpy as np
+from readData import *
+import keras,os
+from keras.models import Sequential
+from keras.layers import Dense, Dropout, Flatten,Input,LSTM,Convolution1D,MaxPooling1D,Merge
+from keras.layers import Conv2D, MaxPooling2D
+from keras.optimizers import SGD
+from keras.models import Model
+from keras.utils.np_utils import to_categorical
+def LSTMModel():
+    QA_EMBED_SIZE = 64
+    BATCH_SIZE = 32
+    NBR_EPOCHS = 20
+    qenc = Sequential()
+    qenc.add(LSTM(QA_EMBED_SIZE, return_sequences=True,input_shape=(200,400)))
+    qenc.add(Dropout(0.3))
+    qenc.add(Convolution1D(QA_EMBED_SIZE // 2, 5, border_mode="valid"))
+    qenc.add(MaxPooling1D(pool_length=2, border_mode="valid"))
+    qenc.add(Dropout(0.3))
+    qenc.add(Flatten())
+    aenc = Sequential()
+    aenc.add(LSTM(QA_EMBED_SIZE, return_sequences=True,input_shape=(200,400)))
+    aenc.add(Dropout(0.3))
+    aenc.add(Convolution1D(QA_EMBED_SIZE // 2, 3, border_mode="valid"))
+    aenc.add(MaxPooling1D(pool_length=2, border_mode="valid"))
+    aenc.add(Dropout(0.3))
+    aenc.add(Flatten())
+    model = Sequential()
+    model.add(Merge([qenc, aenc], mode="concat", concat_axis=-1))
+    model.add(Dense(2, activation="softmax"))

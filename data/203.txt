@@ -1,0 +1,51 @@
+from keras.layers import Dense, Flatten, Dropout, ZeroPadding3D
+from keras.models import Sequential, load_model
+from keras.optimizers import Adam
+from keras.layers.recurrent import LSTM
+from keras.layers.convolutional import MaxPooling3D, Conv3D
+from keras.models import model_from_yaml
+from collections import deque
+import sys
+from keras.preprocessing import image
+import numpy as np
+from dataSetModel import DataSetModel, GetArrayFromImage
+from keras.applications.inception_v3 import InceptionV3, preprocess_input
+from keras.layers import Reshape
+from keras.layers.wrappers import Bidirectional
+from keras.layers.wrappers import TimeDistributed
+class Model():
+    def __init__(self, classesNumber, modelName, sequenseLength, savedModel=None, featuresLength=2048):
+        self.featureQueue = deque()
+        self.sequenseLength = sequenseLength
+        self.savedModel = savedModel
+        self.classesNumber = classesNumber
+        self.featuresLength = featuresLength
+        if self.savedModel is not None:
+            print("Loading model %s" % self.savedModel)
+            self.model = load_model(self.savedModel)
+        elif modelName == 'Conv3d':
+            print("Loading Conv3d model")
+            self.shapeOfInput = (sequenseLength, 80, 80, 3)
+            self.model = self.Conv3DModelCreate()
+        elif modelName == 'LSTM' :
+            print("Loading LSTM model")
+            self.shapeOfInput = (1, featuresLength)
+            self.model = self.LSTMModelCreate()
+        elif modelName == 'Conv3dBLSTM' :
+            print("Loading Conv3d + BLSTM model")
+            self.shapeOfInputConv3d = (sequenseLength, 80, 80, 3)
+            self.shapeOfInputLSTM = (1, sequenseLength, featuresLength)
+            self.model = self.Conv3dBLSTM()
+        else:
+            print("Unknown network model.")
+            sys.exit()
+        print(modelName + " model was successfully created.")
+        metrics = ['accuracy']
+        if self.classesNumber >= 10:
+            metrics.append('top_k_categorical_accuracy')
+        optimizer = Adam(lr=1e-4, decay=1e-6)
+        self.model.compile(loss='binary_crossentropy', optimizer=optimizer,metrics=metrics)
+        print(modelName + " model was successfully compiled.")
+        print(self.model.summary())
+    def Conv3DModelCreate(self):
+        model = Sequential()

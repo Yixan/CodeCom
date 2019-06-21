@@ -1,0 +1,507 @@
+
+In [1]:
+
+    
+import numpy as np
+import tensorflow as tf
+from datetime import datetime
+
+from sklearn.preprocessing import StandardScaler
+from sklearn.datasets import fetch_california_housing
+
+
+    
+
+
+
+In [ ]:
+
+    
+# even the variables are not initialized yet
+x =tf.Variable(initial_value=2, name='EE')
+
+f = x**2+ 4*x - 5
+
+init = tf.global_variables_initializer()  # prepare an init node
+
+# the with clouse just make the session default
+with tf.Session() as sess_01:
+    # ses.run(x.initializer)
+    # x.initializer.run() 
+    
+    # Instead of manually running the initializer for every single variable, you can use 
+    # the global_variables_initializer() function.
+    init.run()  # actually initialize all the variables
+    
+    # result = ses.run(f)
+    result = f.eval()
+    print('hi', result)
+
+
+    
+
+
+
+In [ ]:
+
+    
+sess_02 = tf.Session()
+sess_02.run(x.initializer)
+result = sess_02.run(f)
+print(result)
+
+sess_02.close()
+
+
+    
+
+
+
+In [ ]:
+
+    
+sess_03 = tf.InteractiveSession()
+init = tf.global_variables_initializer()  # prepare an init node
+init.run()
+result = f.eval()
+print(result)
+
+sess_03.close()
+
+
+    
+
+
+
+In [ ]:
+
+    
+sess_04 = tf.Session()
+init = tf.global_variables_initializer()  # prepare an init node
+
+init.run(session=sess_04)
+result = f.eval(session=sess_04)
+print(result)
+
+sess_04.close()
+
+
+    
+
+
+
+In [ ]:
+
+    
+# Any node you create is automatically added to the default graph:
+x1 = tf.Variable(1)
+print(x1.graph)
+x1.graph is tf.get_default_graph()
+
+graph_01 = tf.Graph()
+with graph_01.as_default():
+    x2 = tf.Variable(2)
+
+print(x2.graph is graph_01)
+
+# graph_01 is only default within the 'with' scope
+print(x2.graph is tf.get_default_graph())
+
+
+    
+
+
+
+In [4]:
+
+    
+housing = fetch_california_housing()
+m, n = housing.data.shape
+housing_data_plus_bias = np.c_[np.ones((m, 1)), housing.data]
+
+scaler = StandardScaler()
+scaler.fit(housing_data_plus_bias)
+# print(scaler.mean_)
+scaled_housing_data_plus_bias = scaler.transform(housing_data_plus_bias)
+trg = housing.target.reshape(-1, 1)
+trg.shape
+
+
+    
+
+
+
+In [ ]:
+
+    
+# Constants and variables take no input (they are called source ops).
+X = tf.constant(housing_data_plus_bias, dtype=tf.float32, name="X")
+y = tf.constant(housing.target.reshape(-1, 1), dtype=tf.float32, name="y")
+XT = tf.transpose(X)
+
+# the Normal Equation
+theta = tf.matmul(tf.matmul(tf.matrix_inverse(tf.matmul(XT, X)), XT), y)
+
+with tf.Session() as sess:    
+    heta_value = theta.eval()
+    
+
+
+    
+
+
+
+In [ ]:
+
+    
+ 
+
+
+    
+
+
+
+In [16]:
+
+    
+now = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+root_logdir = "tf_logs"
+logdir = "{}/run-{}/".format(root_logdir, now)
+
+n_epochs = 1000
+learning_rate = 0.01
+
+batch_size = m
+n_batches = int(np.ceil(m / batch_size))
+
+def fetch_batch(epoch, batch_index, batch_size):
+    # [...] # load the data from disk
+    X_batch = scaled_housing_data_plus_bias[batch_index:batch_index+batch_size,:]
+    y_batch = trg[batch_index:batch_index+batch_size,:]
+    
+    return X_batch, y_batch
+
+# X = tf.constant(scaled_housing_data_plus_bias, dtype=tf.float32, name="X")
+# y = tf.constant(housing.target.reshape(-1, 1), dtype=tf.float32, name="y")
+
+# placeholder nodes don’t actually perform any computation, 
+# they just output the data you tell them to output at runtime.
+# If you specify None for a dimension, it means “any size.”
+X = tf.placeholder(tf.float32, shape=(None, n + 1), name="X")
+y = tf.placeholder(tf.float32, shape=(None, 1), name="y")
+
+
+
+theta = tf.Variable(tf.random_uniform([n + 1, 1], -1.0, 1.0), name="theta")
+# the hypothesis
+y_pred = tf.matmul(X, theta, name="predictions")
+
+# The cost function; Mean Square Average
+with tf.name_scope("loss") as scope:
+    error = y_pred - y
+    cost_func = tf.reduce_mean(tf.square(error), name="mse")
+
+######################################################################
+#### gradients = 2/m * tf.matmul(tf.transpose(X), error)
+#### gradients = tf.gradients(cost_func, [theta])[0]
+#### training_op = tf.assign(theta, theta - learning_rate * gradients)
+#####################################################################
+
+optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
+# optimizer = tf.train.MomentumOptimizer(learning_rate=learning_rate, momentum=0.9)
+training_op = optimizer.minimize(cost_func)
+
+init = tf.global_variables_initializer()
+
+# Add ops to save and restore all the variables.
+saver = tf.train.Saver()
+
+mse_summary = tf.summary.scalar('MSE', cost_func)
+file_writer = tf.summary.FileWriter(logdir, tf.get_default_graph())
+    
+with tf.Session() as sess:
+    sess.run(init)
+    for epoch in range(n_epochs):
+        if epoch % 100 == 0:  # checkpoint every 100 epochs
+            save_path = saver.save(sess, "checkpoint_model.ckpt")
+        for batch_index in range(n_batches):
+            X_batch, y_batch = fetch_batch(epoch, batch_index, batch_size)
+            #             if epoch % 100 == 0:
+            #                 print("Epoch", epoch, "MSE =", cost_func.eval())
+            # sess.run(training_op)
+            sess.run(training_op, feed_dict={X: X_batch, y: y_batch})
+            
+            if batch_index % 10 == 0:
+                summary_str = mse_summary.eval(feed_dict={X: X_batch, y: y_batch})
+                step = epoch * n_batches + batch_index
+                file_writer.add_summary(summary_str, step)
+    
+    best_theta = theta.eval()
+    save_path = saver.save(sess, "my_model_final.ckpt")
+    
+    file_writer.close()
+    
+
+
+    
+
+
+
+In [30]:
+
+    
+tf.reset_default_graph()
+
+n_inputs = 28*28  # MNIST
+n_hidden1 = 1200
+n_hidden2 = 21
+n_hidden3 = 38
+n_hidden4 = 11
+n_hidden5 = 56
+n_hidden6 = 100
+n_hidden7 = 7
+n_hidden8 = 99
+n_hidden9 = 22
+n_hidden10 = 29
+n_hidden11 = 31
+n_hidden12 = 38
+n_hidden13 = 20
+n_hidden14 = 41
+n_hidden15 = 24
+n_hidden16 = 28
+n_hidden17 = 29
+n_hidden18 = 10
+n_hidden19 = 76
+n_hidden20 = 82
+n_hidden21 = 531
+n_outputs = 10
+
+X = tf.placeholder(tf.float32, shape=(None, n_inputs), name='X')
+y = tf.placeholder(tf.int64, shape=(None), name='y')
+
+
+def neuron_layer(X, n_neurons, name, activation=None):
+    with tf.name_scope(name):
+        n_inputs = int(X.get_shape()[1])
+        
+        # initializing weights and bias
+        stddev = 2 / np.sqrt(n_inputs + n_neurons)
+        init = tf.truncated_normal((n_inputs, n_neurons), stddev=stddev)
+        W = tf.Variable(init, name="kernel")
+        b = tf.Variable(tf.zeros([n_neurons]), name="bias")
+        
+        Z = tf.matmul(X, W) + b
+        if activation is not None:
+            return activation(Z)
+        else:
+            return Z
+        
+with tf.name_scope("dnn"):
+    # By default, the tf.layers.dense() function (introduced in Chapter 10) 
+    # uses Xavier initialization (with a uniform distribution).
+    # see implementation of dense in neuron_layer()
+    he_init = tf.contrib.layers.variance_scaling_initializer(mode='FAN_IN') # try mode="FAN_AVG" for Xaviar
+    hidden1 = tf.layers.dense(X, n_hidden1, name="hidden1", activation=tf.nn.relu, kernel_regularizer=he_init)
+    
+    # hidden2 = neuron_layer(hidden1, n_hidden2, name="hidden2", activation=tf.nn.relu)
+#     hidden2 = tf.layers.dense(hidden1, n_hidden2, name="hidden2", activation=tf.nn.relu)
+    
+#     hidden3 = tf.layers.dense(hidden2, n_hidden3, name="hidden3", activation=tf.nn.relu)
+#     hidden4 = tf.layers.dense(hidden3, n_hidden4, name="hidden4", activation=tf.nn.relu)
+#     hidden5 = tf.layers.dense(hidden4, n_hidden5, name="hidden5", activation=tf.nn.relu)
+#     hidden6 = tf.layers.dense(hidden5, n_hidden6, name="hidden6", activation=tf.nn.relu)
+#     hidden7 = tf.layers.dense(hidden6, n_hidden7, name="hidden7", activation=tf.nn.relu)
+#     hidden8 = tf.layers.dense(hidden7, n_hidden8, name="hidden8", activation=tf.nn.relu)
+#     hidden9 = tf.layers.dense(hidden8, n_hidden9, name="hidden9", activation=tf.nn.relu)
+#     hidden10 = tf.layers.dense(hidden9, n_hidden10, name="hidden10", activation=tf.nn.relu)
+#     hidden11 = tf.layers.dense(hidden10, n_hidden11, name="hidden11", activation=tf.nn.relu)
+#     hidden12 = tf.layers.dense(hidden11, n_hidden12, name="hidden12", activation=tf.nn.relu)
+#     hidden13 = tf.layers.dense(hidden12, n_hidden13, name="hidden13", activation=tf.nn.relu)
+#     hidden14 = tf.layers.dense(hidden13, n_hidden14, name="hidden14", activation=tf.nn.relu)
+#     hidden15 = tf.layers.dense(hidden14, n_hidden15, name="hidden15", activation=tf.nn.relu)
+#     hidden16 = tf.layers.dense(hidden15, n_hidden16, name="hidden16", activation=tf.nn.relu)
+#     hidden17 = tf.layers.dense(hidden16, n_hidden17, name="hidden17", activation=tf.nn.relu)
+#     hidden18 = tf.layers.dense(hidden17, n_hidden18, name="hidden18", activation=tf.nn.relu)
+#     hidden19 = tf.layers.dense(hidden18, n_hidden19, name="hidden19", activation=tf.nn.relu)
+#     hidden20 = tf.layers.dense(hidden19, n_hidden20, name="hidden20", activation=tf.nn.relu)
+#     hidden21 = tf.layers.dense(hidden20, n_hidden21, name="hidden21", activation=tf.nn.relu)
+    
+    # logits = neuron_layer(hidden2, n_outputs, name="outputs")
+    logits = tf.layers.dense(hidden1, n_outputs, name="outputs")
+
+
+with tf.name_scope("loss"):
+    # The sparse_softmax_cross_entropy_with_logits() function is equivalent to 
+    # applying the softmax activation function and then computing the cross entropy
+    xentropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=y, logits=logits)
+    loss = tf.reduce_mean(xentropy, name="loss")
+
+learning_rate = 0.01
+
+with tf.name_scope("train"):
+    optimizer = tf.train.GradientDescentOptimizer(learning_rate)
+    training_op = optimizer.minimize(loss)
+    
+with tf.name_scope("eval"):
+    correct = tf.nn.in_top_k(logits, y, 1)
+    accuracy = tf.reduce_mean(tf.cast(correct, tf.float32))
+    
+
+init = tf.global_variables_initializer()
+saver = tf.train.Saver()
+
+########################      Phew! This concludes the construction phase. ###########################
+from tensorflow.examples.tutorials.mnist import input_data
+mnist = input_data.read_data_sets("/home/disooqi/data/")
+
+n_epochs = 40
+batch_size = 50
+
+with tf.Session() as sess:
+    init.run()
+    for epoch in range(n_epochs):
+        for iteration in range(mnist.train.num_examples // batch_size):
+            X_batch, y_batch = mnist.train.next_batch(batch_size)
+            sess.run(training_op, feed_dict={X: X_batch, y: y_batch})
+        acc_train = accuracy.eval(feed_dict={X: X_batch, y: y_batch})
+        acc_val = accuracy.eval(feed_dict={X: mnist.validation.images,
+                                           y: mnist.validation.labels})
+        print(epoch, "Train accuracy:", acc_train, "Val accuracy:", acc_val)
+
+    save_path = saver.save(sess, "./mnist_model_final.ckpt")
+
+
+    
+
+
+
+In [29]:
+
+    
+with tf.Session() as sess:
+    saver.restore(sess, "./mnist_model_final.ckpt") 
+    print (accuracy.eval(feed_dict={X: mnist.test.images, y: mnist.test.labels}))
+
+
+    
+
+
+
+In [19]:
+
+    
+with tf.Session() as sess:
+    saver.restore(sess, "./mnist_model_final.ckpt")
+    X_new_scaled = mnist.test.images  # some new images (scaled from 0 to 1)
+    Z = logits.eval(feed_dict={X: X_new_scaled})
+    y_pred = np.argmax(Z, axis=1)
+    print(y_pred)
+
+
+    
+
+
+
+In [20]:
+
+    
+import tensorflow as tf
+import tensorflow.contrib.keras as keras
+import numpy as np
+
+
+    
+
+
+
+In [23]:
+
+    
+ 
+
+
+    
+
+
+
+In [28]:
+
+    
+tf.reset_default_graph()
+
+n_inputs = 3
+n_neurons = 5
+
+X0 = tf.placeholder(tf.float32, [None, n_inputs])
+X1 = tf.placeholder(tf.float32, [None, n_inputs])
+# X2 = tf.placeholder(tf.float32, [None, n_inputs])
+
+Wx = tf.Variable(tf.random_normal(shape=[n_inputs, n_neurons],dtype=tf.float32))
+Wy = tf.Variable(tf.random_normal(shape=[n_neurons,n_neurons],dtype=tf.float32))
+b = tf.Variable(tf.zeros([1, n_neurons], dtype=tf.float32))
+
+Y0 = tf.tanh(tf.matmul(X0, Wx) + b)
+Y1 = tf.tanh(tf.matmul(Y0, Wy) + tf.matmul(X1, Wx) + b)
+# Y2 = tf.tanh(tf.matmul(Y1, Wy) + tf.matmul(X2, Wx) + b)
+
+init = tf.global_variables_initializer()
+
+# Mini-batch:        instance 0,instance 1,instance 2,instance 3
+X0_batch = np.array([[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 0, 1]]) # t = 0
+X1_batch = np.array([[9, 8, 7], [0, 0, 0], [6, 5, 4], [3, 2, 1]]) # t = 1
+# X2_batch = np.array([[109, 108, 107], [100, 150, 100], [106, -105, 104], [103, 102, 161]]) # t = 2
+
+with tf.Session() as sess:
+    init.run()
+    Y0_val, Y1_val = sess.run([Y0, Y1], feed_dict={X0: X0_batch, X1: X1_batch})
+
+
+    
+
+
+
+In [29]:
+
+    
+X0_batch.shape
+print('Number of instances = ', X0_batch.shape[0])
+print('Number of inputs = ', X0_batch.shape[1])
+
+
+    
+
+
+
+In [3]:
+
+    
+#########################################################
+#########  First way to represent your inputs  ##########
+#########################################################
+# Mini-batch:        instance 0,instance 1,instance 2,instance 3
+X0_batch = np.array([[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 0, 1]]) # t = 0
+X1_batch = np.array([[9, 8, 7], [0, 0, 0], [6, 5, 4], [3, 2, 1]]) # t = 1
+
+print(X0_batch.shape)
+
+
+#########################################################
+########  Second way to represent your inputs  ##########
+#########################################################
+
+
+X_batch = np.array([
+        # step 0     step 1
+        [[0, 1, 2], [9, 8, 7]], # instance 0
+        [[3, 4, 5], [0, 0, 0]], # instance 1 (padded with a zero vector)
+        [[6, 7, 8], [6, 5, 4]], # instance 2
+        [[9, 0, 1], [3, 2, 1]], # instance 3
+    ])
+
+print(X_batch.shape)
+
+seq_length_batch = np.array([2, 1, 2, 2])
+
+
+    
+

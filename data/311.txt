@@ -1,0 +1,34 @@
+import pandas as pd
+import numpy as np
+import nltk
+from nltk.corpus import stopwords
+from nltk.stem import SnowballStemmer
+import re
+from sklearn.metrics import accuracy_score
+import datetime, time, json
+from string import punctuation
+from keras.preprocessing.text import Tokenizer
+from keras.preprocessing.sequence import pad_sequences
+from keras.models import Sequential
+from keras.layers import Embedding, Dense, Dropout, Reshape, Merge, BatchNormalization, TimeDistributed, Lambda, Activation, LSTM, Flatten, Convolution1D, GRU, MaxPooling1D
+from keras.regularizers import l2
+from keras.callbacks import Callback, ModelCheckpoint, EarlyStopping
+from keras import initializers
+from keras import backend as K
+from keras.optimizers import SGD
+from keras.optimizers import Adadelta
+from collections import defaultdict
+from keras.utils import np_utils
+from keras.layers.advanced_activations import PReLU
+import codecs
+import random
+corpus = pd.read_csv("features_combined.csv")
+np.random.seed(44)
+corpus = corpus.reindex(np.random.permutation(corpus.index))
+print("Corpus shape ", corpus.shape)
+def process_blog(post_list, posts, post_list_name, dataframe):
+random.shuffle(c,lambda: 0.374)
+corpus_post, y_train = zip(*c)
+c=[]
+print (y_train.shape)
+print (corpus_post.shape)

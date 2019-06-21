@@ -1,0 +1,123 @@
+from keras.models import Sequential
+from keras.layers import Dense
+from keras.wrappers.scikit_learn import KerasClassifier
+from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import GridSearchCV
+import numpy
+from babeltraceReader import *
+from sklearn.externals import joblib
+import babeltrace
+import threading, queue
+from datetime import datetime
+import os
+from keras.models import Sequential
+from keras.layers import Dense
+from keras.wrappers.scikit_learn import KerasClassifier
+from sklearn.model_selection import GridSearchCV
+import numpy
+from testFeatureExtraction import *
+import os
+def create_model1():
+	model = Sequential()
+	model.add(Dense(8, input_dim=1242, activation='sigmoid'))
+	model.add(Dense(4, activation='relu'))
+	model.add(Dense(1, activation='sigmoid'))
+	model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+	return model
+def create_model2():
+	model = Sequential()
+	model.add(Dense(8, input_dim=1655, activation='sigmoid'))
+	model.add(Dense(4, activation='sigmoid'))
+	model.add(Dense(1, activation='sigmoid'))
+	model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+	return model
+def create_model3():
+	model = Sequential()
+	model.add(Dense(6, input_dim=1242, activation='sigmoid'))
+	model.add(Dense(4, activation='sigmoid'))
+	model.add(Dense(1, activation='sigmoid'))
+	model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+	return model
+def benchmarkLSTM():
+    seed = 7
+    numpy.random.seed(seed)
+    os.system("source ~/Software/tensorflow/bin/activate")
+    vec = DictVectorizer(separator=':')
+    listeOutput = []
+    dictDataset = itertools.chain.from_iterable(readCSV_data("./data/LSTM/dataset/"))
+    for item in readCSV_output("./data/LSTM/datasetOutput/"):
+        listeOutput = listeOutput  + item 
+    X = vec.fit_transform(dictDataset).toarray()
+    Y = listeOutput
+    scoring = ["accuracy","f1","precision","recall"]
+    kfold = StratifiedKFold(n_splits=5, shuffle=True, random_state=seed)
+    print("Modèle 2 processing...")
+    model2 = KerasClassifier(build_fn=create_model2, epochs=5, batch_size=5, verbose=1)
+    scores2 = cross_validate(model2, X, Y, cv=5,scoring = scoring )
+    print(scores2)
+    save = joblib.dump(vec,"./modeles/dictVecLSTM.p")
+    print("-----------------------------------")
+    save = None
+    save = joblib.dump(model2,"./modeles/LSTM.p")
+    if save != None :
+        print("Enregistrement du modèle achevé!")
+    else:
+        print("Erreur lors de l'enregistrement")
+def LSTMFromCSV():
+    seed = 7
+    numpy.random.seed(seed)
+    os.system("source ~/Software/tensorflow/bin/activate")
+    vec = DictVectorizer(separator=':')
+    listeOutput = []
+    dictDataset = itertools.chain.from_iterable(readCSV_data("./data/LSTM/dataset/"))
+    for item in readCSV_output("./data/LSTM/datasetOutput/"):
+        listeOutput = listeOutput  + item 
+    X = vec.fit_transform(dictDataset).toarray()
+    Y = listeOutput
+    kfold = StratifiedKFold(n_splits=5, shuffle=False, random_state=seed)
+    print("Modèle 1 processing...")
+    model1 = KerasClassifier(build_fn=create_model1, epochs=5, batch_size=5, verbose=1)
+    print("-----------------------------------")
+    save = joblib.dump(vec,"./modeles/dictVecLSTM.p")
+    print("-----------------------------------")
+    save = None
+    save = joblib.dump(model1,"./modeles/LSTM.p")
+    if save != None :
+        print("Enregistrement du modèle achevé!")
+    else:
+        print("Erreur lors de l'enregistrement")
+def LSTMPredict(trace_path):
+    modele = "./modeles/LSTM.p"
+    dictVec = "./modeles/dictVecLSTM.p"
+    clf = joblib.load(modele)
+    vec = joblib.load(dictVec)
+    trace_collection = babeltrace.TraceCollection()
+    trace_handle = trace_collection.add_trace(trace_path, 'ctf')
+    listeMachines = []
+    dicTid = {}
+    dictCPUid = {}
+    tempsDebut = datetime.now().time()
+    print("\tTemps debut : "+ str(tempsDebut))
+    for event in trace_collection.events:
+        try :
+            eventpreprocessed = preprocessMoreEventsklearn(event,listeMachines,dicTid,dictCPUid)
+            if clf.predict(vec.transform(eventpreprocessed).toarray()) != [0]:
+                pass
+        except TypeError:
+            pass
+def benchmarkPredictLSTM():
+    path = "./infectedTimeBenchmark/hassbian/"
+    listeDirectory = [name for name in os.listdir(path)]
+    listeDirectory = [path+x+"/kernel" for x in listeDirectory]
+    tempsDebut = ""
+    tempsFin = ""
+    print("LSTM :")
+    for directory in listeDirectory:
+        LSTMPredict(directory)
+        tempsFin = datetime.now().time()
+        print("\tTemps fin : " + str(tempsFin) )
+def main():
+    benchmarkPredictLSTM()
+if __name__ == '__main__':
+    main()

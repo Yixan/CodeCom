@@ -1,0 +1,294 @@
+
+In [ ]:
+
+    
+%matplotlib inline
+from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.pyplot as plt
+import numpy as np
+import tensorflow as tf
+
+
+    
+
+
+
+In [ ]:
+
+    
+class VAE:
+    def __init__(self, batch_size=100, latent_dim=2):
+        self.latent_dim = latent_dim
+        self.batch_size = tf.cast(tf.placeholder_with_default(batch_size, shape=()), dtype=tf.int64)
+        self.convd_size = 22
+        self.dense_size = int(np.sqrt(self.convd_size * self.convd_size * 16))
+
+        self.is_training = tf.placeholder_with_default(True, shape=())
+        self.image_input = tf.placeholder(dtype=tf.float32, shape=[None, 28, 28, 1])
+        self.image_batch, self.iterator, _ = self._make_dataset_iterator()
+        self.z_mean, self.z_log_var = self._encoder()
+        self.z = self._sampler()
+        self.decoded = self._decoder()
+
+        self.loss, self.optimization, self.reconstruction_loss, self.latent_loss = self._make_loss_opt()
+
+    def _make_dataset_iterator(self):
+        dataset = tf.data.Dataset.from_tensor_slices(self.image_input)
+        dataset = dataset.shuffle(buffer_size=20000)
+        dataset = dataset.batch(batch_size=self.batch_size)
+
+        iterator = dataset.make_initializable_iterator()
+        image_batch = iterator.get_next()
+        return image_batch, iterator, dataset
+
+    def _encoder(self):
+        conv_kwargs = {'kernel_size': 3, 'filters': 16, 'padding': 'valid', 'strides': 1, 'activation': tf.nn.leaky_relu}
+        x = tf.layers.conv2d(self.image_batch, **conv_kwargs)
+        x = tf.layers.batch_normalization(x, training=self.is_training)
+        x = tf.layers.conv2d(x, **conv_kwargs)
+        x = tf.layers.conv2d(x, **conv_kwargs)
+        x = tf.layers.flatten(x)
+        x = tf.layers.dense(x, units=self.dense_size, activation=tf.nn.leaky_relu)
+        z_mean = tf.layers.dense(x, units=self.latent_dim)
+        z_log_var = tf.layers.dense(x, units=self.latent_dim)
+        return z_mean, z_log_var
+
+    def _sampler(self):
+        self.samples = tf.random_normal(shape=[self.batch_size, self.latent_dim],
+                                        mean=0.,
+                                        stddev=1.,
+                                        dtype=tf.float32)
+        z = self.z_mean + tf.sqrt(tf.exp(self.z_log_var)) * self.samples
+        return z
+
+    def _decoder(self):
+        conv_kwargs = {'padding': 'valid', 'strides': 1}
+        x = tf.layers.dense(self.z, units=self.dense_size, activation=tf.nn.leaky_relu)
+        x = tf.layers.dense(x, units=self.dense_size ** 2, activation=tf.nn.leaky_relu)
+        x = tf.reshape(x, shape=[-1, self.convd_size, self.convd_size, 16])
+        x = tf.layers.conv2d_transpose(x, kernel_size=5, filters=16, activation=tf.nn.leaky_relu, **conv_kwargs)
+        x = tf.layers.conv2d_transpose(x, kernel_size=5, filters=16, activation=tf.nn.leaky_relu, **conv_kwargs)
+        x = tf.layers.conv2d(x, kernel_size=3, filters=8, activation=tf.nn.leaky_relu, **conv_kwargs)
+        decoded = tf.layers.conv2d(x, kernel_size=3, filters=1, padding='same', activation=tf.nn.sigmoid)
+        return decoded
+
+    def _make_loss_opt(self):
+        reconstruction_loss = tf.reduce_sum(self.image_batch * tf.log(1e-10 + self.decoded) +
+                                            (1 - self.image_batch) * tf.log(1e-10 + 1 - self.decoded),
+                                            axis=[1, 2, 3])
+        reconstruction_loss = tf.reduce_mean(reconstruction_loss)
+        latent_loss = 0.5 * tf.reduce_sum(1 + self.z_log_var - self.z_mean ** 2 - tf.exp(self.z_log_var), axis=1)
+        latent_loss = tf.reduce_mean(latent_loss)
+        loss = -(reconstruction_loss + latent_loss)
+
+        opt = tf.train.AdamOptimizer(learning_rate=1e-5).minimize(loss)
+        return loss, opt, reconstruction_loss, latent_loss
+
+    def train(self, session, images):
+        session.run(self.iterator.initializer, feed_dict={self.image_input: images})
+
+        while True:
+            try:
+                _, loss, reconstruction_loss, latent_loss, decoded = session.run(
+                    [self.optimization, self.loss, self.reconstruction_loss, self.latent_loss, self.decoded],
+                    feed_dict={self.is_training: True}
+                )
+            except tf.errors.OutOfRangeError:
+                break
+
+        return loss, reconstruction_loss, latent_loss, decoded
+
+
+    
+
+
+
+In [ ]:
+
+    
+with np.load('vae-cvae-challenge.npz') as fh:
+    images, labels = fh['data_x'], fh['data_y']
+    images = np.reshape(images, newshape=[-1, 28, 28, 1])
+print(f'image shape: {images.shape}, labels shape: {labels.shape}')
+
+
+    
+
+
+
+In [ ]:
+
+    
+def visualize_digits(tensor_to_visualize):
+    plt.axis('off')
+    plt.imshow(np.squeeze(tensor_to_visualize), cmap='gray')
+    plt.show()
+
+count_epochs = 25
+vae = VAE()
+
+# Check sampling with tf.Print (alraedy in there, but logging doesn't work in jupyter.)
+with tf.Session() as sess:
+    sess.run(tf.global_variables_initializer())
+
+    for epoch in range(count_epochs):
+        loss, reconstruction_loss, latent_loss, decoded = vae.train(sess, images)
+        visualize_digits(decoded[0])
+
+
+    
+
+
+
+In [ ]:
+
+    
+x = tf.constant(np.random.rand(10,20,5))
+x = tf.reshape(x, shape=tf.constant((-1, 2)))
+
+
+    
+
+
+
+In [ ]:
+
+    
+item = tf.constant(np.random.rand(10,5,3,2))
+ok = tf.reduce_sum(np.random.rand(10,5,3,2), axis=item.rank)
+with tf.Session() as sess:
+    print(sess.run(ok.shape))
+
+
+    
+
+
+
+In [ ]:
+
+    
+len(item.shape)
+
+
+    
+
+
+
+In [ ]:
+
+    
+def iterate(predicate, images, iterator, session):
+    session.run(iterator.initializer, feed_dict={real_images: images})
+    while True:
+        try:
+            result = session.run(predicate)
+        except tf.errors.OutOfRangeError:
+            break
+    return result
+
+
+    
+
+
+
+In [ ]:
+
+    
+class CVAE:
+    def __init__(self, batch_size=100, latent_dim=1):
+        self.latent_dim = latent_dim
+        self.batch_size = tf.cast(tf.placeholder_with_default(batch_size, shape=()), dtype=tf.int64)
+        self.convd_size = 22
+        self.dense_size = int(np.sqrt(self.convd_size * self.convd_size * 16))
+
+        self.is_training = tf.placeholder_with_default(True, shape=())
+        self.image_input = tf.placeholder(dtype=tf.float32, shape=[None, 28, 28, 1])
+        self.label_input = tf.placeholder(dtype=tf.int64, shape=[None])
+        self.image_batch, self.image_iterator, self.label_batch, self.label_iterator = self._make_dataset_iterator()
+        self.z_mean, self.z_log_var = self._encoder()
+        self.z = self._sampler()
+        self.decoded = self._decoder()
+
+        self.loss, self.optimization, self.reconstruction_loss, self.latent_loss = self._make_loss_opt()
+
+    def _make_dataset_iterator(self):
+        label_dataset = tf.data.Dataset.from_tensor_slices(self.label_input)
+        label_dataset = label_dataset.shuffle(buffer_size=20000, seed=42)
+        label_dataset = label_dataset.batch(batch_size=self.batch_size)
+
+        label_iterator = label_dataset.make_initializable_iterator()
+        label_batch = label_iterator.get_next()
+        label_batch = tf.one_hot(label_batch, 10)
+
+        image_dataset = tf.data.Dataset.from_tensor_slices(self.image_input)
+        image_dataset = image_dataset.shuffle(buffer_size=20000, seed=42)
+        image_dataset = image_dataset.batch(batch_size=self.batch_size)
+
+        image_iterator = image_dataset.make_initializable_iterator()
+        image_batch = image_iterator.get_next()
+        return image_batch, image_iterator, label_batch, label_iterator
+
+    def _encoder(self):
+        conv_kwargs = {'kernel_size': 3, 'filters': 16, 'padding': 'valid', 'strides': 1,
+                       'activation': tf.nn.leaky_relu}
+        x = tf.layers.conv2d(self.image_batch, **conv_kwargs)
+        x = tf.layers.batch_normalization(x, training=self.is_training)
+        x = tf.layers.conv2d(x, **conv_kwargs)
+        x = tf.layers.conv2d(x, **conv_kwargs)
+        x = tf.layers.flatten(x)
+        x = tf.concat([x, self.label_batch], axis=1)
+        x = tf.layers.dense(x, units=self.dense_size, activation=tf.nn.leaky_relu)
+        z_mean = tf.layers.dense(x, units=self.latent_dim)
+        z_log_var = tf.layers.dense(x, units=self.latent_dim)
+        return z_mean, z_log_var
+
+    def _sampler(self):
+        self.samples = tf.random_normal(shape=[self.batch_size, self.latent_dim],
+                                        mean=0.,
+                                        stddev=1.,
+                                        dtype=tf.float32)
+        z = self.z_mean + tf.sqrt(tf.exp(self.z_log_var)) * self.samples
+        return z
+
+    def _decoder(self):
+        conv_kwargs = {'padding': 'valid', 'strides': 1}
+        x = tf.concat([self.z, self.label_batch], axis=1)
+        x = tf.layers.dense(x, units=self.dense_size, activation=tf.nn.leaky_relu)
+        x = tf.layers.dense(x, units=self.dense_size ** 2, activation=tf.nn.leaky_relu)
+        x = tf.reshape(x, shape=[-1, self.convd_size, self.convd_size, 16])
+        x = tf.layers.conv2d_transpose(x, kernel_size=5, filters=16, activation=tf.nn.leaky_relu, **conv_kwargs)
+        x = tf.layers.conv2d_transpose(x, kernel_size=5, filters=16, activation=tf.nn.leaky_relu, **conv_kwargs)
+        x = tf.layers.conv2d(x, kernel_size=3, filters=8, activation=tf.nn.leaky_relu, **conv_kwargs)
+        decoded = tf.layers.conv2d(x, kernel_size=3, filters=1, padding='same', activation=tf.nn.sigmoid)
+        return decoded
+
+    def _make_loss_opt(self):
+        reconstruction_loss = tf.reduce_sum(self.image_batch * tf.log(1e-10 + self.decoded) +
+                                            (1 - self.image_batch) * tf.log(1e-10 + 1 - self.decoded),
+                                            axis=[1, 2, 3])
+        reconstruction_loss = tf.reduce_mean(reconstruction_loss)
+        latent_loss = 0.5 * tf.reduce_sum(1 + self.z_log_var - self.z_mean ** 2 - tf.exp(self.z_log_var), axis=1)
+        latent_loss = tf.reduce_mean(latent_loss)
+        loss = -(reconstruction_loss + latent_loss)
+
+        opt = tf.train.AdamOptimizer(learning_rate=1e-5).minimize(loss)
+        return loss, opt, reconstruction_loss, latent_loss
+
+    def train(self, session, images, labels):
+        session.run([self.image_iterator.initializer, self.label_iterator.initializer],
+                    feed_dict={self.image_input: images, self.label_input: labels})
+
+        while True:
+            try:
+                _, loss, reconstruction_loss, latent_loss, decoded = session.run(
+                    [self.optimization, self.loss, self.reconstruction_loss, self.latent_loss, self.decoded],
+                    feed_dict={self.is_training: True}
+                )
+            except tf.errors.OutOfRangeError:
+                break
+
+        return loss, reconstruction_loss, latent_loss, decoded
+
+
+    
+

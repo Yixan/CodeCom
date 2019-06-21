@@ -1,0 +1,52 @@
+import numpy as np
+from keras.models import Sequential
+from keras.layers import Dense
+from keras.layers import LSTM
+import keras
+def window_transform_series(series, window_size):
+    X = []
+    y = []
+    for i in range(len(series)-window_size):
+        X.append(series[i:i+window_size])
+        y.append(series[i+window_size])
+    X = np.asarray(X)
+    X.shape = (np.shape(X)[0:2])
+    y = np.asarray(y)
+    y.shape = (len(y),1)
+    return X,y
+def build_part1_RNN(window_size):
+    from keras.models import Sequential
+    from keras.layers import Dense
+    from keras.layers import LSTM
+    import keras
+    model = Sequential()
+    model.add(LSTM(5, input_shape=(window_size, 1)))
+    model.add(Dense(1))
+    return model
+def cleaned_text(text):
+    import string
+    punctuation = ['!', ',', '.', ':', ';', '?']
+    alphabet = list(string.ascii_lowercase)
+    empty = [' ']
+    meaningful_chars = alphabet + punctuation + empty
+    meanless_list = list(set(text) - set(meaningful_chars))
+    for meanless_char in meanless_list:
+        text = text.replace(meanless_char, " ")
+    return text
+def window_transform_text(text, window_size, step_size):
+    inputs = []
+    outputs = []
+    for i in range(len(text)-window_size):
+        inputs.append(text[i:i+window_size])
+        outputs.append(text[i+window_size])
+    return inputs,outputs
+def build_part2_RNN(window_size, num_chars):
+    from keras.models import Sequential
+    from keras.layers import Dense, Activation
+    from keras.layers import LSTM
+    import keras
+    model = Sequential()
+    model.add(LSTM(200, input_shape=(window_size, num_chars)))
+    model.add(Dense(num_chars))
+    model.add(Activation('softmax'))
+    return model

@@ -1,0 +1,121 @@
+from __future__ import print_function
+import numpy as np
+import tensorflow as tf
+from six.moves import cPickle as pickle
+from six.moves import range
+import os
+import matplotlib.pyplot as plt
+from skimage import io
+pickle_file = 'notMNIST.pickle'
+with open(pickle_file, 'rb') as f:
+    save = pickle.load(f, encoding='latin1')
+    train_dataset = save['train_dataset']
+    train_labels = save['train_labels']
+    valid_dataset = save['valid_dataset']
+    valid_labels = save['valid_labels']
+    test_dataset = save['test_dataset']
+    test_labels = save['test_labels']
+    del save
+    print('Training set', train_dataset.shape, train_labels.shape)
+    print('Validation set', valid_dataset.shape, valid_labels.shape)
+    print('Test set', test_dataset.shape, test_labels.shape)
+plt.imshow(test_dataset[233], cmap='gray')
+image_size = 28
+num_labels = 10
+
+
+def reformat(dataset, labels):
+    dataset = dataset.reshape((-1, image_size * image_size)).astype(np.float32)
+    labels = (np.arange(num_labels) == labels[:, (None)]).astype(np.float32)
+    return dataset, labels
+
+
+train_dataset, train_labels = reformat(train_dataset, train_labels)
+valid_dataset, valid_labels = reformat(valid_dataset, valid_labels)
+test_dataset, test_labels = reformat(test_dataset, test_labels)
+print('Training set', train_dataset.shape, train_labels.shape)
+print('Validation set', valid_dataset.shape, valid_labels.shape)
+print('Test set', test_dataset.shape, test_labels.shape)
+
+
+def accuracy(predictions, labels):
+    return 100.0 * np.sum(np.argmax(predictions, 1) == np.argmax(labels, 1)) / predictions.shape[0]
+
+
+num_nodes_1 = 3048
+num_nodes_2 = 2048
+num_nodes_3 = 1024
+num_nodes_4 = 500
+batch_size = 250
+hidden_layer_1_keep_prob = 0.5
+hidden_layer_2_keep_prob = 0.6
+hidden_layer_3_keep_prob = 0.7
+hidden_layer_4_keep_prob = 0.8
+beta_1 = 1e-05
+beta_2 = 1e-05
+beta_3 = 1e-05
+beta_4 = 1e-05
+hidden_layer_1_stddev = np.sqrt(5.5 / 784)
+hidden_layer_2_stddev = np.sqrt(3.5 / (num_nodes_1 + 784))
+hidden_layer_3_stddev = np.sqrt(2.5 / (num_nodes_2 + num_nodes_1))
+hidden_layer_4_stddev = np.sqrt(1.5 / (num_nodes_3 + num_nodes_2))
+output_layer_stddev = np.sqrt(0.5 / (num_nodes_4 + num_nodes_3))
+print(hidden_layer_1_stddev, hidden_layer_2_stddev, hidden_layer_3_stddev, hidden_layer_4_stddev)
+graph = tf.Graph()
+with graph.as_default():
+    tf_train_dataset = tf.placeholder(tf.float32, shape=(None, image_size * image_size), name='train_to_restore')
+    tf_train_labels = tf.placeholder(tf.float32, shape=(None, num_labels))
+    tf_valid_dataset = tf.constant(valid_dataset)
+    tf_test_dataset = tf.constant(test_dataset)
+    weights_1 = tf.Variable(tf.truncated_normal([image_size * image_size, num_nodes_1], stddev=hidden_layer_1_stddev))
+    biases_1 = tf.Variable(tf.zeros([num_nodes_1]))
+    weights_2 = tf.Variable(tf.truncated_normal([num_nodes_1, num_nodes_2], stddev=hidden_layer_2_stddev))
+    biases_2 = tf.Variable(tf.zeros([num_nodes_2]))
+    weights_3 = tf.Variable(tf.truncated_normal([num_nodes_2, num_nodes_3], stddev=hidden_layer_3_stddev))
+    biases_3 = tf.Variable(tf.zeros([num_nodes_3]))
+    weights_4 = tf.Variable(tf.truncated_normal([num_nodes_3, num_nodes_4], stddev=hidden_layer_4_stddev))
+    biases_4 = tf.Variable(tf.zeros([num_nodes_4]))
+    weights_5 = tf.Variable(tf.truncated_normal([num_nodes_4, num_labels], stddev=output_layer_stddev))
+    biases_5 = tf.Variable(tf.zeros([num_labels]))
+    logits_1 = tf.matmul(tf_train_dataset, weights_1) + biases_1
+    relu_layer = tf.nn.dropout(tf.nn.relu(logits_1), hidden_layer_1_keep_prob)
+    logits_2 = tf.matmul(relu_layer, weights_2) + biases_2
+    relu_layer_2 = tf.nn.dropout(tf.nn.relu(logits_2), hidden_layer_2_keep_prob)
+    logits_3 = tf.matmul(relu_layer_2, weights_3) + biases_3
+    relu_layer_3 = tf.nn.dropout(tf.nn.relu(logits_3), hidden_layer_3_keep_prob)
+    logits_4 = tf.matmul(relu_layer_3, weights_4) + biases_4
+    relu_layer_4 = tf.nn.dropout(tf.nn.relu(logits_4), hidden_layer_4_keep_prob)
+    out = tf.matmul(relu_layer_4, weights_5) + biases_5
+    loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=out, labels=tf_train_labels))
+    global_step = tf.Variable(0, trainable=False)
+    starter_learning_rate = 0.3
+    learning_rate = tf.train.exponential_decay(starter_learning_rate, global_step, 100000, 0.96, staircase=True)
+    optimizer = tf.train.GradientDescentOptimizer(learning_rate).minimize(loss, global_step=global_step)
+    train_prediction = tf.nn.softmax(out, name='op_to_restore')
+    validation_hidden_layer_1 = tf.nn.relu(tf.matmul(tf_valid_dataset, weights_1) + biases_1)
+    validation_hidden_layer_2 = tf.nn.relu(tf.matmul(validation_hidden_layer_1, weights_2) + biases_2)
+    validation_hidden_layer_3 = tf.nn.relu(tf.matmul(validation_hidden_layer_2, weights_3) + biases_3)
+    validation_hidden_layer_4 = tf.nn.relu(tf.matmul(validation_hidden_layer_3, weights_4) + biases_4)
+    validation_logits = tf.matmul(validation_hidden_layer_4, weights_5) + biases_5
+    valid_prediction = tf.nn.softmax(validation_logits)
+    test_hidden_layer_1 = tf.nn.relu(tf.matmul(tf_test_dataset, weights_1) + biases_1)
+    test_hidden_layer_2 = tf.nn.relu(tf.matmul(test_hidden_layer_1, weights_2) + biases_2)
+    test_hidden_layer_3 = tf.nn.relu(tf.matmul(test_hidden_layer_2, weights_3) + biases_3)
+    test_hidden_layer_4 = tf.nn.relu(tf.matmul(test_hidden_layer_3, weights_4) + biases_4)
+    test_logits = tf.matmul(test_hidden_layer_4, weights_5) + biases_5
+    test_prediction = tf.nn.softmax(test_logits)
+num_steps = 20000
+with tf.Session(graph=graph) as session:
+    tf.initialize_all_variables().run()
+    print('Initialized')
+    for step in range(num_steps):
+        offset = step * batch_size % (train_labels.shape[0] - batch_size)
+        batch_data = train_dataset[offset:offset + batch_size, :]
+        batch_labels = train_labels[offset:offset + batch_size, :]
+        feed_dict = {tf_train_dataset: batch_data, tf_train_labels: batch_labels}
+        _, l, predictions = session.run([optimizer, loss, train_prediction], feed_dict=feed_dict)
+        if step % 500 == 0:
+            print('Minibatch loss at step {}: {}'.format(step, l))
+            print('Minibatch accuracy: {:.1f}'.format(accuracy(predictions, batch_labels)))
+            print('Validation accuracy: {:.1f}'.format(accuracy(valid_prediction.eval(), valid_labels)))
+    print('Test accuracy: {:.1f}'.format(accuracy(test_prediction.eval(), test_labels)))

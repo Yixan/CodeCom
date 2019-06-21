@@ -1,0 +1,183 @@
+import getpass
+import sys
+import time
+import numpy as np
+from copy import deepcopy
+from utils import calculate_perplexity, get_ptb_dataset, Vocab
+from utils import ptb_iterator, sample
+import tensorflow as tf
+from tensorflow.contrib.seq2seq import sequence_loss
+from model import LanguageModel
+
+
+class Config(object):
+    batch_size = 64
+    embed_size = 50
+    hidden_size = 128
+    num_steps = 10
+    max_epochs = 20
+    early_stopping = 2
+    dropout = 0.9
+    lr = 0.001
+
+
+class RNNLM_Model(LanguageModel):
+
+    def load_data(self, debug=False):
+        self.vocab = Vocab()
+        self.vocab.construct(get_ptb_dataset('train'))
+        self.encoded_train = np.array([self.vocab.encode(word) for word in get_ptb_dataset('train')], dtype=np.int32)
+        self.encoded_valid = np.array([self.vocab.encode(word) for word in get_ptb_dataset('valid')], dtype=np.int32)
+        self.encoded_test = np.array([self.vocab.encode(word) for word in get_ptb_dataset('test')], dtype=np.int32)
+        if debug:
+            num_debug = 1024
+            self.encoded_train = self.encoded_train[:num_debug]
+            self.encoded_valid = self.encoded_valid[:num_debug]
+            self.encoded_test = self.encoded_test[:num_debug]
+
+    def add_placeholders(self):
+        self.input_placeholder = tf.placeholder(tf.int32, shape=[None, self.config.num_steps])
+        self.labels_placeholder = tf.placeholder(tf.int32, shape=[None, self.config.num_steps])
+        self.loss_weights = tf.ones([self.config.batch_size, self.config.num_steps])
+        self.dropout_placeholder = tf.placeholder(tf.float32, shape=())
+
+    def add_embedding(self):
+        with tf.variable_scope('RNN', reuse=tf.AUTO_REUSE):
+            L = tf.get_variable('L', shape=[len(self.vocab), self.config.embed_size], initializer=tf.random_uniform_initializer)
+        inputs = tf.nn.embedding_lookup(L, self.input_placeholder)
+        return inputs
+
+    def add_model(self, inputs):
+        batch_size = self.config.batch_size
+        hidden_size = self.config.hidden_size
+        embed_size = self.config.embed_size
+        rnn_cell = tf.nn.rnn_cell.GRUCell(hidden_size)
+        self.initial_state = rnn_cell.zero_state(self.config.batch_size, dtype=tf.float32)
+        dropped_inputs = tf.nn.dropout(inputs, keep_prob=self.dropout_placeholder)
+        with tf.variable_scope('RNN'):
+            rnn_output, rnn_final_state = tf.nn.dynamic_rnn(rnn_cell, dropped_inputs, initial_state=self.initial_state, dtype=tf.float32)
+        rnn_output_dropped = tf.nn.dropout(rnn_output, self.dropout_placeholder)
+        self.final_state = rnn_final_state
+        return rnn_output_dropped
+        return rnn_outputs_dropped
+
+    def add_projection(self, rnn_outputs):
+        with tf.variable_scope('RNN', reuse=tf.AUTO_REUSE):
+            U = tf.get_variable('U', shape=[self.config.hidden_size, len(self.vocab)])
+            b_2 = tf.get_variable('b_2', shape=[len(self.vocab)])
+        outputs = tf.reshape(tf.matmul(tf.reshape(rnn_outputs, [-1, self.config.hidden_size]), U), [self.config.batch_size, self.config.num_steps, -1]) + b_2
+        return outputs
+
+    def add_loss_op(self, output):
+        loss = tf.contrib.seq2seq.sequence_loss(output, self.labels_placeholder, self.loss_weights)
+        return loss
+
+    def add_training_op(self, loss):
+        with tf.variable_scope('RNN', reuse=tf.AUTO_REUSE):
+            opt = tf.train.AdamOptimizer(self.config.lr)
+            train_op = opt.minimize(loss)
+        return train_op
+
+    def __init__(self, config):
+        self.config = config
+        self.load_data(debug=False)
+        self.add_placeholders()
+        self.inputs = self.add_embedding()
+        self.rnn_outputs = self.add_model(self.inputs)
+        self.outputs = self.add_projection(self.rnn_outputs)
+        self.predictions = [tf.nn.softmax(tf.cast(self.outputs, 'float64'))]
+        output = tf.reshape(tf.concat(self.outputs, 1), [self.config.batch_size, self.config.num_steps, len(self.vocab)])
+        self.calculate_loss = self.add_loss_op(output)
+        self.train_step = self.add_training_op(self.calculate_loss)
+
+    def run_epoch(self, session, data, train_op=None, verbose=10):
+        config = self.config
+        dp = config.dropout
+        if not train_op:
+            train_op = tf.no_op()
+            dp = 1
+        total_steps = sum(1 for x in ptb_iterator(data, config.batch_size, config.num_steps))
+        total_loss = []
+        state = self.initial_state.eval()
+        for step, (x, y) in enumerate(ptb_iterator(data, config.batch_size, config.num_steps)):
+            feed = {self.input_placeholder: x, self.labels_placeholder: y, self.initial_state: state, self.dropout_placeholder: dp}
+            loss, state, _ = session.run([self.calculate_loss, self.final_state, train_op], feed_dict=feed)
+            total_loss.append(loss)
+            if verbose and step % verbose == 0:
+                sys.stdout.write('\r{} / {} : pp = {}'.format(step, total_steps, np.exp(np.mean(total_loss))))
+                sys.stdout.flush()
+        if verbose:
+            sys.stdout.write('\r')
+        return np.exp(np.mean(total_loss))
+
+
+def generate_text(session, model, config, starting_text='<eos>', stop_length=100, stop_tokens=None, temp=1.0):
+    state = model.initial_state.eval()
+    tokens = [model.vocab.encode(word) for word in starting_text.split()]
+    for token in tokens:
+        feed = {model.input_placeholder: [[token]], model.initial_state: state, model.dropout_placeholder: 1}
+        state = session.run(model.final_state, feed_dict=feed)
+    last_word = token
+    for i in range(stop_length):
+        feed = {model.input_placeholder: [[last_word]], model.initial_state: state, model.dropout_placeholder: 1}
+        state, y_pred = session.run([model.final_state, model.predictions[-1]], feed_dict=feed)
+        next_word_idx = sample(y_pred[0, 0], temperature=temp)
+        tokens.append(next_word_idx)
+        last_word = next_word_idx
+        if stop_tokens and model.vocab.decode(tokens[-1]) in stop_tokens:
+            break
+    output = [model.vocab.decode(word_idx) for word_idx in tokens]
+    return output
+
+
+def generate_sentence(session, model, config, *args, **kwargs):
+    return generate_text(session, model, config, *args, stop_tokens=['<eos>'], **kwargs)
+
+
+def test_RNNLM():
+    config = Config()
+    gen_config = deepcopy(config)
+    gen_config.batch_size = gen_config.num_steps = 1
+    tf.reset_default_graph()
+    with tf.variable_scope('RNNLM') as scope:
+        model = RNNLM_Model(config)
+        scope.reuse_variables()
+        gen_model = RNNLM_Model(gen_config)
+    init = tf.initialize_all_variables()
+    saver = tf.train.Saver()
+    with tf.Session() as session:
+        best_val_pp = float('inf')
+        best_val_epoch = 0
+        session.run(init)
+        for epoch in range(Config.max_epochs):
+            print('Epoch {}'.format(epoch))
+            start = time.time()
+            train_pp = model.run_epoch(session, model.encoded_train, train_op=model.train_step)
+            valid_pp = model.run_epoch(session, model.encoded_valid)
+            print('Training perplexity: {}'.format(train_pp))
+            print('Validation perplexity: {}'.format(valid_pp))
+            if valid_pp < best_val_pp:
+                best_val_pp = valid_pp
+                best_val_epoch = epoch
+                saver.save(session, './ptb_rnnlm.weights')
+            if epoch - best_val_epoch > config.early_stopping:
+                break
+            print('Total time: {}'.format(time.time() - start))
+        saver.restore(session, 'ptb_rnnlm.weights')
+        test_pp = model.run_epoch(session, model.encoded_test)
+        print('=-=' * 5)
+        print('Test perplexity: {}'.format(test_pp))
+        print('=-=' * 5)
+        compare_test_get = False
+        if compare_test_get:
+            test_gen = gen_model.run_epoch(session, model.encoded_test)
+            print('Gen Test perplexity: {}'.format(test_gen))
+            print('=-=' * 5)
+        starting_snippets = ['in boston', 'they have', 'please', 'today', 'the president', 'in winter', 'i want', 'look at', 'come to', 'he said']
+        for starting_text in starting_snippets:
+            print('\n')
+            print(' '.join(generate_sentence(session, gen_model, gen_config, starting_text=starting_text, temp=1)))
+
+
+if __name__ == '__main__':
+    test_RNNLM()

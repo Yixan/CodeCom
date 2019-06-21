@@ -1,0 +1,59 @@
+import numpy as np 
+import jieba
+import multiprocessing
+from gensim.models.word2vec import Word2Vec
+from gensim.corpora.dictionary import Dictionary
+from keras.preprocessing import sequence
+from sklearn.cross_validation import train_test_split
+import keras
+from keras.models import Sequential
+from keras.layers.embeddings import Embedding
+from keras.layers.recurrent import LSTM
+from keras.layers.core import Dense, Dropout,Activation
+from keras.models import model_from_yaml
+import sys
+sys.setrecursionlimit(1000000)
+import yaml
+vocab_dim = 100
+window_size = 7
+n_epoch = 4
+input_length = 100
+maxlen = 100
+batch_size = 32
+def loadfile():
+    neg=pd.read_csv(r'../data/neg.csv',header=None,index_col=None)[:1000]
+    pos=pd.read_csv(r'../data/pos.csv',header=None,index_col=None,error_bad_lines=False)[:1000]
+    neu=pd.read_csv(r'../data/neutral.csv', header=None, index_col=None)[:1000]
+    combined = np.concatenate((pos[0], neu[0], neg[0]))
+    y = np.concatenate((np.ones(len(pos), dtype=int), .zeros(len(neu), dtype=int),  * np.ones(len(neg),dtype=int)))
+    return combined,y
+def tokenizer(text):
+    return text
+def create_dictionaries(model=None,combined=None):
+        gensim_dict = Dictionary()
+        gensim_dict.doc2bow(model.wv.vocab.keys(),allow_update=True)
+            for sentence in combined:
+                new_txt = []
+                for word in sentence:
+                    try:
+                        new_txt.append(w2indx[word])
+                    except:
+                data.append(new_txt)
+        combined=parse_dataset(combined)
+        return w2indx, w2vec,combined
+    else:
+        print('No data provided...')
+def word2vec_train(combined):
+    model = Word2Vec(size=vocab_dim,min_count=n_exposures,window=window_size,workers=cpu_count,iter=n_iterations)
+    model.train(combined, total_examples=model.corpus_count,ochs = model.iter)
+    model.save('../model/Word2vec_model.pkl')
+    index_dict, word_vectors,combined = create_dictionaries(model=model,combined=combined)
+    return   index_dict, word_vectors,combined
+def build_data(index_dict,word_vectors,combined,y):
+        embedding_weights[index, :] = word_vectors[word]
+    x_train, x_test, y_train, y_test = train_test_split(combined, y, test_size=0.2)
+    y_train = keras.utils.to_categorical(y_train,num_classes=3) 
+    y_test = keras.utils.to_categorical(y_test,num_classes=3)
+    return n_symbols,embedding_weights,x_train,y_train,x_test,y_test
+def build_model():
+    print ('Defining a Simple Keras Model...')

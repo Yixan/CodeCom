@@ -1,0 +1,66 @@
+import numpy as np
+from keras.models import Sequential
+from keras.layers.recurrent import SimpleRNN , LSTM
+from keras.optimizers import SGD , Adagrad
+def keras_model( batch_dim , image_vector=1000 , word_vector=300 ):
+    batch_dim = 30
+    LSTM_layers = 1 
+    LSTM_units  = 300
+    DNN_units   = [ 2048, 2048 ]
+    question_LSTM = Sequential()
+    layer_Mask_q = Masking(mask_value=-999, input_shape=(batch_dim, 300))
+    question_LSTM.add(layer_Mask_q)
+    question_LSTM.add(layer_LSTM_q)
+    opt_LSTM_1 = Sequential()
+    layer_Mask_1 = Masking(mask_value=-999, input_shape=(batch_dim,300))
+    layer_LSTM_1 = LSTM(output_dim=LSTM_units)
+    opt_LSTM_1.add(layer_Mask_1)
+    opt_LSTM_1.add(layer_LSTM_1)
+    opt_LSTM_2 = Sequential()
+    layer_Mask_2 = Masking(mask_value=-999, input_shape=(batch_dim,300))
+    layer_LSTM_2 = LSTM(output_dim=LSTM_units)
+    opt_LSTM_2.add(layer_Mask_2)
+    opt_LSTM_2.add(layer_LSTM_2)
+    opt_LSTM_3 = Sequential()
+    layer_Mask_3 = Masking(mask_value=-999, input_shape=(batch_dim,300))
+    layer_LSTM_3 = LSTM(output_dim=LSTM_units)
+    opt_LSTM_3.add(layer_Mask_3)
+    opt_LSTM_3.add(layer_LSTM_3)
+    opt_LSTM_4 = Sequential()
+    layer_Mask_4 = Masking(mask_value=-999, input_shape=(batch_dim,300))
+    layer_LSTM_4 = LSTM(output_dim=LSTM_units)
+    opt_LSTM_4.add(layer_Mask_4)
+    opt_LSTM_4.add(layer_LSTM_4)
+    opt_LSTM_5 = Sequential()
+    layer_Mask_5 = Masking(mask_value=-999, input_shape=(batch_dim,300))
+    layer_LSTM_5 = LSTM(output_dim=LSTM_units)
+    opt_LSTM_5.add(layer_Mask_5)
+    opt_LSTM_5.add(layer_LSTM_5)
+    image_model = Sequential()
+    image_model.add(Reshape(input_shape = (image_vector, ), dims = (image_vector , ) ))
+    model = Sequential()
+    model.add(Merge([ image_model, question_LSTM, opt_LSTM_1, opt_LSTM_2, _LSTM_3, opt_LSTM_4, opt_LSTM_5], ode='concat', concat_axis=1))
+    layer_pre_DNN = Dense(DNN_units[0] , init = 'uniform')
+    layer_pre_DNN_act = Activation('relu')
+    layer_pre_DNN_dro = Dropout(p=0.5)
+    layer_DNN_1 = Dense(DNN_units[1] , init = 'uniform')
+    layer_DNN_1_act = Activation('relu')
+    layer_DNN_1_dro = Dropout(p=0.5)
+    layer_softmax = Activation('softmax')
+    model.add(layer_pre_DNN)
+    model.add(layer_pre_DNN_act)
+    model.add(layer_pre_DNN_dro)
+    model.add(layer_DNN_1)
+    model.add(layer_DNN_1_act)
+    model.add(layer_DNN_1_dro)
+    model.add(layer_softmax)
+    model.compile(loss='categorical_crossentropy', optimizer='adagrad')
+    return model
+X = np.ones((2,2800))
+Y = np.array([[0,0,1,0,0],[0,0,1,0,0]])
+print X.shape
+print Y.shape
+my_model = keras_model(100)
+for t in range(100):
+    print my_model.train_on_batch(X,Y)
+print my_model.predict_on_batch(X)

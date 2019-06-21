@@ -1,0 +1,1127 @@
+
+In [ ]:
+
+    
+import tensorflow as tf
+
+
+    
+
+
+
+In [ ]:
+
+    
+hello = tf.constant('Hello, TensorFlow!')
+print(hello)
+
+
+    
+
+
+
+In [ ]:
+
+    
+3
+
+
+    
+
+
+
+In [ ]:
+
+    
+[1., 2., 3.]
+
+
+    
+
+
+
+In [ ]:
+
+    
+[[1., 2., 3.], [4., 5., 6.]]
+
+
+    
+
+
+
+In [ ]:
+
+    
+a = tf.constant(10)
+b = tf.constant(32)
+c = tf.add(a,b)
+print(c)
+
+
+    
+
+
+
+In [ ]:
+
+    
+sess = tf.Session()
+
+print(sess.run(hello))
+print(sess.run([a, b, c]))
+
+sess.close()
+
+
+    
+
+
+
+In [ ]:
+
+    
+import tensorflow as tf
+
+hello = tf.constant('Hello, TensorFlow!')
+print(hello)
+
+a = tf.constant(10)
+b = tf.constant(32)
+c = tf.add(a,b)
+print(c)
+
+sess = tf.Session()
+print(sess.run(hello))
+print(sess.run([a, b, c]))
+
+sess.close()
+
+
+    
+
+
+
+In [ ]:
+
+    
+# None : 크기가 정해져 있지 않다.
+X = tf.placeholder(tf.float32, [None, 3])
+print(X)
+
+
+    
+
+
+
+In [ ]:
+
+    
+x_data = [[1,2,3],[1,2,3]]
+
+
+    
+
+
+
+In [ ]:
+
+    
+W = tf.Variable(tf.random_normal([3, 2]))
+b = tf.Variable(tf.random_normal([2, 1]))
+
+
+    
+
+
+
+In [ ]:
+
+    
+expr = tf.matmul(X, W) + b
+
+
+    
+
+
+
+In [ ]:
+
+    
+sess = tf.Session()
+sess.run(tf.global_variables_initializer())
+
+print("=== x_data ===")
+print(x_data)
+print("=== W ===")
+print(sess.run(W))
+print("=== b ===")
+print(sess.run(b))
+print("=== expr ===")
+print(sess.run(expr, feed_dict={X: x_data}))
+
+sess.close()
+
+
+    
+
+
+
+In [ ]:
+
+    
+import tensorflow as tf
+
+x_data = [1, 2, 3]
+y_data = [1, 2, 3]
+
+W = tf.Variable(tf.random_uniform([1], -1.0, 1.0))
+b = tf.Variable(tf.random_uniform([1], -1.0, 1.0))
+
+X = tf.placeholder(tf.float32, name="X")
+Y = tf.placeholder(tf.float32, name="Y")
+
+hypothesis = W * X + b # W와 X까 헁렬이 아니므로 matmul을 사용하지 않음.
+
+cost = tf.reduce_mean(tf.square(hypothesis - Y))
+optimizer = tf.train.GradientDescentOptimizer(learning_rate=0.1)
+train_op = optimizer.minimize(cost)
+
+with tf.Session() as sess:
+    sess.run(tf.global_variables_initializer())
+    
+    for step in range(100):
+        _, cost_val = sess.run([train_op, cost], feed_dict={X: x_data,
+                                                           Y: y_data})
+        print(step, cost_val, sess.run(W), sess.run(b))
+    
+    print("\n=== Test ===")
+    print("X: 5, Y:",sess.run(hypothesis, feed_dict={X: 5}))
+    print("X: 2.5 Y:",sess.run(hypothesis, feed_dict={X: 2.5}))
+
+
+    
+
+
+
+In [ ]:
+
+    
+import tensorflow as tf
+import numpy as np
+
+
+    
+
+
+
+In [ ]:
+
+    
+# [털, 날개]
+x_data = np.array(
+[[0, 0],[1, 0],[1, 1],[0, 0],[0, 0],[0, 1]])
+
+
+    
+
+
+
+In [ ]:
+
+    
+y_data = np.array([
+    [1, 0, 0],
+    [0, 1, 0],
+    [0, 0, 1],
+    [1, 0, 0],
+    [1, 0, 0],
+    [0, 0, 1]
+])
+
+
+    
+
+
+
+In [ ]:
+
+    
+X = tf.placeholder(tf.float32)
+Y = tf.placeholder(tf.float32)
+
+
+    
+
+
+
+In [ ]:
+
+    
+W = tf.Variable(tf.random_uniform([2, 3], -1., 1.))
+b = tf.Variable(tf.zeros([3]))
+
+
+    
+
+
+
+In [ ]:
+
+    
+L = tf.add(tf.matmul(X, W),b)
+L = tf.nn.relu(L)
+
+
+    
+
+
+
+In [ ]:
+
+    
+model = tf.nn.softmax(L)
+
+
+    
+
+
+
+In [ ]:
+
+    
+cost = tf.reduce_mean(-tf.reduce_sum(Y * tf.log(model), axis = 1))
+
+
+    
+
+
+
+In [ ]:
+
+    
+# 기본적인 경사하강법으로 최적화합니다.
+optimizer = tf.train.GradientDescentOptimizer(learning_rate = 0.01)
+train_op = optimizer.minimize(cost)
+
+# 텐서플로의 세션을 초기화합니다.
+init = tf.global_variables_initializer()
+sess = tf.Session()
+sess.run(init)
+
+# 앞서 구성한 특징과 레이블 데이터를 이용해 학습을 100번 진행합니다.
+for step in range(100):
+    sess.run(train_op, feed_dict={X: x_data, Y:y_data})
+    
+    # 학습 도중 10번에 한 번씩 손실값을 출력해봅니다.
+    if (step + 1) % 10 == 0:
+        print(step+1, sess.run(cost, feed_dict = {X:x_data, Y:y_data}))
+
+
+    
+
+
+
+In [ ]:
+
+    
+prediction = tf.argmax(model, axis = 1)
+target = tf.argmax(Y, axis = 1)
+print("예측값:", sess.run(prediction, feed_dict={X:x_data}))
+print('실제값:', sess.run(target, feed_dict={Y: y_data}))
+
+
+    
+
+
+
+In [ ]:
+
+    
+is_correct = tf.equal(prediction, target)
+accuracy = tf.reduce_mean(tf.cast(is_correct, tf.float32))
+print('정확도: %.2f' % sess.run(accuracy * 100, feed_dict = {X:x_data, Y:y_data}))
+
+
+    
+
+
+
+In [ ]:
+
+    
+import tensorflow as tf
+import numpy as np
+
+# [털, 날개]
+x_data = np.array(
+[[0, 0],[1, 0],[1, 1],[0, 0],[0, 0],[0, 1]])
+
+y_data = np.array([
+    [1, 0, 0],
+    [0, 1, 0],
+    [0, 0, 1],
+    [1, 0, 0],
+    [1, 0, 0],
+    [0, 0, 1]
+])
+
+X = tf.placeholder(tf.float32)
+Y = tf.placeholder(tf.float32)
+
+W1 = tf.Variable(tf.random_uniform([2, 10],-1.,1.))
+W2 = tf.Variable(tf.random_uniform([10, 3], -1., 1.))
+
+b1 = tf.Variable(tf.zeros([10]))
+b2 = tf.Variable(tf.zeros([3]))
+
+L1 = tf.add(tf.matmul(X, W1),b1)
+L1 = tf.nn.relu(L1)
+
+model = tf.add(tf.matmul(L1, W2),b2)
+
+cost = tf.reduce_mean(
+tf.nn.softmax_cross_entropy_with_logits(labels=Y, logits=model))
+
+optimizer = tf.train.AdamOptimizer(learning_rate=0.01)
+train_op = optimizer.minimize(cost)
+
+init = tf.global_variables_initializer()
+sess = tf.Session()
+sess.run(init)
+
+# 앞서 구성한 특징과 레이블 데이터를 이용해 학습을 100번 진행합니다.
+for step in range(100):
+    sess.run(train_op, feed_dict={X: x_data, Y:y_data})
+    
+    # 학습 도중 10번에 한 번씩 손실값을 출력해봅니다.
+    if (step + 1) % 10 == 0:
+        print(step+1, sess.run(cost, feed_dict = {X:x_data, Y:y_data}))
+
+prediction = tf.argmax(model, axis = 1)
+target = tf.argmax(Y, axis = 1)
+print("예측값:", sess.run(prediction, feed_dict={X:x_data}))
+print('실제값:', sess.run(target, feed_dict={Y: y_data}))
+
+is_correct = tf.equal(prediction, target)
+accuracy = tf.reduce_mean(tf.cast(is_correct, tf.float32))
+print('정확도: %.2f' % sess.run(accuracy * 100, feed_dict = {X:x_data, Y:y_data}))
+
+
+    
+
+
+
+In [ ]:
+
+    
+import tensorflow as tf
+import numpy as np
+
+data = np.loadtxt('./data.csv',delimiter=',',
+                 unpack=True, dtype='float32')
+
+x_data = np.transpose(data[0:2])
+y_data = np.transpose(data[2:])
+
+
+    
+
+
+
+In [ ]:
+
+    
+print(x_data)
+print(y_data)
+
+
+    
+
+
+
+In [ ]:
+
+    
+# not used to train, but to count train steps.
+global_step = tf.Variable(0, trainable=False, name='global_step')
+
+
+    
+
+
+
+In [ ]:
+
+    
+X = tf.placeholder(tf.float32)
+Y = tf.placeholder(tf.float32)
+
+W1 = tf.Variable(tf.random_uniform([2, 10], -1., 1.))
+L1 = tf.nn.relu(tf.matmul(X,W1))
+
+W2 = tf.Variable(tf.random_uniform([10, 20], -1., 1.))
+L2 = tf.nn.relu(tf.matmul(L1,W2))
+
+W3 = tf.Variable(tf.random_uniform([20, 3], -1., 1.))
+model = tf.matmul(L2,W3)
+
+cost = tf.reduce_mean(
+    tf.nn.softmax_cross_entropy_with_logits(labels=Y, logits=model))
+
+optimizer = tf.train.AdamOptimizer(learning_rate=0.01)
+train_op = optimizer.minimize(cost, global_step=global_step)
+
+
+    
+
+
+
+In [ ]:
+
+    
+sess = tf.Session()
+saver = tf.train.Saver(tf.global_variables())
+
+
+    
+
+
+
+In [ ]:
+
+    
+ckpt = tf.train.get_checkpoint_state('./model')
+if ckpt and tf.train.checkpoint_exists(ckpt.model_checkpoint_path):
+    saver.restore(sess, ckpt.model_checkpoint_path)
+else:
+    sess.run(tf.global_variables_initializer())
+
+
+    
+
+
+
+In [ ]:
+
+    
+for step in range(2):
+    sess.run(train_op, feed_dict={X:x_data, Y:y_data})
+    
+    print('Step: %d' % sess.run(global_step),
+         'Cost: %.3f' % sess.run(cost, feed_dict={X: x_data, Y: y_data}))
+
+
+    
+
+
+
+In [ ]:
+
+    
+saver.save(sess, './model/dnn.ckpt',global_step=global_step)
+
+
+    
+
+
+
+In [ ]:
+
+    
+prediction = tf.argmax(model, 1)
+target = tf.argmax(Y, 1)
+print('Prediction:', sess.run(prediction, feed_dict={X:x_data}))
+print('Target:', sess.run(target, feed_dict={Y:y_data}))
+
+is_correct = tf.equal(prediction, target)
+accuracy = tf.reduce_mean(tf.cast(is_correct, tf.float32))
+print('Accuracy: %.2f' % sess.run(accuracy * 100, feed_dict={X: x_data, Y: y_data}))
+
+
+    
+
+
+
+In [ ]:
+
+    
+import tensorflow as tf
+
+from tensorflow.examples.tutorials.mnist import input_data
+mnist = input_data.read_data_sets("./mnist/data/",one_hot=True)
+
+
+    
+
+
+
+In [ ]:
+
+    
+X = tf.placeholder(tf.float32, [None, 784])
+Y = tf.placeholder(tf.float32, [None, 10])
+
+
+    
+
+
+
+In [ ]:
+
+    
+W1 = tf.Variable(tf.random_normal([784,256], stddev=0.01))
+L1 = tf.nn.relu(tf.matmul(X,W1))
+
+W2 = tf.Variable(tf.random_normal([256,256], stddev=0.01))
+L2 = tf.nn.relu(tf.matmul(L1,W2))
+
+W3 = tf.Variable(tf.random_normal([256, 10], stddev=0.01))
+model = tf.matmul(L2, W3)
+
+
+    
+
+
+
+In [ ]:
+
+    
+cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=model, labels=Y))
+optimizer = tf.train.AdamOptimizer(0.001).minimize(cost)
+
+
+    
+
+
+
+In [ ]:
+
+    
+init = tf.global_variables_initializer()
+sess = tf.Session()
+sess.run(init)
+
+
+    
+
+
+
+In [ ]:
+
+    
+batch_size = 100
+total_batch = int(mnist.train.num_examples / batch_size)
+
+
+    
+
+
+
+In [ ]:
+
+    
+for epoch in range(15):
+    total_cost = 0
+    for i in range(total_batch):
+        batch_xs, batch_ys = mnist.train.next_batch(batch_size)
+        
+        _, cost_val = sess.run([optimizer, cost],
+                              feed_dict={X: batch_xs, Y: batch_ys})
+        
+        total_cost += cost_val
+    print('Epoch:','%04d'%(epoch+1),
+         'Avg. cost=', '{:.3f}'.format(total_cost / total_batch))
+    
+print('Optimization complete!')
+
+
+    
+
+
+
+In [ ]:
+
+    
+is_correct = tf.equal(tf.argmax(model, 1), tf.argmax(Y,1))
+
+
+    
+
+
+
+In [ ]:
+
+    
+accuracy = tf.reduce_mean(tf.cast(is_correct, tf.float32))
+
+
+    
+
+
+
+In [ ]:
+
+    
+print('Accuracy:', sess.run(accuracy,
+                          feed_dict={X: mnist.test.images,
+                                    Y: mnist.test.labels}))
+
+
+    
+
+
+
+In [ ]:
+
+    
+import tensorflow as tf
+
+from tensorflow.examples.tutorials.mnist import input_data
+mnist = input_data.read_data_sets("./mnist/data/",one_hot=True)
+
+
+    
+
+
+
+In [ ]:
+
+    
+X = tf.placeholder(tf.float32, [None, 784])
+Y = tf.placeholder(tf.float32, [None, 10])
+
+
+    
+
+
+
+In [ ]:
+
+    
+keep_prob = tf.placeholder(tf.float32)
+
+W1 = tf.Variable(tf.random_normal([784,256], stddev=0.01))
+L1 = tf.nn.relu(tf.matmul(X,W1))
+L1 = tf.nn.dropout(L1, keep_prob)
+
+W2 = tf.Variable(tf.random_normal([256,256], stddev=0.01))
+L2 = tf.nn.relu(tf.matmul(L1,W2))
+L2 = tf.nn.dropout(L2, keep_prob)
+
+W3 = tf.Variable(tf.random_normal([256, 10], stddev=0.01))
+model = tf.matmul(L2, W3)
+
+
+    
+
+
+
+In [ ]:
+
+    
+cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=model, labels=Y))
+optimizer = tf.train.AdamOptimizer(0.001).minimize(cost)
+
+
+    
+
+
+
+In [ ]:
+
+    
+batch_size = 100
+total_batch = int(mnist.train.num_examples / batch_size)
+
+
+    
+
+
+
+In [ ]:
+
+    
+init = tf.global_variables_initializer()
+sess = tf.Session()
+sess.run(init)
+
+
+    
+
+
+
+In [ ]:
+
+    
+for epoch in range(30):
+    total_cost = 0
+    for i in range(total_batch):
+        batch_xs, batch_ys = mnist.train.next_batch(batch_size)
+        
+        _, cost_val = sess.run([optimizer, cost],
+                              feed_dict={X: batch_xs, Y: batch_ys
+                                        ,keep_prob: 0.8})
+        
+        total_cost += cost_val
+    print('Epoch:','%04d'%(epoch+1),
+         'Avg. cost=', '{:.3f}'.format(total_cost / total_batch))
+    
+print('Optimization complete!')
+
+
+    
+
+
+
+In [ ]:
+
+    
+is_correct = tf.equal(tf.argmax(model, 1), tf.argmax(Y,1))
+accuracy = tf.reduce_mean(tf.cast(is_correct, tf.float32))
+print('Accuracy:', sess.run(accuracy,
+                          feed_dict={X: mnist.test.images,
+                                    Y: mnist.test.labels,
+                                    keep_prob:0.8}))
+
+
+    
+
+
+
+In [ ]:
+
+    
+import tensorflow as tf
+
+from tensorflow.examples.tutorials.mnist import input_data
+mnist = input_data.read_data_sets("./mnist/data/",one_hot=True)
+
+
+    
+
+
+
+In [ ]:
+
+    
+X = tf.placeholder(tf.float32, [None, 784])
+Y = tf.placeholder(tf.float32, [None, 10])
+
+
+    
+
+
+
+In [ ]:
+
+    
+is_training = tf.placeholder(tf.bool)
+
+W1 = tf.Variable(tf.random_normal([784,256], stddev=0.01))
+L1 = tf.nn.relu(tf.matmul(X,W1))
+L1 = tf.layers.batch_normalization(L1, training=is_training)
+
+W2 = tf.Variable(tf.random_normal([256,256], stddev=0.01))
+L2 = tf.nn.relu(tf.matmul(L1,W2))
+L2 = tf.layers.batch_normalization(L2, training=is_training)
+
+W3 = tf.Variable(tf.random_normal([256, 10], stddev=0.01))
+model = tf.matmul(L2, W3)
+
+
+    
+
+
+
+In [ ]:
+
+    
+cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=model, labels=Y))
+optimizer = tf.train.AdamOptimizer(0.001).minimize(cost)
+
+
+    
+
+
+
+In [ ]:
+
+    
+batch_size = 100
+total_batch = int(mnist.train.num_examples / batch_size)
+
+
+    
+
+
+
+In [ ]:
+
+    
+init = tf.global_variables_initializer()
+sess = tf.Session()
+sess.run(init)
+
+
+    
+
+
+
+In [ ]:
+
+    
+for epoch in range(30):
+    total_cost = 0
+    for i in range(total_batch):
+        batch_xs, batch_ys = mnist.train.next_batch(batch_size)
+        
+        _, cost_val = sess.run([optimizer, cost],
+                              feed_dict={X: batch_xs, Y: batch_ys
+                                        ,is_training: True})
+        
+        total_cost += cost_val
+    print('Epoch:','%04d'%(epoch+1),
+         'Avg. cost=', '{:.3f}'.format(total_cost / total_batch))
+    
+print('Optimization complete!')
+
+
+    
+
+
+
+In [ ]:
+
+    
+is_correct = tf.equal(tf.argmax(model, 1), tf.argmax(Y,1))
+accuracy = tf.reduce_mean(tf.cast(is_correct, tf.float32))
+print('Accuracy:', sess.run(accuracy,
+                          feed_dict={X: mnist.test.images,
+                                    Y: mnist.test.labels
+                                    ,is_training: True}))
+
+
+    
+
+
+
+In [ ]:
+
+    
+import matplotlib.pyplot as plt
+import numpy as np
+
+
+    
+
+
+
+In [ ]:
+
+    
+labels = sess.run(model,
+                 feed_dict={X:mnist.test.images,
+                           Y:mnist.test.labels,
+                           is_training:True})
+
+
+    
+
+
+
+In [ ]:
+
+    
+fig = plt.figure()
+
+
+    
+
+
+
+In [ ]:
+
+    
+for i in range(10):
+    subplot = fig.add_subplot(2, 5, i + 1)
+    
+    subplot.set_xticks([])
+    subplot.set_yticks([])
+    
+    subplot.set_title('%d'% np.argmax(labels[i]))
+    
+    subplot.imshow(mnist.test.images[i].reshape((28,28)),
+                  cmap=plt.cm.gray_r)
+
+
+    
+
+
+
+In [ ]:
+
+    
+plt.show()
+
+
+    
+
+
+
+In [1]:
+
+    
+import tensorflow as tf
+
+from tensorflow.examples.tutorials.mnist import input_data
+mnist = input_data.read_data_sets('./mnist/data/', one_hot = True)
+
+
+    
+
+
+
+In [3]:
+
+    
+X = tf.placeholder(tf.float32, [None, 28, 28, 1])
+Y = tf.placeholder(tf.float32, [None, 10])
+keep_prob = tf.placeholder(tf.float32)
+
+
+    
+
+
+
+In [8]:
+
+    
+W1 = tf.Variable(tf.random_normal([3, 3, 1, 32], stddev=0.01))
+L1 = tf.nn.conv2d(X, W1, strides=[1, 1, 1, 1], padding='SAME')
+L1 = tf.nn.relu(L1)
+L1 = tf.nn.max_pool(L1, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
+                   padding='SAME')
+
+
+    
+
+
+
+In [11]:
+
+    
+W2 = tf.Variable(tf.random_normal([3, 3, 32, 64], stddev=0.01))
+L2 = tf.nn.conv2d(L1, W2, strides=[1, 1, 1, 1], padding='SAME')
+L2 = tf.nn.relu(L2)
+L2 = tf.nn.max_pool(L2, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
+                   padding='SAME')
+
+
+    
+
+
+
+In [13]:
+
+    
+W3 = tf.Variable(tf.random_normal([7*7*64,256],stddev=0.01))
+L3 = tf.reshape(L2, [-1, 7*7*64])
+L3 = tf.matmul(L3,W3)
+L3 = tf.nn.relu(L3)
+L3 = tf.nn.dropout(L3, keep_prob)
+
+
+    
+
+
+
+In [18]:
+
+    
+W4 = tf.Variable(tf.random_normal([256, 10], stddev=0.01))
+model = tf.matmul(L3, W4)
+
+
+    
+
+
+
+In [19]:
+
+    
+cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=model, labels=Y))
+optimizer = tf.train.AdamOptimizer(0.001).minimize(cost)
+
+
+    
+
+
+
+In [20]:
+
+    
+init = tf.global_variables_initializer()
+sess = tf.Session()
+sess.run(init)
+
+
+    
+
+
+
+In [23]:
+
+    
+batch_size = 100
+total_batch = int(mnist.train.num_examples / batch_size)
+
+
+    
+
+
+
+In [24]:
+
+    
+for epoch in range(15):
+    total_cost = 0
+    
+    for i in range(total_batch):
+        batch_xs, batch_ys = mnist.train.next_batch(batch_size)
+        batch_xs = batch_xs.reshape(-1, 28, 28, 1)
+        
+        _, cost_val = sess.run([optimizer, cost],
+                              feed_dict = {X: batch_xs,
+                                          Y: batch_ys,
+                                          keep_prob : 0.7})
+        
+        total_cost += cost_val
+        
+    print('Epoch:', '%04d' % (epoch + 1),
+         'Avg. cost:', '{:.3f}'.format(total_cost / total_batch))
+    
+print('Optimization complete!')
+
+is_correct = tf.equal(tf.argmax(model, 1), tf.argmax(Y, 1))
+accuracy = tf.reduce_mean(tf.cast(is_correct, tf.float32))
+
+print('Acc:', sess.run(accuracy,
+                      feed_dict={X: mnist.test.images.reshape(
+                      -1, 28, 28, 1),
+                                Y: mnist.test.labels,
+                                keep_prob: 1}))
+
+
+    
+
+
+
+In [ ]:
+
+    
+ 
+
+
+    
+

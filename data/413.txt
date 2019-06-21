@@ -1,0 +1,138 @@
+import os
+from keras.layers import Dense, Flatten, Dropout, Activation
+from keras.models import Sequential, load_model
+from keras.optimizers import Adam, RMSprop, Adadelta
+from keras.layers import Conv2D, MaxPooling2D, GlobalAveragePooling2D
+from keras.layers import LSTM, Embedding
+class DeepLearningModels():
+    def __init__(self, nb_classes, model, saved_model=None):
+        self.load_model = load_model
+        self.saved_model = saved_model
+        self.nb_classes = nb_classes
+        if self.saved_model is not None and os.path.isfile(self.saved_model):
+            print("Loading model %s" % self.saved_model)
+            self.model = load_model(self.saved_model)
+        elif model == 'mlp_mnist':
+            print("Loading MLP model for MNIST data set.")
+            self.model = self.mlp_mnist()
+        elif model == 'cnn_mnist':
+            print("Loading CNN model for MNIST data set.")
+            self.model = self.cnn_mnist()
+        elif model == 'cnn_cifar10':
+            print("Loading CNN model for CIFAR10 data set.")
+            self.model = self.cnn_cifar10()
+        elif model == 'cnn_cifar100':
+            print("Loading CNN model for CIFAR100 data set.")
+            self.model = self.cnn_cifar100()
+        elif model == 'lstm_imdb':
+            print("Loading LSTM model for imdb data set.")
+            self.model = self.lstm_imdb()
+        elif model == 'lstm_ucf101':
+            print("Loading LSTM model for ucf101 data set.")
+            self.model = self.lstm_ucf101()
+        else:
+            print("Unknown network.")
+            sys.exit()
+    def mlp_mnist(self):
+        model = Sequential()
+        model.add(Dense(512, activation='relu', input_shape=(784,)))
+        model.add(Dropout(0.2))
+        model.add(Dense(512, activation='relu'))
+        model.add(Dropout(0.2))
+        model.add(Dense(self.nb_classes, activation='softmax'))
+        model.compile(loss='categorical_crossentropy',optimizer=RMSprop(),etrics=['accuracy', 'top_k_categorical_accuracy'])
+        return model
+    def cnn_mnist(self):
+        model = Sequential()
+        model.add(Conv2D(32, kernel_size=(3, 3),activation='relu',put_shape=(28, 28, 1)))
+        model.add(Conv2D(64, (3, 3), activation='relu'))
+        model.add(MaxPooling2D(pool_size=(2, 2)))
+        model.add(Dropout(0.25))
+        model.add(Flatten())
+        model.add(Dense(128, activation='relu'))
+        model.add(Dropout(0.5))
+        model.add(Dense(self.nb_classes, activation='softmax'))
+        model.compile(loss='categorical_crossentropy',optimizer=Adadelta(),etrics=['accuracy', 'top_k_categorical_accuracy'])
+        return model
+    def cnn_cifar10(self):
+        model.add(Conv2D(32, (3, 3), padding='same',put_shape=(32, 32, 3)))
+        model.add(Activation('relu'))
+        model.add(Conv2D(32, (3, 3)))
+        model.add(Activation('relu'))
+        model.add(MaxPooling2D(pool_size=(2, 2)))
+        model.add(Dropout(0.25))
+        model.add(Conv2D(64, (3, 3), padding='same'))
+        model.add(Activation('relu'))
+        model.add(Conv2D(64, (3, 3)))
+        model.add(Activation('relu'))
+        model.add(MaxPooling2D(pool_size=(2, 2)))
+        model.add(Dropout(0.25))
+        model.add(Flatten())
+        model.add(Dense(512))
+        model.add(Activation('relu'))
+        model.add(Dropout(0.5))
+        model.add(Dense(self.nb_classes))
+        model.add(Activation('softmax'))
+        opt = RMSprop(lr=0.0001, decay=1e-6)
+        model.compile(loss='categorical_crossentropy',optimizer=opt,etrics=['accuracy', 'top_k_categorical_accuracy'])
+        return model
+    def cnn_cifar10_big(self):
+        model.add(Conv2D(96, (3, 3), activation='relu', padding='same',put_shape=(32, 32, 3)))
+        model.add(Conv2D(96, (3, 3), activation='relu'))
+        model.add(Conv2D(96, (3, 3), activation='relu'))
+        model.add(MaxPooling2D(pool_size=(2, 2)))
+        model.add(Dropout(0.25))
+        model.add(Conv2D(192, (3, 3), activation='relu', padding='same'))
+        model.add(Conv2D(192, (3, 3), activation='relu'))
+        model.add(Conv2D(192, (3, 3), activation='relu'))
+        model.add(MaxPooling2D(pool_size=(2, 2)))
+        model.add(Dropout(0.25))
+        model.add(Conv2D(192, (3, 3), activation='relu'))
+        model.add(Conv2D(192, (1, 1), activation='relu'))
+        model.add(Conv2D(10, (1, 1), activation='relu'))
+        model.add(GlobalAveragePooling2D())
+        model.add(Activation('softmax'))
+        opt = RMSprop(lr=0.0001, decay=1e-6)
+        model.compile(loss='categorical_crossentropy',optimizer=opt,etrics=['accuracy', 'top_k_categorical_accuracy'])
+        return model
+    def cnn_cifar100(self):
+        model.add(Conv2D(32, (3, 3), padding='same',put_shape=(32, 32, 3)))
+        model.add(Activation('relu'))
+        model.add(Conv2D(32, (3, 3)))
+        model.add(Activation('relu'))
+        model.add(MaxPooling2D(pool_size=(2, 2)))
+        model.add(Dropout(0.25))
+        model.add(Conv2D(64, (3, 3), padding='same'))
+        model.add(Activation('relu'))
+        model.add(Conv2D(64, (3, 3)))
+        model.add(Activation('relu'))
+        model.add(MaxPooling2D(pool_size=(2, 2)))
+        model.add(Dropout(0.25))
+        model.add(Flatten())
+        model.add(Dense(512))
+        model.add(Activation('relu'))
+        model.add(Dropout(0.5))
+        model.add(Dense(self.nb_classes))
+        model.add(Activation('softmax'))
+        opt = RMSprop(lr=0.0001, decay=1e-6)
+        model.compile(loss='categorical_crossentropy',optimizer=opt,etrics=['accuracy', 'top_k_categorical_accuracy'])
+        return model
+    def lstm_imdb(self):
+        max_features = 20000
+        model = Sequential()
+        model.add(Embedding(max_features, 128))
+        model.add(LSTM(128, dropout=0.2, recurrent_dropout=0.2))
+        model.add(Dense(self.nb_classes, activation='softmax'))
+        model.compile(loss='categorical_crossentropy',optimizer='adam',metrics=['accuracy'])
+        return model
+    def lstm_ucf101(self):
+        model = Sequential()
+        model.add(LSTM(2048, return_sequences=True, input_shape=self.input_shape,dropout=0.5))
+        model.add(Flatten())
+        model.add(Dense(512, activation='relu'))
+        model.add(Dropout(0.5))
+        model.add(Dense(self.nb_classes, activation='softmax'))
+        metrics = ['accuracy', 'top_k_categorical_accuracy']
+        self.model.compile(loss='categorical_crossentropy', optimizer=optimizer,metrics=metrics)
+        return model
+        

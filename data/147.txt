@@ -1,0 +1,17 @@
+import numpy as np
+import pprint
+from keras.models import Sequential
+from keras.layers import Convolution2D, Dense, Flatten, Activation, MaxPooling2D, Dropout
+from keras.layers.recurrent import LSTM
+from keras.layers.advanced_activations import ELU
+from keras.layers.embeddings import Embedding
+from kerasify import export_model
+np.set_printoptions(precision=25, threshold=np.nan)
+def c_array(a):
+    s = pprint.pformat(a.flatten())
+    s = s.replace('[', '{').replace(']', '}').replace('array(', '').replace(')', '').replace(', dtype=float32', '')
+    shape = ''
+    if a.shape == ():
+        s = '{%s}' % s
+        shape = '(1)'
+    else:

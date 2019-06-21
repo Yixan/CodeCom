@@ -1,0 +1,34 @@
+from keras.models import load_model
+from keras.models import Sequential
+from keras.layers import Merge
+from keras.layers.core import Dense
+from keras.layers.recurrent import LSTM
+import numpy as np
+class fifo_array():
+        self.max_len = max_length
+        self.arr = np.zeros((1, self.max_len))
+    def add_element(self, element):
+        self.arr2 = np.delete(self.arr2, 0, 0)
+        self.arr = np.reshape(self.arr2, self.arr.shape)
+    def get_value(self):
+        return self.arr
+    def change_length(self, new_length):
+            self.arr3 = np.zeros((1, new_length))
+            self.arr3[0, 0:self.max_len] = self.arr
+            self.arr = self.arr3
+            self.max_len = new_length
+        else:
+            x = [y for y in range(self.max_len - new_length)]
+            print(x)
+            self.arr4 = np.delete(self.arr, x, 1)
+            self.arr = self.arr4
+            self.max_len = new_length
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'

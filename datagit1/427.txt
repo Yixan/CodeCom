@@ -1,0 +1,116 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import tensorflow as tf
+import os
+from tensorflow.python.ops.parallel_for.gradients import jacobian
+np.random.seed(10)
+file_path = os.path.dirname(os.getcwd()) + '/Data/SINDY_Data.npy'
+states = np.load(file_path)[:-1, :]
+data_tsteps = np.shape(states)[0]
+state_len = np.shape(states)[1]
+cft_max = np.amax(states, axis=0)
+cft_min = np.amin(states, axis=0)
+states = (-1.0 + 2.0 * (states[:, :] - cft_min[(None), :]) / (cft_max[(None), :] - cft_min[(None), :])) * (1.0 + np.random.randn() * 0.02)
+seq_num = 20
+num_batch = 1000
+total_size = np.shape(states)[0] - int(seq_num)
+input_seq = np.zeros(shape=(num_batch, seq_num, state_len))
+output_seq = np.zeros(shape=(num_batch, seq_num - 1, state_len))
+for bnum in range(num_batch):
+    t = np.random.randint(low=0, high=total_size)
+    input_seq[(bnum), :, :] = states[(None), t:t + seq_num, :]
+    output_seq[(bnum), :, :] = states[(None), t + 2:t + seq_num + 1, :]
+lstm_session = tf.Session()
+lstm_neurons = 32
+weights = {'ig': tf.Variable(tf.truncated_normal(shape=[state_len, lstm_neurons], seed=1, mean=0.0, stddev=0.1)), 'fg': tf.Variable(tf.truncated_normal(shape=[state_len, lstm_neurons], seed=2, mean=0.0, stddev=0.1)), 'og': tf.Variable(tf.truncated_normal(shape=[state_len, lstm_neurons], seed=3, mean=0.0, stddev=0.1)), 'iz': tf.Variable(tf.truncated_normal(shape=[state_len, lstm_neurons], seed=
+    4, mean=0.0, stddev=0.1)), 'op': tf.Variable(tf.truncated_normal(shape=[lstm_neurons, state_len], seed=5, mean=0.0, stddev=0.1))}
+biases = {'ig': tf.Variable(tf.truncated_normal(shape=[lstm_neurons], seed=1, mean=0.0, stddev=0.1)), 'fg': tf.Variable(tf.truncated_normal(shape=[lstm_neurons], seed=2, mean=0.0, stddev=0.1)), 'og': tf.Variable(tf.truncated_normal(shape=[lstm_neurons], seed=3, mean=0.0, stddev=0.1)), 'iz': tf.Variable(tf.truncated_normal(shape=[lstm_neurons], seed=4, mean=0.0, stddev=0.1)), 'op': tf.Variable(
+    tf.truncated_normal(shape=[state_len], seed=5, mean=0.0, stddev=0.1))}
+placeholder_batch_size = num_batch // seq_num
+ph_input = tf.placeholder(tf.float32, [placeholder_batch_size, seq_num, state_len])
+ph_output = tf.placeholder(tf.float32, [placeholder_batch_size, seq_num - 1, state_len])
+ig = tf.nn.sigmoid(tf.add(tf.einsum('ijk,kl->ijl', ph_input, weights['ig']), biases['ig']))
+fg = tf.nn.sigmoid(tf.add(tf.einsum('ijk,kl->ijl', ph_input, weights['fg']), biases['fg']))
+og = tf.nn.sigmoid(tf.add(tf.einsum('ijk,kl->ijl', ph_input, weights['og']), biases['og']))
+iz = tf.nn.tanh(tf.add(tf.einsum('ijk,kl->ijl', ph_input, weights['iz']), biases['iz']))
+internal_state_temp = tf.multiply(ig, iz)
+internal_state_curr = tf.slice(internal_state_temp, [0, 1, 0], [placeholder_batch_size, seq_num - 1, lstm_neurons])
+internal_state_prev = tf.slice(internal_state_temp, [0, 0, 0], [placeholder_batch_size, seq_num - 1, lstm_neurons])
+fg_c = tf.slice(fg, [0, 1, 0], [placeholder_batch_size, seq_num - 1, lstm_neurons])
+og_c = tf.slice(og, [0, 1, 0], [placeholder_batch_size, seq_num - 1, lstm_neurons])
+internal_state = tf.add(tf.multiply(fg_c, internal_state_prev), internal_state_curr)
+ht = tf.multiply(og_c, tf.nn.tanh(internal_state))
+output_seq_pred = tf.add(tf.einsum('ijk,kl->ijl', ht, weights['op']), biases['op'])
+loss_temp = tf.reduce_mean(tf.squared_difference(output_seq_pred, ph_output))
+J = jacobian(loss_temp, ph_input)
+J = tf.reshape(J, shape=[placeholder_batch_size, seq_num * state_len])
+loss = loss_temp
+optimizer = tf.train.AdamOptimizer(learning_rate=0.005)
+grads_and_vars = optimizer.compute_gradients(loss)
+backprop = optimizer.apply_gradients(grads_and_vars)
+init_op = tf.global_variables_initializer()
+lstm_session.run(init_op)
+saver = tf.train.Saver()
+current_pwd = os.getcwd() + '/'
+num_epochs = int(10 * num_batch)
+best_loss = np.Inf
+with lstm_session.as_default():
+    bnum = 0
+    for i in range(num_epochs):
+        start_id = bnum * placeholder_batch_size
+        end_id = (bnum + 1) * placeholder_batch_size
+        input_batch = input_seq[start_id:end_id, :, :]
+        output_batch = output_seq[start_id:end_id, :, :]
+        bnum = bnum + 1
+        val_num = np.random.randint(low=0, high=seq_num - 1)
+        val_start_id = val_num * placeholder_batch_size
+        val_end_id = (val_num + 1) * placeholder_batch_size
+        val_input_batch = input_seq[val_start_id:val_end_id, :, :]
+        val_output_batch = output_seq[val_start_id:val_end_id, :, :]
+        if bnum == seq_num:
+            bnum = 0
+        backprop.run(feed_dict={ph_input: input_batch, ph_output: output_batch})
+        mse_batch = np.mean(loss.eval(feed_dict={ph_input: input_batch, ph_output: output_batch}))
+        mse_batch_val = np.mean(loss.eval(feed_dict={ph_input: val_input_batch, ph_output: val_output_batch}))
+        print('MSE Batch: ', mse_batch, 'MSE Batch Validation: ', mse_batch_val)
+        if mse_batch_val < best_loss:
+            save_path = saver.save(lstm_session, current_pwd)
+            print('Model saved in path: %s' % save_path)
+            best_loss = mse_batch_val
+eval_session = tf.Session()
+placeholder_batch_size = 1
+ph_input = tf.placeholder(tf.float32, [placeholder_batch_size, seq_num, state_len])
+ig = tf.nn.sigmoid(tf.add(tf.einsum('ijk,kl->ijl', ph_input, weights['ig']), biases['ig']))
+fg = tf.nn.sigmoid(tf.add(tf.einsum('ijk,kl->ijl', ph_input, weights['fg']), biases['fg']))
+og = tf.nn.sigmoid(tf.add(tf.einsum('ijk,kl->ijl', ph_input, weights['og']), biases['og']))
+iz = tf.nn.tanh(tf.add(tf.einsum('ijk,kl->ijl', ph_input, weights['iz']), biases['iz']))
+internal_state_temp = tf.multiply(ig, iz)
+internal_state_curr = tf.slice(internal_state_temp, [0, 1, 0], [placeholder_batch_size, seq_num - 1, lstm_neurons])
+internal_state_prev = tf.slice(internal_state_temp, [0, 0, 0], [placeholder_batch_size, seq_num - 1, lstm_neurons])
+fg_c = tf.slice(fg, [0, 1, 0], [placeholder_batch_size, seq_num - 1, lstm_neurons])
+og_c = tf.slice(og, [0, 1, 0], [placeholder_batch_size, seq_num - 1, lstm_neurons])
+internal_state = tf.add(tf.multiply(fg_c, internal_state_prev), internal_state_curr)
+ht = tf.multiply(og_c, tf.nn.tanh(internal_state))
+output_seq_pred = tf.add(tf.einsum('ijk,kl->ijl', ht, weights['op']), biases['op'])
+init_op = tf.global_variables_initializer()
+eval_session.run(init_op)
+saver = tf.train.Saver()
+save_path = os.getcwd() + '/'
+saver.restore(eval_session, save_path)
+print('Model sucessfully restored')
+state_tracker = np.zeros(shape=(1, data_tsteps, state_len), dtype='double')
+state_tracker[(0), 0:seq_num, :] = states[0:seq_num, :]
+with eval_session.as_default():
+    for t in range(seq_num, data_tsteps):
+        lstm_input = state_tracker[:, t - seq_num:t, :]
+        output_state = np.asarray(output_seq_pred.eval(feed_dict={ph_input: lstm_input}))
+        state_tracker[(0), (t), :] = output_state[:, (-1), :]
+fig, ax = plt.subplots(nrows=2, ncols=2)
+mnum = 0
+for j in range(2):
+    for i in range(2):
+        ax[i, j].plot(states[:, (mnum)], label='True', color='blue')
+        ax[i, j].plot(state_tracker[(0), :, (mnum)], label='Predicted', color='red')
+        mnum = mnum + 1
+plt.legend()
+plt.show()

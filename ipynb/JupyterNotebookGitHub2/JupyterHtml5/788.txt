@@ -1,0 +1,201 @@
+
+In [32]:
+
+    
+import tensorflow as tf ### 기본 라이브러리 불러오기
+import numpy as np
+sess = tf.Session()
+
+
+    
+
+
+
+In [34]:
+
+    
+### x1 --> h1 
+###             --> y
+### x2 --> h2
+
+### [x1 x2][w11 w12] + [b1 b2]
+###        [w21 w22]
+
+x = tf.placeholder(tf.float32, shape=[None, 2])   ### shape(-1, 2)
+t = tf.placeholder(tf.float32, shape=[None, 1])
+
+w1 = tf.Variable(tf.truncated_normal([2, 2]))
+b1 = tf.Variable(tf.zeros([2]))
+h = tf.nn.sigmoid(tf.matmul(x, w)+b)   ### 연산방법 정의 x*w + b
+
+w2 = tf.Variable(tf.truncated_normal([2, 1]))
+b2 = tf.Variable(tf.zeros([1]))
+y = tf.nn.sigmoid(tf.matmul(h, v)+c)   ### 연산방법 정의 x*w + b
+
+
+    
+
+
+
+In [2]:
+
+    
+### 이렇게 응용할수도 있음ㅋ
+
+n_hidden_1 = 5
+n_hidden_2 = 3
+
+x = tf.placeholder(tf.float32, shape=[None, 2])   ### shape(-1, 2)
+t = tf.placeholder(tf.float32, shape=[None, 1])
+
+w = tf.Variable(tf.truncated_normal([2, n_hidden_1]))
+b = tf.Variable(tf.zeros([n_hidden_1]))
+h = tf.nn.sigmoid(tf.matmul(x, w)+b)   ### 연산방법 정의 x*w + b
+
+v = tf.Variable(tf.truncated_normal([n_hidden_1, n_hidden_2]))
+c = tf.Variable(tf.zeros([n_hidden_2]))
+g = tf.nn.sigmoid(tf.matmul(h, v)+c)   ### 연산방법 정의 x*w + b
+
+z = tf.Variable(tf.truncated_normal([n_hidden_2, 1]))
+d = tf.Variable(tf.zeros([1]))
+y = tf.nn.sigmoid(tf.matmul(g, z)+d)   ### 연산방법 정의 x*w + b
+
+
+    
+
+
+
+In [35]:
+
+    
+cross_ent = -tf.reduce_mean(t*tf.log(y)+(1-t)*tf.log(1-y))   ### Error function
+
+
+    
+
+
+
+In [36]:
+
+    
+optimizer = tf.train.GradientDescentOptimizer(0.1)
+train_step = optimizer.minimize(cross_ent)   ### gr. dcnt 를 최소화
+
+
+    
+
+
+
+In [37]:
+
+    
+correct_pred = tf.equal(tf.to_float(tf.greater(y, 0.5)), t)   ### y와 0.5의 값 비교 ( T, F 반환 )
+
+
+    
+
+
+
+In [38]:
+
+    
+X = np.array([[0, 0], [0, 1], [1, 0], [1, 1]])   ### data 입력 (x1, x2, t)
+Y = np.array([[0], [1], [1], [0]])
+
+init = tf.global_variables_initializer()   ### initialize 필요
+sess.run(init)
+
+
+    
+
+
+
+In [39]:
+
+    
+prob = y.eval(session=sess, feed_dict={x:X})   ### y값 계산
+print(prob)
+
+
+    
+
+
+
+In [40]:
+
+    
+classified = correct_pred.eval(session=sess, feed_dict={x:X, t:Y})   ### 결과랑 비교해서 맞는지 판단
+print(classified)
+
+
+    
+
+
+
+In [41]:
+
+    
+print(sess.run(w))   ### w, b 값 계산
+print(sess.run(b))
+
+
+    
+
+
+
+In [42]:
+
+    
+### 옵티를 minimize
+
+for epoch in range(8000):   ### 8000번 계산한다.
+    sess.run(train_step, feed_dict={x:X, t:Y})
+    if epoch % 1000 == 0:   ### 이건 그냥 잘 돌아가는지 판단하려고...
+        print("epoch =", epoch)
+
+
+    
+
+
+
+In [43]:
+
+    
+classified = correct_pred.eval(session=sess, feed_dict={x:X, t:Y})   ### 제대로 분류되는지 판단
+print(classified)
+
+
+    
+
+
+
+In [44]:
+
+    
+prob = y.eval(session=sess, feed_dict={x:X})
+print(prob)
+
+
+    
+
+
+
+In [45]:
+
+    
+print(sess.run(w))   ### 값 출력
+print(sess.run(b))
+
+
+    
+
+
+
+In [ ]:
+
+    
+ 
+
+
+    
+

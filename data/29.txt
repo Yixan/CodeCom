@@ -1,0 +1,21 @@
+from keras.layers.core import Dense, Activation, Dropout
+from keras.layers.recurrent import LSTM
+from keras.models import Sequential
+import keras.models as km
+import keras as keras
+X_train, y_train, X_test, y_test = lstm.load_data('itau_fechamento_02-02-2009_06-03-2017.csv', 50, True)
+model = Sequential()
+model.add(LSTM(input_dim=1,output_dim=50,return_sequences=True))
+model.add(Dropout(0.2))
+model.add(LSTM(100,return_sequences=False))
+model.add(Dropout(0.2))
+model.add(Dense(output_dim=1))
+model.add(Activation('tanh'))
+start = time.time()
+model.compile(loss='mse', optimizer='rmsprop',metrics=['accuracy'])
+print 'compilation time : ', time.time() - start
+tbCallBack = keras.callbacks.TensorBoard(log_dir='./Graph', histogram_freq=0,rite_graph=True, write_images=True)
+model.fit(X_train,y_train,batch_size=512,nb_epoch=1,validation_split=0.05,alidation_data=(X_test, y_test),callbacks=[tbCallBack])
+score, acc = model.evaluate(X_test,y_test,batch_size=512)
+print '%s: %.2f%% ' % ('Score',score*100)
+print '%s: %.2f%% ' % ('Accuracy',acc*100)

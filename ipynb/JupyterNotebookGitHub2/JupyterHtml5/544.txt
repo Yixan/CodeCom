@@ -1,0 +1,407 @@
+
+In [ ]:
+
+    
+import tensorflow as tf
+from tensorflow.examples.tutorials.mnist import input_data
+
+
+    
+
+
+
+In [ ]:
+
+    
+# parameters
+batch_size = 100
+learning_rate = 0.003
+training_epochs = 10
+
+
+    
+
+
+
+In [ ]:
+
+    
+# MNIST data set
+mnist = input_data.read_data_sets("./MNIST_DATA", one_hot=True)
+
+print("# of Train Data: ", mnist.train.num_examples)
+print("# of Test Data: ", mnist.test.num_examples)
+print("# of Validation Data: ", mnist.validation.num_examples)
+
+
+    
+
+
+
+In [ ]:
+
+    
+# Network Layers
+L = 200
+M = 100
+N = 60
+O = 30
+
+# input
+X = tf.placeholder(tf.float32, [None, 784])
+Y_ = tf.placeholder(tf.float32, [None, 10])
+
+XX = tf.reshape(X, [-1, 784])
+
+print(X)
+print(Y_)
+print(XX)
+
+
+    
+
+
+
+In [ ]:
+
+    
+# Layer1 (L=200)
+W1 = tf.Variable(tf.truncated_normal([784, L], stddev=0.1))
+B1 = tf.Variable(tf.zeros([L]))
+Y1 = tf.nn.sigmoid(tf.matmul(XX, W1) + B1)
+
+
+    
+
+
+
+In [ ]:
+
+    
+# Layer2 (M=100)
+W2 = tf.Variable(tf.truncated_normal([L, M], stddev=0.1))
+B2 = tf.Variable(tf.zeros([M]))
+Y2 = tf.nn.sigmoid(tf.matmul(Y1, W2) + B2)
+
+
+    
+
+
+
+In [ ]:
+
+    
+# Layer3 (N=60)
+W3 = tf.Variable(tf.truncated_normal([M, N], stddev=0.1))
+B3 = tf.Variable(tf.zeros([N]))
+Y3 = tf.nn.sigmoid(tf.matmul(Y2, W3) + B3)
+
+
+    
+
+
+
+In [ ]:
+
+    
+# Layer4 (O=30)
+W4 = tf.Variable(tf.truncated_normal([N, O], stddev=0.1))
+B4 = tf.Variable(tf.zeros([O]))
+Y4 = tf.nn.sigmoid(tf.matmul(Y3, W4) + B4)
+
+
+    
+
+
+
+In [ ]:
+
+    
+# Output Layer (Y=10)
+W5 = tf.Variable(tf.truncated_normal([O, 10], stddev=0.1))
+B5 = tf.Variable(tf.zeros([10]))
+Ylogits = tf.matmul(Y4, W5) + B5
+Y = tf.nn.softmax(Ylogits)
+
+
+    
+
+
+
+In [ ]:
+
+    
+# Loss function (Cross Entropy)
+cross_entropy = tf.nn.softmax_cross_entropy_with_logits(
+                    logits=Ylogits, labels=Y_)
+cross_entropy = tf.reduce_mean(cross_entropy)*100
+
+# Optimize (Adam)
+train_step = tf.train.AdamOptimizer(
+                learning_rate).minimize(cross_entropy)
+# train_step = tf.train.GradientDescentOptimizer(learning_rate).minimize(cross_entropy)
+
+
+    
+
+
+
+In [ ]:
+
+    
+# accuracy
+correct_prediction = tf.equal(tf.argmax(Y, 1), tf.argmax(Y_, 1))
+accuracy = tf.reduce_mean(
+                tf.cast(correct_prediction, tf.float32))
+
+
+    
+
+
+
+In [ ]:
+
+    
+# session
+sess = tf.Session()
+sess.run(tf.global_variables_initializer())
+
+
+    
+
+
+
+In [ ]:
+
+    
+%%time
+# train
+for epoch in range(training_epochs):
+    batch_count = int(mnist.train.num_examples/batch_size)
+    for i in range(batch_count):
+        batch_x, batch_y = mnist.train.next_batch(batch_size)
+        _, acc = sess.run([train_step, accuracy], 
+                             feed_dict={X: batch_x,
+                                        Y_: batch_y})
+    print("Epoch: ", epoch, "\tAccuracy: ", acc)
+
+
+    
+
+
+
+In [ ]:
+
+    
+%%time
+# test accuracy
+print("Test Accuracy: ", sess.run(accuracy,
+                            feed_dict={X: mnist.test.images,
+                                       Y_: mnist.test.labels}))
+print("done")
+
+
+    
+
+
+
+In [ ]:
+
+    
+%%time
+import tensorflow as tf
+from tensorflow.examples.tutorials.mnist import input_data
+
+# parameters
+batch_size = 100
+learning_rate = 0.003
+training_epochs = 10
+
+# MNIST data set
+mnist = input_data.read_data_sets("./MNIST_DATA", one_hot=True)
+
+# Network Layers
+L = 200
+M = 100
+N = 60
+O = 30
+
+# input
+X = tf.placeholder(tf.float32, [None, 784])
+Y_ = tf.placeholder(tf.float32, [None, 10])
+
+XX = tf.reshape(X, [-1, 784])
+
+# Layer1 (L=200)
+W1 = tf.Variable(tf.truncated_normal([784, L], stddev=0.1))
+B1 = tf.Variable(tf.zeros([L]))
+Y1 = tf.nn.relu(tf.matmul(XX, W1) + B1)
+
+# Layer2 (M=100)
+W2 = tf.Variable(tf.truncated_normal([L, M], stddev=0.1))
+B2 = tf.Variable(tf.zeros([M]))
+Y2 = tf.nn.relu(tf.matmul(Y1, W2) + B2)
+
+# Layer3 (N=60)
+W3 = tf.Variable(tf.truncated_normal([M, N], stddev=0.1))
+B3 = tf.Variable(tf.zeros([N]))
+Y3 = tf.nn.relu(tf.matmul(Y2, W3) + B3)
+
+# Layer4 (O=30)
+W4 = tf.Variable(tf.truncated_normal([N, O], stddev=0.1))
+B4 = tf.Variable(tf.zeros([O]))
+Y4 = tf.nn.relu(tf.matmul(Y3, W4) + B4)
+
+# Output Layer (Y=10)
+W5 = tf.Variable(tf.truncated_normal([O, 10], stddev=0.1))
+B5 = tf.Variable(tf.zeros([10]))
+Ylogits = tf.matmul(Y4, W5) + B5
+Y = tf.nn.softmax(Ylogits)
+
+# Loss function (Cross Entropy)
+cross_entropy = tf.nn.softmax_cross_entropy_with_logits(
+                    logits=Ylogits, labels=Y_)
+cross_entropy = tf.reduce_mean(cross_entropy)*100
+
+# Optimize (Adam)
+train_step = tf.train.AdamOptimizer(
+                learning_rate).minimize(cross_entropy)
+
+# accuracy
+correct_prediction = tf.equal(tf.argmax(Y, 1), tf.argmax(Y_, 1))
+accuracy = tf.reduce_mean(
+                tf.cast(correct_prediction, tf.float32))
+
+# session
+sess = tf.Session()
+sess.run(tf.global_variables_initializer())
+
+# train
+for epoch in range(training_epochs):
+    batch_count = int(mnist.train.num_examples/batch_size)
+    for i in range(batch_count):
+        batch_x, batch_y = mnist.train.next_batch(batch_size)
+        _, acc = sess.run([train_step, accuracy], 
+                             feed_dict={X: batch_x,
+                                        Y_: batch_y})
+    print("Epoch: ", epoch, "\tAccuracy: ", acc)
+
+# test accuracy
+print("Test Accuracy: ", sess.run(accuracy,
+                            feed_dict={X: mnist.test.images,
+                                       Y_: mnist.test.labels}))
+print("done")
+
+
+    
+
+
+
+In [ ]:
+
+    
+%%time
+import tensorflow as tf
+from tensorflow.examples.tutorials.mnist import input_data
+
+# parameters
+batch_size = 100
+learning_rate = 0.003
+training_epochs = 10
+
+# MNIST data set
+mnist = input_data.read_data_sets("./MNIST_DATA", one_hot=True)
+
+# Network Layers
+L = 200
+M = 100
+N = 60
+O = 30
+
+# input
+X = tf.placeholder(tf.float32, [None, 784])
+Y_ = tf.placeholder(tf.float32, [None, 10])
+# dropout ration (0.75 => 75% data keep, 25% data dropout)
+dropout_ratio = tf.placeholder(tf.float32)
+
+XX = tf.reshape(X, [-1, 784])
+
+# Layer1 (L=200)
+W1 = tf.Variable(tf.truncated_normal([784, L], stddev=0.1))
+B1 = tf.Variable(tf.zeros([L]))
+Y1 = tf.nn.relu(tf.matmul(XX, W1) + B1)
+Y1d = tf.nn.dropout(Y1, dropout_ratio)
+
+# Layer2 (M=100)
+W2 = tf.Variable(tf.truncated_normal([L, M], stddev=0.1))
+B2 = tf.Variable(tf.zeros([M]))
+Y2 = tf.nn.relu(tf.matmul(Y1d, W2) + B2)
+Y2d = tf.nn.dropout(Y2, dropout_ratio)
+
+# Layer3 (N=60)
+W3 = tf.Variable(tf.truncated_normal([M, N], stddev=0.1))
+B3 = tf.Variable(tf.zeros([N]))
+Y3 = tf.nn.relu(tf.matmul(Y2d, W3) + B3)
+Y3d = tf.nn.dropout(Y3, dropout_ratio)
+
+# Layer4 (O=30)
+W4 = tf.Variable(tf.truncated_normal([N, O], stddev=0.1))
+B4 = tf.Variable(tf.zeros([O]))
+Y4 = tf.nn.relu(tf.matmul(Y3d, W4) + B4)
+Y4d = tf.nn.dropout(Y4, dropout_ratio)
+
+# Output Layer (Y=10)
+W5 = tf.Variable(tf.truncated_normal([O, 10], stddev=0.1))
+B5 = tf.Variable(tf.zeros([10]))
+Ylogits = tf.matmul(Y4, W5) + B5
+Y = tf.nn.softmax(Ylogits)
+
+# Loss function (Cross Entropy)
+cross_entropy = tf.nn.softmax_cross_entropy_with_logits(
+                    logits=Ylogits, labels=Y_)
+cross_entropy = tf.reduce_mean(cross_entropy)*100
+
+# Optimize (Adam)
+train_step = tf.train.AdamOptimizer(
+                learning_rate).minimize(cross_entropy)
+
+# accuracy
+correct_prediction = tf.equal(tf.argmax(Y, 1), tf.argmax(Y_, 1))
+accuracy = tf.reduce_mean(
+                tf.cast(correct_prediction, tf.float32))
+
+# session
+sess = tf.Session()
+sess.run(tf.global_variables_initializer())
+
+# train
+for epoch in range(training_epochs):
+    batch_count = int(mnist.train.num_examples/batch_size)
+    for i in range(batch_count):
+        batch_x, batch_y = mnist.train.next_batch(batch_size)
+        _, acc = sess.run([train_step, accuracy], 
+                             feed_dict={X: batch_x,
+                                        Y_: batch_y,
+                                        dropout_ratio: 0.75})
+    print("Epoch: ", epoch, "\tAccuracy: ", acc)
+
+# test accuracy
+print("Test Accuracy: ", sess.run(accuracy,
+                            feed_dict={X: mnist.test.images,
+                                       Y_: mnist.test.labels,
+                                       dropout_ratio: 1.0}))
+print("done")
+
+
+    
+
+
+
+In [ ]:
+
+    
+ 
+
+
+    
+

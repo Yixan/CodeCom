@@ -1,0 +1,68 @@
+import os
+import time
+import numpy as np
+from functools import wraps
+from sklearn.externals import joblib
+from sklearn.preprocessing import LabelBinarizer
+from sklearn.model_selection import cross_val_score
+from keras.layers.embeddings import Embedding
+from keras.models import load_model, Sequential
+from keras.wrappers.scikit_learn import KerasClassifier
+from keras.layers import Dense, Dropout, Activation, LSTM
+N_FEATURES = 10000
+DOC_LEN = 60
+N_CLASSES = 2
+def timeit(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start = time.time()
+        result = func(*args, **kwargs)
+        return result, time.time() - start
+    return wrapper
+def documents(corpus):
+    return list(corpus.reviews())
+def continuous(corpus):
+    return list(corpus.scores())
+def make_categorical(corpus):
+    return np.digitize(continuous(corpus), [0.0, 3.0, 5.0, 7.0, 10.1])
+def binarize(corpus):
+    return np.digitize(continuous(corpus), [0.0, 3.0, 5.1])
+def build_nn():
+    nn.add(Dense(500, activation='relu', input_shape=(N_FEATURES,)))
+    nn.add(Dense(150, activation='relu'))
+    nn.add(Dense(N_CLASSES, activation='softmax'))
+    nn.compile(loss='categorical_crossentropy',optimizer='adam',metrics=['accuracy'])
+    return nn
+def build_lstm():
+    lstm = Sequential()
+    lstm.add(Embedding(N_FEATURES+1, 128, input_length=DOC_LEN))
+    lstm.add(Dropout(0.4))
+    lstm.add(LSTM(units=200, recurrent_dropout=0.2, dropout=0.2))
+    lstm.add(Dropout(0.2))
+    lstm.add(Dense(N_CLASSES, activation='sigmoid'))
+    lstm.compile(optimizer='adam',metrics=['accuracy'])
+    return lstm
+@timeit
+def train_model(path, model, reader, saveto=None, cv=12, **kwargs):
+    corpus = PickledAmazonReviewsReader(path)
+    X = documents(corpus)
+    y = binarize(corpus)
+    scores = cross_val_score(model, X, y, cv=cv, scoring='accuracy')
+    model.fit(X, y)
+    if saveto:
+        model.steps[-1][1].model.save(saveto['keras_model'])
+        model.steps.pop(-1)
+        joblib.dump(model, saveto['sklearn_pipe'])
+    return scores
+if __name__ == '__main__':
+    from sklearn.pipeline import Pipeline
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from reader import PickledReviewsReader
+    from am_reader import PickledAmazonReviewsReader
+    from transformer import TextNormalizer, GensimDoc2Vectorizer
+    from transformer import KeyphraseExtractor, GensimTfidfVectorizer
+    cpath = '../review_corpus_proc'
+    mpath = {
+        'keras_model'  : 'ktf/keras_nn.h5',
+        'sklearn_pipe' : 'ktf/pipeline.pkl'
+    }

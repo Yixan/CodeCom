@@ -1,0 +1,118 @@
+import numpy as np
+np.random.seed(1234)
+import scipy.io
+from scipy.interpolate import griddata
+from sklearn.preprocessing import scale
+import time
+from functools import reduce
+import math as m
+from keras.utils.training_utils import multi_gpu_model
+import tensorflow as tf
+import keras
+from keras.optimizers import SGD
+from keras.models import Sequential
+from keras.layers import InputLayer
+from keras.layers import Conv1D, Conv2D, MaxPooling2D
+from keras.layers import LSTM
+from keras.layers import TimeDistributed, Dense, Dropout, Flatten
+from keras.layers import Input, Concatenate, Permute, Reshape, Merge
+from keras.layers.embeddings import Embedding
+class IEEGdnn():
+    def __init__(self, imsize: int =32, n_colors: int =3, num_classes: int = 2):
+        self.n_colors = n_colors
+        self.num_classes = num_classes
+        self.model = Sequential()
+    def _build_2dcnn(self, w_init: list = None, n_layers: tuple = (4,2,1), poolsize: tuple = (2,2), n_filters_first: int = 32, filter_size=(3,3)):    
+        if w_init is None:
+            w_init = [keras.initializers.glorot_uniform()] * sum(n_layers)
+        model = Sequential()
+        model.add(InputLayer(input_shape=(self.imsize, self.imsize, self.n_colors)))
+        count=0
+        for idx, n_layer in enumerate(n_layers):
+            for ilay in range(n_layer):
+                model.add(Conv2D(n_filters_first*(2 ** idx), ernel_size=(3, 3),put_shape=(self.imsize, self.imsize, self.n_colors),ernel_initializer=w_init[count], activation='relu'))
+                if DEBUG:
+                    print(model.output_shape)
+                    print(idx, " and ", ilay)
+                count+=1
+            model.add(MaxPooling2D(pool_size=poolsize))
+        return model
+    def _build_lstm(self, input_dim: int, embed_vector_dim: int, input_len: int, output_dim: int, size_mem: int):
+        self.model.add(LSTM(size_mem))
+        self.model.add(Dense(output_dim, activation='relu'))
+        return self.model
+    def build_same_cnn_lstm(self, num_timewins: int, size_mem: int = 128,size_fc: int =1024, DROPOUT: bool = False):
+        convnet = self._build_2dcnn(w_init=w_init, n_layers=(4,2,1), olsize=(2,2), n_filters_first=32, filter_size=(3,3))
+        convnet.add(Flatten())
+        cnn_output_shape = convnet.output_shape[1]
+        model = Sequential()
+        model.add(TimeDistributed(convnet, input_shape=(num_timewins, self.imsize, self.imsize, self.n_colors)))
+        model.add(LSTM(units=size_mem, ctivation='relu', return_sequences=True))
+        output = self._build_output(model.output, size_fc=size_fc)
+        return output
+    def build_cnn_lstm(self, num_timewins: int, size_mem: int = 128, size_fc: int =1024, DROPOUT: bool = False):
+        convnets = []
+        for i in range(num_timewins):
+            convnet = self._build_2dcnn(w_init=w_init, n_layers=(4,2,1), olsize=(2,2), n_filters_first=32, filter_size=(3,3))
+            convnet.add(Flatten())
+            convnets.append(convnet)
+        model = Sequential()
+        model.add(Merge(convnets, mode='concat'))
+        num_cnn_features = convnets[0].output_shape[1]
+        model.add(Reshape((num_timewins, num_cnn_features)))
+        model.add(LSTM(units=size_mem, ctivation='relu', return_sequences=True))
+        model = self._build_output(model.output, size_fc)
+        return model
+    def build_cnn_lstm_mix(self, num_timewins: int, size_mem: int = 128, size_fc: int = 1024, DROPOUT: bool = False):
+        convnets = []
+        for i in range(num_timewins):
+            convnet = self._build_2dcnn(w_init=w_init, n_layers=(4,2,1), olsize=(2,2), n_filters_first=32, filter_size=(3,3))
+            convnet.add(Flatten())
+            convnets.append(convnet)
+        model = Sequential()
+        model.add(Merge(convnets, mode='concat'))
+        num_cnn_features = convnets[0].output_shape[1]
+        model.add(Reshape((num_timewins, num_cnn_features)))
+        convpool = model.output
+        reform_convpool = Permute((2,1))(convpool)
+        convout_1d = Conv1D(filters=64, kernel_size=3)(reform_convpool)
+        convout_1d = Flatten()(convout_1d)
+        lstm = LSTM(units=size_mem, ctivation='relu', return_sequences=False)(convpool)
+        model = self._build_output(lstm, size_fc)
+        return model
+    def _build_output(self, finalmodel, size_fc: int =1024, DROPOUT: bool = False):
+        if DROPOUT:
+            output = Dropout(0.5)(output)
+        output = Dense(self.num_classes, activation='softmax')(output)
+        if DROPOUT:
+            output = Dropout(0.5)(output)
+        return output
+    def _build_seq_output(self, finalmodel, size_fc: int =1024, DROPOUT: bool = False):
+        if DROPOUT:
+            finalmodel.add(Dropout(0.5))
+        finalmodel.add(Dense(size_fc, activation='relu'))
+        if DROPOUT:
+            finalmodel.add(Dropout(0.5))
+        finalmodel.add(Dense(self.num_classes, activation='softmax'))
+        return finalmodel
+    def init_callbacks(self):
+        callbacks = [LearningRateScheduler(poly_decay)]
+        return callbacks
+        optimizer = keras.optimizers.Adam(lr=0.001, eta_1=0.9, beta_2=0.999,epsilon=1e-08,decay=0.0)
+        model.compile(loss=loss, optimizer=optimizer, metrics=metrics)
+        self.model_config = model.get_config()
+        return model.get_config()
+    def train(self, model, xtrain, ytrain, xtest, ytest,ize: int =32, epochs: int =10, AUGMENT: bool=False):
+            callbacks = self.init_callbacks()
+            aug = ImageDataGenerator(width_shift_range=0.1,eight_shift_range=0.1, horizontal_flip=True,fill_mode="nearest")
+            HH = model.fit_generator(idation_data=(xtest, ytest),  epochs=epochs,allbacks=callbacks, verbose=2)
+        else:
+            HH = model.fit(xtrain, ytrain, verbose=1, batch_size=batch_size, epochs=epochs)
+        self.HH = HH
+        return HH
+    def eval(self, xtest, ytest, batch_size=32):
+        self.score = self.model.evaluate(xtest, ytest, batch_size=batch_size)
+        acc_train_history = self.score.history['acc']
+        acc_test_history = self.score.history['val_acc']
+        loss_train_history = self.score.history['loss']
+        loss_test_history = self.score.history['val_loss']

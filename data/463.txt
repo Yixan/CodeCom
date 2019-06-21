@@ -1,0 +1,22 @@
+from keras.models import Sequential
+from keras.layers import LSTM
+from keras.layers import Dense, Activation
+number_epochs = 10
+batch_size = 1 
+verbose = 2
+step_size = 1
+model = Sequential()
+def model2(indim, outdim, return_seq):
+    model.add(LSTM(	return_sequences=return_seq,nput_shape=(None, indim),units=outdim))
+    model.add(Dropout(0.2))
+    model.add(LSTM(128,return_sequences=False))
+    model.add(Dropout(0.2))
+    model.add(Dense(units=1))
+    model.add(Activation('linear'))
+    return model
+def model1(indim, outdim, return_seq):
+    model.add(LSTM(	return_sequences=return_seqnput_shape=(None, indim),units=outdim))
+    model.add(LSTM(100,return_sequences=False))
+    model.add(Dense(units=1))
+    model.add(Activation('linear'))
+    return model

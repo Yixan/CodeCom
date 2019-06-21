@@ -1,0 +1,505 @@
+
+In [3]:
+
+    
+# These are all the modules we'll be using later. Make sure you can import them
+# before proceeding further.
+from __future__ import print_function
+import numpy as np
+import tensorflow as tf
+from six.moves import cPickle as pickle
+
+
+    
+
+
+
+In [4]:
+
+    
+pickle_file = '/home/ramon/mount/handwriting/notMNIST.pickle'
+
+with open(pickle_file, 'rb') as f:
+  save = pickle.load(f)
+  train_dataset = save['train_dataset']
+  train_labels = save['train_labels']
+  valid_dataset = save['valid_dataset']
+  valid_labels = save['valid_labels']
+  test_dataset = save['test_dataset']
+  test_labels = save['test_labels']
+  del save  # hint to help gc free up memory
+  print('Training set', train_dataset.shape, train_labels.shape)
+  print('Validation set', valid_dataset.shape, valid_labels.shape)
+  print('Test set', test_dataset.shape, test_labels.shape)
+
+
+    
+
+
+
+In [5]:
+
+    
+image_size = 28
+num_labels = 10
+
+def reformat(dataset, labels):
+  dataset = dataset.reshape((-1, image_size * image_size)).astype(np.float32)
+  # Map 1 to [0.0, 1.0, 0.0 ...], 2 to [0.0, 0.0, 1.0 ...]
+  labels = (np.arange(num_labels) == labels[:,None]).astype(np.float32)
+  return dataset, labels
+train_dataset, train_labels = reformat(train_dataset, train_labels)
+valid_dataset, valid_labels = reformat(valid_dataset, valid_labels)
+test_dataset, test_labels = reformat(test_dataset, test_labels)
+print('Training set', train_dataset.shape, train_labels.shape)
+print('Validation set', valid_dataset.shape, valid_labels.shape)
+print('Test set', test_dataset.shape, test_labels.shape)
+
+
+    
+
+
+
+In [6]:
+
+    
+def accuracy(predictions, labels):
+  return (100.0 * np.sum(np.argmax(predictions, 1) == np.argmax(labels, 1))
+          / predictions.shape[0])
+
+
+    
+
+
+
+In [7]:
+
+    
+batch_size = 128
+l = 0.006
+
+graph = tf.Graph()
+with graph.as_default():
+
+  tf_train_dataset = tf.placeholder(tf.float32,
+                                    shape=(batch_size, image_size * image_size))
+  tf_train_labels = tf.placeholder(tf.float32, shape=(batch_size, num_labels))
+  tf_valid_dataset = tf.constant(valid_dataset)
+  tf_test_dataset = tf.constant(test_dataset)
+
+  weights = tf.Variable(
+    tf.truncated_normal([image_size * image_size, num_labels]))
+  biases = tf.Variable(tf.zeros([num_labels]))
+
+  logits = tf.matmul(tf_train_dataset, weights) + biases
+  origin_loss = tf.reduce_mean(
+    tf.nn.softmax_cross_entropy_with_logits(logits, tf_train_labels))
+
+  loss = origin_loss + l*tf.nn.l2_loss(weights)
+
+  optimizer = tf.train.GradientDescentOptimizer(0.5).minimize(loss)
+
+  train_prediction = tf.nn.softmax(logits)
+  valid_prediction = tf.nn.softmax(
+    tf.matmul(tf_valid_dataset, weights) + biases)
+  test_prediction = tf.nn.softmax(tf.matmul(tf_test_dataset, weights) + biases)
+
+
+    
+
+
+
+In [8]:
+
+    
+num_steps = 3001
+
+with tf.Session(graph=graph) as session:
+  tf.initialize_all_variables().run()
+  print("Initialized")
+  for step in range(num_steps):
+    # Pick an offset within the training data, which has been randomized.
+    # Note: we could use better randomization across epochs.
+    offset = (step * batch_size) % (train_labels.shape[0] - batch_size)
+    # Generate a minibatch.
+    batch_data = train_dataset[offset:(offset + batch_size), :]
+    batch_labels = train_labels[offset:(offset + batch_size), :]
+    # Prepare a dictionary telling the session where to feed the minibatch.
+    # The key of the dictionary is the placeholder node of the graph to be fed,
+    # and the value is the numpy array to feed to it.
+    feed_dict = {tf_train_dataset : batch_data, tf_train_labels : batch_labels}
+    _, l, predictions = session.run(
+      [optimizer, loss, train_prediction], feed_dict=feed_dict)
+    if (step % 500 == 0):
+      print("Minibatch loss at step %d: %f" % (step, l))
+      print("Minibatch accuracy: %.1f%%" % accuracy(predictions, batch_labels))
+      print("Validation accuracy: %.1f%%" % accuracy(
+        valid_prediction.eval(), valid_labels))
+  print("Test accuracy: %.1f%%" % accuracy(test_prediction.eval(), test_labels))
+
+
+    
+
+
+
+In [36]:
+
+    
+batch_size = 128
+
+hidden_layer_nodes = 1024
+
+graph = tf.Graph()
+with graph.as_default():
+
+
+  tf_train_dataset = tf.placeholder(tf.float32,
+                                    shape=(batch_size, image_size * image_size))
+  tf_train_labels = tf.placeholder(tf.float32, shape=(batch_size, num_labels))
+  tf_valid_dataset = tf.constant(valid_dataset)
+  tf_test_dataset = tf.constant(test_dataset)
+  reg = tf.placeholder(tf.float32)
+
+  weights_1 = tf.Variable(
+                 tf.truncated_normal([image_size * image_size, hidden_layer_nodes]))
+  biases_1  = tf.Variable(tf.zeros([hidden_layer_nodes]))
+
+  weights_2 = tf.Variable(
+                 tf.truncated_normal([hidden_layer_nodes, num_labels]))
+  biases_2  = tf.Variable(tf.zeros([num_labels]))
+  alpha_1 = tf.matmul(tf_train_dataset, weights_1) + biases_1
+  layer_1 = tf.nn.relu(alpha_1)
+  output_layer = tf.matmul(layer_1, weights_2) + biases_2
+  origin_loss = tf.reduce_mean(
+  tf.nn.softmax_cross_entropy_with_logits(output_layer, tf_train_labels))
+
+  loss = origin_loss + reg*(tf.nn.l2_loss(weights_2) + tf.nn.l2_loss(weights_1))
+
+  optimizer = tf.train.GradientDescentOptimizer(0.5).minimize(loss)
+
+
+  train_prediction = tf.nn.softmax(output_layer)
+  v_layer_1 = tf.nn.relu((tf.matmul(tf_valid_dataset, weights_1) + biases_1))
+  v_prediction = tf.nn.softmax(tf.matmul(v_layer_1, weights_2) + biases_2)
+  t_layer_1 = tf.nn.relu((tf.matmul(tf_test_dataset, weights_1) + biases_1))
+  t_prediction = tf.nn.softmax(tf.matmul(t_layer_1, weights_2) + biases_2)
+
+
+    
+
+
+
+In [11]:
+
+    
+num_steps = 3001
+with tf.Session(graph=graph) as session:
+    tf.initialize_all_variables().run()
+    print("Initialized")
+    for step in range(num_steps):
+        offset = (step * batch_size) % (train_labels.shape[0] - batch_size)
+        batch_data = train_dataset[offset:(offset + batch_size), :]
+        batch_labels = train_labels[offset:(offset + batch_size), :]    
+        feed_dict = {tf_train_dataset : batch_data, tf_train_labels : batch_labels, reg:float(0.01)}
+        _, l, predictions = session.run( \
+                              [optimizer, loss, train_prediction], feed_dict=feed_dict)
+        if (step % 500 == 0):
+            print("Minibatch loss at step %d: %f" % (step, l))
+            print("Minibatch accuracy: %.1f%%" % accuracy(predictions, batch_labels))
+            print("Validation accuracy: %.1f%%" % accuracy(  \
+                     v_prediction.eval(), valid_labels))
+    print("Test accuracy: %.1f%%" % accuracy(t_prediction.eval(), test_labels))
+
+
+    
+
+
+
+In [13]:
+
+    
+a = [1, 5]
+
+
+    
+
+
+
+In [14]:
+
+    
+b = [i*0.01 for i in a] + [i*0.001 for i in a] + [i*0.0001 for i in a]
+
+
+    
+
+
+
+In [15]:
+
+    
+b.sort(reverse=True)
+
+
+    
+
+
+
+In [16]:
+
+    
+b
+
+
+    
+
+
+
+In [18]:
+
+    
+result = []
+num_steps = 3001
+for i in b:
+  with tf.Session(graph=graph) as session:
+    tf.initialize_all_variables().run()
+    for step in range(num_steps):
+        offset = (step * batch_size) % (train_labels.shape[0] - batch_size)
+        batch_data = train_dataset[offset:(offset + batch_size), :]
+        batch_labels = train_labels[offset:(offset + batch_size), :]    
+        feed_dict = {tf_train_dataset : batch_data, tf_train_labels : batch_labels, reg:float(i)}
+        _, l, predictions = session.run( \
+                              [optimizer, loss, train_prediction], feed_dict=feed_dict)
+    print("Test accuracy: %.1f%%" % accuracy(t_prediction.eval(), test_labels))
+    result.append(accuracy(t_prediction.eval(), test_labels))
+
+
+    
+
+
+
+In [37]:
+
+    
+num_steps = 501
+with tf.Session(graph=graph) as session:
+    tf.initialize_all_variables().run()
+    print("Initialized")
+    for step in range(num_steps):
+        offset = ((step%5) * batch_size) % (train_labels.shape[0] - batch_size)
+        batch_data = train_dataset[offset:(offset + batch_size), :]
+        batch_labels = train_labels[offset:(offset + batch_size), :]    
+        feed_dict = {tf_train_dataset : batch_data, tf_train_labels : batch_labels, reg:float(0)}
+        _, l, predictions = session.run( \
+                              [optimizer, loss, train_prediction], feed_dict=feed_dict)
+        if (step % 100 == 0):
+            print("Minibatch loss at step %d: %f" % (step, l))
+            print("Minibatch accuracy: %.1f%%" % accuracy(predictions, batch_labels))
+            print("Validation accuracy: %.1f%%" % accuracy(  \
+                     v_prediction.eval(), valid_labels))
+    print("Test accuracy: %.1f%%" % accuracy(t_prediction.eval(), test_labels))
+
+
+    
+
+
+
+In [38]:
+
+    
+batch_size = 128
+
+hidden_layer_nodes = 1024
+
+graph = tf.Graph()
+with graph.as_default():
+
+
+  tf_train_dataset = tf.placeholder(tf.float32,
+                                    shape=(batch_size, image_size * image_size))
+  tf_train_labels = tf.placeholder(tf.float32, shape=(batch_size, num_labels))
+  tf_valid_dataset = tf.constant(valid_dataset)
+  tf_test_dataset = tf.constant(test_dataset)
+  reg = tf.placeholder(tf.float32)
+
+  weights_1 = tf.Variable(
+                 tf.truncated_normal([image_size * image_size, hidden_layer_nodes]))
+  biases_1  = tf.Variable(tf.zeros([hidden_layer_nodes]))
+
+  weights_2 = tf.Variable(
+                 tf.truncated_normal([hidden_layer_nodes, num_labels]))
+  biases_2  = tf.Variable(tf.zeros([num_labels]))
+  alpha_1 = tf.matmul(tf_train_dataset, weights_1) + biases_1
+  layer_1 = tf.nn.relu(alpha_1)
+
+  # dropout
+  drop = tf.nn.dropout(layer_1, 0.5)
+  output_layer = tf.matmul(drop, weights_2) + biases_2
+  origin_loss = tf.reduce_mean(
+  tf.nn.softmax_cross_entropy_with_logits(output_layer, tf_train_labels))
+
+  loss = origin_loss + reg*(tf.nn.l2_loss(weights_2) + tf.nn.l2_loss(weights_1))
+
+  optimizer = tf.train.GradientDescentOptimizer(0.5).minimize(loss)
+
+
+  train_prediction = tf.nn.softmax(output_layer)
+  v_layer_1 = tf.nn.relu((tf.matmul(tf_valid_dataset, weights_1) + biases_1))
+  v_prediction = tf.nn.softmax(tf.matmul(v_layer_1, weights_2) + biases_2)
+  t_layer_1 = tf.nn.relu((tf.matmul(tf_test_dataset, weights_1) + biases_1))
+  t_prediction = tf.nn.softmax(tf.matmul(t_layer_1, weights_2) + biases_2)
+
+
+    
+
+
+
+In [31]:
+
+    
+num_steps = 3001
+with tf.Session(graph=graph) as session:
+    tf.initialize_all_variables().run()
+    print("Initialized")
+    for step in range(num_steps):
+        offset = (step * batch_size) % (train_labels.shape[0] - batch_size)
+        batch_data = train_dataset[offset:(offset + batch_size), :]
+        batch_labels = train_labels[offset:(offset + batch_size), :]    
+        feed_dict = {tf_train_dataset : batch_data, tf_train_labels : batch_labels, reg:0.005}
+        _, l, predictions = session.run( \
+                              [optimizer, loss, train_prediction], feed_dict=feed_dict)
+        if (step % 500 == 0):
+            print("Minibatch loss at step %d: %f" % (step, l))
+            print("Minibatch accuracy: %.1f%%" % accuracy(predictions, batch_labels))
+            print("Validation accuracy: %.1f%%" % accuracy(  \
+                     v_prediction.eval(), valid_labels))
+    print("Test accuracy: %.1f%%" % accuracy(t_prediction.eval(), test_labels))
+    result.append(accuracy(t_prediction.eval(), test_labels))
+
+
+    
+
+
+
+In [39]:
+
+    
+num_steps = 501
+with tf.Session(graph=graph) as session:
+    tf.initialize_all_variables().run()
+    print("Initialized")
+    for step in range(num_steps):
+        offset = ((step%5) * batch_size) % (train_labels.shape[0] - batch_size)
+        batch_data = train_dataset[offset:(offset + batch_size), :]
+        batch_labels = train_labels[offset:(offset + batch_size), :]    
+        feed_dict = {tf_train_dataset : batch_data, tf_train_labels : batch_labels, reg:float(0)}
+        _, l, predictions = session.run( \
+                              [optimizer, loss, train_prediction], feed_dict=feed_dict)
+        if (step % 100 == 0):
+            print("Minibatch loss at step %d: %f" % (step, l))
+            print("Minibatch accuracy: %.1f%%" % accuracy(predictions, batch_labels))
+            print("Validation accuracy: %.1f%%" % accuracy(  \
+                     v_prediction.eval(), valid_labels))
+    print("Test accuracy: %.1f%%" % accuracy(t_prediction.eval(), test_labels))
+
+
+    
+
+
+
+In [40]:
+
+    
+batch_size = 128
+
+hidden_layer_nodes = 1024
+
+graph = tf.Graph()
+with graph.as_default():
+
+
+  tf_train_dataset = tf.placeholder(tf.float32,
+                                    shape=(batch_size, image_size * image_size))
+  tf_train_labels = tf.placeholder(tf.float32, shape=(batch_size, num_labels))
+  tf_valid_dataset = tf.constant(valid_dataset)
+  tf_test_dataset = tf.constant(test_dataset)
+  reg = tf.placeholder(tf.float32)
+  global_step = tf.Variable(0)
+  
+  NN_structure = [image_size * image_size, hidden_layer_nodes, 500, 10]
+  nn_len = len(NN_structure)
+  
+  weights_list = []
+  biases_list  = []
+  for i in range(1, nn_len):
+      weights_t = tf.Variable(
+                 tf.truncated_normal([NN_structure[i-1], NN_structure[i]], stddev=np.sqrt(2.0 / NN_structure[i-1])))
+      biases_t  = tf.Variable(tf.zeros([NN_structure[i]]))
+      weights_list.append(weights_t)
+      biases_list.append(biases_t)
+   
+  def getOutputLayer(dataset, drop=False):
+      layer_t = tf.nn.relu(tf.matmul(dataset, weights_list[0]) + biases_list[0])
+      for i in range(1, nn_len-2):
+          layer_t = tf.nn.relu(tf.matmul(layer_t, weights_list[i]) + biases_list[i])
+          if drop:
+              layer_t = tf.nn.dropout(layer_t, 0.5)
+      print(layer_t)
+      output = tf.matmul(layer_t, weights_list[-1]) + biases_list[-1]	  
+      return output
+    
+  output_layer = getOutputLayer(tf_train_dataset, True)
+  
+  origin_loss = tf.reduce_mean(
+  tf.nn.softmax_cross_entropy_with_logits(output_layer, tf_train_labels))
+  
+
+  loss = origin_loss + reg*tf.add_n([tf.nn.l2_loss(w) for w in weights_list])
+  
+  learning_rate = tf.train.exponential_decay(0.5, global_step, 4000, 0.65, staircase=True)
+  optimizer = tf.train.GradientDescentOptimizer(learning_rate).minimize(loss, global_step=global_step)
+  
+  train_prediction = tf.nn.softmax(output_layer)
+  
+  v_prediction = tf.nn.softmax(getOutputLayer(tf_valid_dataset))
+  t_prediction = tf.nn.softmax(getOutputLayer(tf_test_dataset))
+
+
+    
+
+
+
+In [43]:
+
+    
+num_steps = 10001
+with tf.Session(graph=graph) as session:
+    tf.initialize_all_variables().run()
+    print("Initialized")
+    for step in range(num_steps):
+        offset = (step * batch_size) % (train_labels.shape[0] - batch_size)
+        batch_data = train_dataset[offset:(offset + batch_size), :]
+        batch_labels = train_labels[offset:(offset + batch_size), :]    
+        feed_dict = {tf_train_dataset : batch_data, tf_train_labels : batch_labels, reg:0.001}
+        _, l, predictions = session.run( \
+                              [optimizer, loss, train_prediction], feed_dict=feed_dict)
+        if (step % 500 == 0):
+            print("Minibatch loss at step %d: %f" % (step, l))
+            print("Minibatch accuracy: %.1f%%" % accuracy(predictions, batch_labels))
+            print("Validation accuracy: %.1f%%" % accuracy(  \
+                     v_prediction.eval(), valid_labels))
+    print("Test accuracy: %.1f%%" % accuracy(t_prediction.eval(), test_labels))
+
+
+    
+
+
+
+In [ ]:
+
+    
+ 
+
+
+    
+

@@ -1,0 +1,19 @@
+from keras.models import Sequential, Model
+from keras.layers import Dense, Dropout, Activation, Input
+from keras.layers import Embedding
+from keras.layers import LSTM
+import numpy as np
+import keras.preprocessing.text as prep
+import keras.preprocessing.sequence as seq
+from keras import backend as K
+import  sklearn.cluster as clu
+from matplotlib import pyplot as plt
+from keras.utils.visualize_util import plot
+file=open("../resource/test")
+text=file.readlines()
+t1=prep.Tokenizer()
+t1.fit_on_texts(text)
+words=t1.word_index.keys()
+wordsReverse=[i[::-1] for i in words]
+print words
+print wordsReverse

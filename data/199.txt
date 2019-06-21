@@ -1,0 +1,35 @@
+from  keras.models import Sequential
+from keras.layers import LSTM
+from keras.layers import Dense
+from DataCreateHelper import DataCreate
+class Models:
+    def StackedLSTM(self,memoryunitecount,input_shape,outputcount,X_train,y_train,X_predict,y_predict):
+        model=Sequential()
+        model.add(LSTM(memoryunitecount,return_sequences=True,input_shape=input_shape ))
+        model.add(LSTM(memoryunitecount))
+        model.add(Dense(outputcount))
+        model.compile(loss='mae',optimizer='adam')
+        print(model.summary())
+        for i in range(len(X_train)):
+            model.fit(X_train[i],y_train[i],batch_size=10,epochs=1)
+        loss=model.evaluate(X_predict,y_predict)
+        print("loss:",loss)
+    def VanillaLSTM(self,memoryunitcount,input_shape,X_train,y_train,X_predict,y_predict):
+      mainmodel=Sequential()
+      mainmodel.add(LSTM(memoryunitcount,input_shape=input_shape))
+      mainmodel.add(Dense(input_shape[1],activation='softmax'))
+      mainmodel.compile(loss='categorical_crossentropy',optimizer='adam',metrics=['acc'])
+      print(mainmodel.summary())
+      for i in range(len(X_train )):
+          mainmodel.fit(X_train[i],y_train[i],epochs=1,verbose=2)
+      mydatacraete=DataCreate()
+      loss=mainmodel.evaluate(X_predict,y_predict,verbose=0)
+      print(loss)
+      yhat=mainmodel.predict(X_predict[0].reshape(1,input_shape[0],input_shape[1]))
+      print("Expected",mydatacraete.decode_vanillaLSTM(y_predict[0].reshape(1,input_shape[1]),tuple(range(0,input_shape[1]))))
+      print("Actual",mydatacraete.decode_vanillaLSTM(yhat,tuple(range(0,input_shape[1]))))
+    if __name__=="__main__":
+        import keras
+        import tensorflow
+        print(keras.__version__)
+        print(tensorflow.VERSION)

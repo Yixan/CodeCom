@@ -1,0 +1,590 @@
+
+In [1]:
+
+    
+import tensorflow as tf
+
+# Create TensorFlow object called tensor
+hello_constant = tf.constant('Hello World!') #상수 #0차원 문자열 텐서
+
+with tf.Session() as sess: #텐서 플로우는 세션을 실행해서 작동한다. #tf.Session()로 세션 인스턴스 생성
+    # Run the tf.constant operation in the session
+    output = sess.run(hello_constant) #session.run()으로 해당 텐서를 계산하고 결과값을 반환
+    print(output)
+
+
+    
+
+
+
+In [2]:
+
+    
+# A is a 0-dimensional int32 tensor
+A = tf.constant(1234) #0차원 Int 텐서
+# B is a 1-dimensional int32 tensor
+B = tf.constant([123,456,789]) #1차원 Int 배열 텐서
+# C is a 2-dimensional int32 tensor
+C = tf.constant([ [123,456,789], [222,333,444] ]) #2차원 Int 배열 텐서
+
+#tf.constant()는 값이 변하지 않기 때문에 상수 텐서라 볼 수 있다.
+
+
+    
+
+
+
+In [3]:
+
+    
+x = tf.placeholder(tf.string) #tf.placeholder()는 tf.session.run() 함수에 전달 된 데이터에서 값을 가져 오는 텐서를 반환한다.
+#string형 tensor
+
+with tf.Session() as sess:
+    output = sess.run(x, feed_dict={x: 'Hello World'}) #세션 실행 때 tf.placeholder()에 입력을 줄 수 있다.
+    #feed_dict로 매개변수를 지정해 준다. 여기서는 session에서 텐서x를 실행하고, x는 문자열 Hello World로 설정된다.
+
+
+    
+
+
+
+In [4]:
+
+    
+x = tf.placeholder(tf.string)
+y = tf.placeholder(tf.int32)
+z = tf.placeholder(tf.float32)
+#placeholder를 선언할 때, 자료형을 지정해 준다.
+
+with tf.Session() as sess:
+    output = sess.run(x, feed_dict={x: 'Test String', y: 123, z: 45.67})
+    #전달된 텐서와 feed_dict의 유형이 일치하지 않을 경우 오류가 난다. #여기선 아님
+
+
+    
+
+
+
+In [5]:
+
+    
+x = tf.add(5, 2)  # 7
+x = tf.subtract(10, 4) # 6
+y = tf.multiply(2, 5)  # 10
+
+tf.subtract(tf.cast(tf.constant(2.0), tf.int32), tf.constant(1))   # 1 
+#tf.cast로 형 변환을 할 수 있다.
+
+
+    
+
+
+
+In [6]:
+
+    
+x = tf.Variable(5) #수정할 수 있는 초기값을 가진 텐서 #이 텐서는 세션에서 상태를 저장하므로, 수동으로 초기화해야 한다.
+
+
+    
+
+
+
+In [7]:
+
+    
+init = tf.global_variables_initializer() #초기화
+with tf.Session() as sess:
+    sess.run(init)
+    #tf.global_variables_initializer()로 모든 TensorFlow 변수를 그래프에서 초기화하는 연산을 반환한다. #세션을 사용해 모든 변수를 초기화
+    #tf.Variable 클래스를 사용하면 가중치와 바이어스를 변경할 수 있지만 초기값은 선택해 줘야 한다
+    #가중치의 초기값은 정규분포에서 무작위로 설정해 주는 것이 일반적
+
+
+    
+
+
+
+In [8]:
+
+    
+n_features = 120
+n_labels = 5
+weights = tf.Variable(tf.truncated_normal((n_features, n_labels))) #tf.truncated_normal() : 정규분포에서 난수 생성
+#tf.truncated_normal()은 평균값의 표준 편차가 2보다 크지 않은 정규 분포에서 무작위 값을 가진 텐서를 반환한다.
+
+
+    
+
+
+
+In [9]:
+
+    
+n_labels = 5
+bias = tf.Variable(tf.zeros(n_labels)) #bias는 0으로 초기화하는 것이 일반적
+#tf.zeros() : 해당 텐서를 모두 0으로 채운다.
+
+
+    
+
+
+
+In [10]:
+
+    
+x = tf.nn.softmax([2.0, 1.0, 0.2])
+
+
+    
+
+
+
+In [11]:
+
+    
+x = tf.reduce_sum([1, 2, 3, 4, 5])  # 15
+#tf.reduce_sum()은 배열의 요소를 모두 합친다.
+
+
+    
+
+
+
+In [12]:
+
+    
+x = tf.log(100.0)  # 4.60517
+#tf.log()는 파라미터에 자연로그를 취한다.
+
+
+    
+
+
+
+In [13]:
+
+    
+softmax_data = [0.7, 0.2, 0.1]
+one_hot_data = [1.0, 0.0, 0.0]
+
+softmax = tf.placeholder(tf.float32)
+one_hot = tf.placeholder(tf.float32)
+
+# cross_entropy = -tf.reduce_sum(tf.multiply(one_hot, tf.log(softmax)))
+cross_entropy = -tf.log(tf.reduce_sum(tf.multiply(one_hot, softmax)))
+
+with tf.Session() as sess:
+    print(sess.run(cross_entropy, feed_dict={softmax: softmax_data, one_hot: one_hot_data}))
+
+
+    
+
+
+
+In [15]:
+
+    
+n_input = 784  # MNIST data input (img shape: 28*28)
+n_classes = 10  # MNIST total classes (0-9 digits)
+
+# Features and Labels
+features = tf.placeholder(tf.float32, [None, n_input])
+labels = tf.placeholder(tf.float32, [None, n_classes])
+#데이터를 동일한 크기로 정확히 나눌 수 없을 수도 있다. (ex. 1000개의 데이터에 128개씩 나누는 경우)
+#그런 경우네는 마지막 배치는 크기가 달라지므로, [None, n_input], [None, n_classes]가 되어야 한다.
+#None : 차원을 일괄 처리. 런타임시 0보다 큰 배치 크기를 허용한다.
+
+
+    
+
+
+
+In [ ]:
+
+    
+from tensorflow.examples.tutorials.mnist import input_data
+import tensorflow as tf
+import numpy as np
+from helper import batches  # Helper function created in Mini-batching section
+
+
+def print_epoch_stats(epoch_i, sess, last_features, last_labels):
+    """
+    Print cost and validation accuracy of an epoch
+    """
+    current_cost = sess.run(
+        cost,
+        feed_dict={features: last_features, labels: last_labels})
+    valid_accuracy = sess.run(
+        accuracy,
+        feed_dict={features: valid_features, labels: valid_labels})
+    print('Epoch: {:<4} - Cost: {:<8.3} Valid Accuracy: {:<5.3}'.format(
+        epoch_i,
+        current_cost,
+        valid_accuracy))
+
+n_input = 784  # MNIST data input (img shape: 28*28)
+n_classes = 10  # MNIST total classes (0-9 digits)
+
+# Import MNIST data
+mnist = input_data.read_data_sets('/datasets/ud730/mnist', one_hot=True)
+
+# The features are already scaled and the data is shuffled
+train_features = mnist.train.images
+valid_features = mnist.validation.images
+test_features = mnist.test.images
+
+train_labels = mnist.train.labels.astype(np.float32)
+valid_labels = mnist.validation.labels.astype(np.float32)
+test_labels = mnist.test.labels.astype(np.float32)
+
+# Features and Labels
+features = tf.placeholder(tf.float32, [None, n_input])
+labels = tf.placeholder(tf.float32, [None, n_classes])
+
+# Weights & bias
+weights = tf.Variable(tf.random_normal([n_input, n_classes]))
+bias = tf.Variable(tf.random_normal([n_classes]))
+
+# Logits - xW + b
+logits = tf.add(tf.matmul(features, weights), bias)
+
+# Define loss and optimizer
+learning_rate = tf.placeholder(tf.float32)
+cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels))
+optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(cost)
+
+# Calculate accuracy
+correct_prediction = tf.equal(tf.argmax(logits, 1), tf.argmax(labels, 1))
+accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+
+init = tf.global_variables_initializer()
+
+batch_size = 128
+epochs = 10
+learn_rate = 0.001
+
+train_batches = batches(batch_size, train_features, train_labels)
+
+with tf.Session() as sess:
+    sess.run(init)
+
+    # Training cycle
+    for epoch_i in range(epochs):
+
+        # Loop over all batches
+        for batch_features, batch_labels in train_batches:
+            train_feed_dict = {
+                features: batch_features,
+                labels: batch_labels,
+                learning_rate: learn_rate}
+            sess.run(optimizer, feed_dict=train_feed_dict)
+
+        # Print cost and validation accuracy of an epoch
+        print_epoch_stats(epoch_i, sess, batch_features, batch_labels)
+
+    # Calculate accuracy for test dataset
+    test_accuracy = sess.run(
+        accuracy,
+        feed_dict={features: test_features, labels: test_labels})
+
+print('Test Accuracy: {}'.format(test_accuracy))
+
+
+    
+
+
+
+In [ ]:
+
+    
+# Hidden Layer with ReLU activation function
+hidden_layer = tf.add(tf.matmul(features, hidden_weights), hidden_biases)
+hidden_layer = tf.nn.relu(hidden_layer)
+
+output = tf.add(tf.matmul(hidden_layer, output_weights), output_biases)
+
+
+    
+
+
+
+In [17]:
+
+    
+output = None
+hidden_layer_weights = [
+    [0.1, 0.2, 0.4],
+    [0.4, 0.6, 0.6],
+    [0.5, 0.9, 0.1],
+    [0.8, 0.2, 0.8]]
+out_weights = [
+    [0.1, 0.6],
+    [0.2, 0.1],
+    [0.7, 0.9]]
+
+# Weights and biases
+weights = [
+    tf.Variable(hidden_layer_weights),
+    tf.Variable(out_weights)]
+biases = [
+    tf.Variable(tf.zeros(3)),
+    tf.Variable(tf.zeros(2))]
+
+# Input
+features = tf.Variable([[1.0, 2.0, 3.0, 4.0], [-1.0, -2.0, -3.0, -4.0], [11.0, 12.0, 13.0, 14.0]])
+
+# TODO: Create Model
+hidden_layer = tf.add(tf.matmul(features, weights[0]), biases[0]) #히든
+hidden_layer = tf.nn.relu(hidden_layer)
+logits = tf.add(tf.matmul(hidden_layer, weights[1]), biases[1]) #아웃풋
+
+with tf.Session() as session:
+    session.run(tf.global_variables_initializer()) #Variable 사용 전 초기화가 필요하다.
+    
+    # TODO: Print session results
+    print(session.run(logits))
+
+
+    
+
+
+
+In [4]:
+
+    
+# The file path to save the data
+save_file = '/model.ckpt'
+
+# Two Tensor Variables: weights and bias
+weights = tf.Variable(tf.truncated_normal([2, 3]))
+bias = tf.Variable(tf.truncated_normal([3]))
+
+# Class used to save and/or restore Tensor Variables
+saver = tf.train.Saver()
+
+with tf.Session() as sess:
+    # Initialize all the Variables
+    sess.run(tf.global_variables_initializer())
+
+    # Show the values of weights and bias
+    print('Weights:')
+    print(sess.run(weights))
+    print('Bias:')
+    print(sess.run(bias))
+
+    # Save the model
+    saver.save(sess, save_file)
+
+
+    
+
+
+
+In [5]:
+
+    
+# Remove the previous weights and bias
+tf.reset_default_graph()
+
+# Two Variables: weights and bias
+weights = tf.Variable(tf.truncated_normal([2, 3]))
+bias = tf.Variable(tf.truncated_normal([3]))
+
+# Class used to save and/or restore Tensor Variables
+saver = tf.train.Saver()
+
+with tf.Session() as sess:
+    # Load the weights and bias
+    saver.restore(sess, save_file)
+
+    # Show the values of weights and bias
+    print('Weight:')
+    print(sess.run(weights))
+    print('Bias:')
+    print(sess.run(bias))
+
+
+    
+
+
+
+In [ ]:
+
+    
+# Remove previous Tensors and Operations
+tf.reset_default_graph()
+
+from tensorflow.examples.tutorials.mnist import input_data
+import numpy as np
+
+learning_rate = 0.001
+n_input = 784  # MNIST data input (img shape: 28*28)
+n_classes = 10  # MNIST total classes (0-9 digits)
+
+# Import MNIST data
+mnist = input_data.read_data_sets('.', one_hot=True)
+
+# Features and Labels
+features = tf.placeholder(tf.float32, [None, n_input])
+labels = tf.placeholder(tf.float32, [None, n_classes])
+
+# Weights & bias
+weights = tf.Variable(tf.random_normal([n_input, n_classes]))
+bias = tf.Variable(tf.random_normal([n_classes]))
+
+# Logits - xW + b
+logits = tf.add(tf.matmul(features, weights), bias)
+
+# Define loss and optimizer
+cost = tf.reduce_mean(\
+    tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels))
+optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)\
+    .minimize(cost)
+
+# Calculate accuracy
+correct_prediction = tf.equal(tf.argmax(logits, 1), tf.argmax(labels, 1))
+accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+
+
+    
+
+
+
+In [ ]:
+
+    
+import math
+
+save_file = './train_model.ckpt'
+batch_size = 128
+n_epochs = 100
+
+saver = tf.train.Saver()
+
+# Launch the graph
+with tf.Session() as sess:
+    sess.run(tf.global_variables_initializer())
+
+    # Training cycle
+    for epoch in range(n_epochs):
+        total_batch = math.ceil(mnist.train.num_examples / batch_size)
+
+        # Loop over all batches
+        for i in range(total_batch):
+            batch_features, batch_labels = mnist.train.next_batch(batch_size)
+            sess.run(
+                optimizer,
+                feed_dict={features: batch_features, labels: batch_labels})
+
+        # Print status for every 10 epochs
+        if epoch % 10 == 0:
+            valid_accuracy = sess.run(
+                accuracy,
+                feed_dict={
+                    features: mnist.validation.images,
+                    labels: mnist.validation.labels})
+            print('Epoch {:<3} - Validation Accuracy: {}'.format(
+                epoch,
+                valid_accuracy))
+
+    # Save the model
+    saver.save(sess, save_file)
+    print('Trained Model Saved.')
+
+
+    
+
+
+
+In [ ]:
+
+    
+#Load
+
+saver = tf.train.Saver()
+
+# Launch the graph
+with tf.Session() as sess:
+    saver.restore(sess, save_file)
+
+    test_accuracy = sess.run(
+        accuracy,
+        feed_dict={features: mnist.test.images, labels: mnist.test.labels})
+
+print('Test Accuracy: {}'.format(test_accuracy))
+
+
+    
+
+
+
+In [7]:
+
+    
+# Two Variables: weights and bias
+bias = tf.Variable(tf.truncated_normal([3]), name='bias_0')
+weights = tf.Variable(tf.truncated_normal([2, 3]) ,name='weights_0')
+
+
+    
+
+
+
+In [ ]:
+
+    
+keep_prob = tf.placeholder(tf.float32) # probability to keep units
+
+hidden_layer = tf.add(tf.matmul(features, weights[0]), biases[0])
+hidden_layer = tf.nn.relu(hidden_layer)
+hidden_layer = tf.nn.dropout(hidden_layer, keep_prob)
+#tf.nn.dropout()의 매개변수 hidden_layer : 드롭 아웃 적용 텐서, keep_prob : 유지할 노드 퍼센트
+
+logits = tf.add(tf.matmul(hidden_layer, weights[1]), biases[1])
+
+
+    
+
+
+
+In [9]:
+
+    
+hidden_layer_weights = [
+    [0.1, 0.2, 0.4],
+    [0.4, 0.6, 0.6],
+    [0.5, 0.9, 0.1],
+    [0.8, 0.2, 0.8]]
+out_weights = [
+    [0.1, 0.6],
+    [0.2, 0.1],
+    [0.7, 0.9]]
+
+# Weights and biases
+weights = [
+    tf.Variable(hidden_layer_weights),
+    tf.Variable(out_weights)]
+biases = [
+    tf.Variable(tf.zeros(3)),
+    tf.Variable(tf.zeros(2))]
+
+# Input
+features = tf.Variable([[0.0, 2.0, 3.0, 4.0], [0.1, 0.2, 0.3, 0.4], [11.0, 12.0, 13.0, 14.0]])
+
+# TODO: Create Model with Dropout
+hidden_layer = tf.add(tf.matmul(features, weights[0]), biases[0])
+hidden_layer = tf.nn.relu(hidden_layer)
+hidden_layer = tf.nn.dropout(hidden_layer, 0.5)
+
+logits = tf.add(tf.matmul(hidden_layer, weights[1]), biases[1])
+# TODO: Print logits from a session
+with tf.Session() as session:
+    session.run(tf.global_variables_initializer())
+    print(session.run(logits))
+
+
+    
+

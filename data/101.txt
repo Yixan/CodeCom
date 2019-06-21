@@ -1,0 +1,28 @@
+import keras
+from keras.utils import np_utils
+from trainer import Trainer
+from keras.models import Sequential
+from keras.layers.core import Dense
+from keras.layers.core import Dropout
+from keras.layers.core import Activation
+from keras.layers.recurrent import LSTM
+class Validator(object):
+    def __init__(self):
+        self.mdfile = "weights-improvement-09-0.3896.hdf5"
+        self.t = Trainer(2010)
+    def accuracy(self):
+        xv, yv = self.t.genValiData()
+        model = Sequential()
+        model.add(LSTM(256, input_shape=(xv.shape[1], xv.shape[2])))
+        model.add(Activation('relu'))
+        model.add(Dropout(0.2))
+        model.add(Dense(1))
+        model.add(Activation('sigmoid'))
+        model.load_weights(self.mdfile)
+        classes = model.predict_classes(xv)
+        acc = np_utils.accuracy(classes, yv)
+        print("Accuracy in test data set is: ", acc)
+        return acc
+if __name__ == '__main__':
+    v = Validator()
+    v.accuracy()

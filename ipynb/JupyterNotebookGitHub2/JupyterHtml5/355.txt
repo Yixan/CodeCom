@@ -1,0 +1,553 @@
+
+In [34]:
+
+    
+# These are all the modules we'll be using later. Make sure you can import them
+# before proceeding further.
+#from __future__ import print_function
+import numpy as np
+import os
+import tensorflow as tf
+from six.moves import cPickle as pickle
+import matplotlib.pyplot as plt
+
+
+    
+
+
+
+In [80]:
+
+    
+os.chdir('/Users/voladoddi/Downloads')
+pickle_file = 'notMNIST.pickle'
+
+with open(pickle_file, 'rb') as f:
+  save = pickle.load(f)
+  train_dataset = save['train_dataset']
+  train_labels = save['train_labels']
+  valid_dataset = save['valid_dataset']
+  valid_labels = save['valid_labels']
+  test_dataset = save['test_dataset']
+  test_labels = save['test_labels']
+  del save  # hint to help gc free up memory
+  print('Training set', train_dataset.shape, train_labels.shape)
+  print('Validation set', valid_dataset.shape, valid_labels.shape)
+  print('Test set', test_dataset.shape, test_labels.shape)
+
+
+    
+
+
+
+In [81]:
+
+    
+image_size = 28
+num_labels = 10
+
+def reformat(dataset, labels):
+  dataset = dataset.reshape((-1, image_size * image_size)).astype(np.float32)
+  # Map 2 to [0.0, 1.0, 0.0 ...], 3 to [0.0, 0.0, 1.0 ...]
+  labels = (np.arange(num_labels) == labels[:,None]).astype(np.float32)
+  return dataset, labels
+train_dataset, train_labels = reformat(train_dataset, train_labels)
+valid_dataset, valid_labels = reformat(valid_dataset, valid_labels)
+test_dataset, test_labels = reformat(test_dataset, test_labels)
+print('Training set', train_dataset.shape, train_labels.shape)
+print('Validation set', valid_dataset.shape, valid_labels.shape)
+print('Test set', test_dataset.shape, test_labels.shape)
+
+
+    
+
+
+
+In [47]:
+
+    
+'''Build TF graph '''
+batch_size              = 128          #1 - for SGD
+num_hidden_nodes        = 1024
+
+graph        = tf.Graph()
+with graph.as_default():
+    tf_train_dataset = tf.placeholder(tf.float32,shape=(batch_size,image_size*image_size)) #2 - for SGD
+    tf_train_labels  = tf.placeholder(tf.float32,shape=(batch_size,num_labels))            #3 - for SGD
+    tf_valid_dataset = tf.constant(valid_dataset)
+    tf_test_dataset  = tf.constant(test_dataset)
+    tf_regularization_constant = tf.placeholder(tf.float32)                                #a float number for reg const. (A3,P1)
+    
+    weights = tf.Variable(tf.truncated_normal([image_size * image_size, num_labels]))
+    biases = tf.Variable(tf.zeros([num_labels]))
+    
+    #Train 
+    logits = tf.matmul(tf_train_dataset, weights) + biases
+    loss   = tf.reduce_mean( tf.nn.softmax_cross_entropy_with_logits(logits, tf_train_labels)) + tf_regularization_constant * tf.nn.l2_loss(weights)
+    
+    #Optimizer
+    optimizer = tf.train.GradientDescentOptimizer(0.5).minimize(loss)
+    
+    #Predict (i.e. Test)
+    train_prediction  = tf.nn.softmax(logits)
+    valid_prediction  = tf.nn.softmax(tf.matmul(tf_valid_dataset, weights) + biases)
+    test_prediction   = tf.nn.softmax(tf.matmul(tf_test_dataset, weights)  + biases)
+
+
+    
+
+
+
+In [65]:
+
+    
+def accuracy(predictions, labels):
+  return (100.0 * np.sum(np.argmax(predictions, 1) == np.argmax(labels, 1))
+          / predictions.shape[0])
+
+
+    
+
+
+
+In [72]:
+
+    
+''' With regularization values '''
+num_steps   = 3001
+regConstVec = [1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1]   #(A3,P1)
+acc_values  = []                                  #(A3, P1)
+for beta in regConstVec:                          #(A3, P1)
+    print '\n'*2, 'With Beta: %f' % beta      #(A3, P1)
+    with tf.Session(graph=graph) as session:
+        tf.initialize_all_variables().run()
+        print('Initialized...')
+    
+        for step in range(num_steps):
+            offset       = (step * batch_size) % (train_labels.shape[0] - batch_size)
+            batch_data   = train_dataset[offset:(offset + batch_size) , :]
+            batch_labels = train_labels[offset:(offset + batch_size) , :]
+
+            feed_dict    = {tf_train_dataset : batch_data, tf_train_labels : batch_labels, tf_regularization_constant : beta} #beta (A3,P1)
+            _ , l , predictions = session.run([optimizer, loss, train_prediction], feed_dict = feed_dict)
+        
+        #Just the final step values
+        print 'Validation accuracy: %.1f%%'%(accuracy(valid_prediction.eval(),valid_labels))
+        print('Test accuracy: %.1f%%' % accuracy(test_prediction.eval(), test_labels))
+        acc_values.append(accuracy(test_prediction.eval(), test_labels))   #(A3, P1)
+
+
+    
+
+
+
+In [32]:
+
+    
+''' Easier to choose the beta by visualizing than crunching numbers unnecessarily'''
+plt.semilogx(regConstVec, acc_values, 'bo')
+#plt.axis([regConstVec[0], regConstVec[-1], 50, 90])
+plt.xlabel('Beta val')
+plt.ylabel('Accuracy of test with beta inc.')
+plt.title('Test accuracy vs Beta values')
+plt.show()
+
+
+    
+
+
+
+In [89]:
+
+    
+batch_size              = 128          #1 - for SGD
+num_hidden_nodes        = 1024
+
+graph        = tf.Graph()
+with graph.as_default():
+    tf_train_dataset = tf.placeholder(tf.float32,shape=(batch_size,image_size*image_size)) #2 - for SGD
+    tf_train_labels  = tf.placeholder(tf.float32,shape=(batch_size,num_labels))            #3 - for SGD
+    tf_valid_dataset = tf.constant(valid_dataset)
+    tf_test_dataset  = tf.constant(test_dataset)
+    tf_regularization_constant = tf.placeholder(tf.float32)
+
+    #weights = tf.Variable(tf.truncated_normal([image_size * image_size, num_labels]))
+    #biases = tf.Variable(tf.zeros([num_labels]))
+    weights_to_hidden_layer = tf.Variable(tf.truncated_normal([image_size * image_size, num_hidden_nodes]))  #4 - for 1-layer NN with RELU
+    biases_to_hidden_layer  = tf.zeros([num_hidden_nodes])                                                 #5 - for 1-layer NN with RELU
+    weights_to_output_layer = tf.Variable(tf.truncated_normal([num_hidden_nodes, num_labels]))               #6 - " " "
+    biases_to_output_layer  = tf.zeros([num_labels])                                                       #7
+    
+    # Training computation
+    logits_hidden = tf.nn.relu(tf.matmul(tf_train_dataset, weights_to_hidden_layer) + biases_to_hidden_layer)       #8 - "
+    logits        = tf.matmul(logits_hidden, weights_to_output_layer) + biases_to_output_layer                      #9 - "
+    loss          = tf.reduce_mean( tf.nn.softmax_cross_entropy_with_logits(logits, tf_train_labels)) + \
+                    tf_regularization_constant * (tf.nn.l2_loss(weights_to_hidden_layer) + tf.nn.l2_loss(weights_to_output_layer))        #10 - "
+    #NOTE - all these unnecessary variables can probably be avoided if you have a FUNCTION for GRAPH CONST DUMBHEAD.
+    
+    
+    #Optimizer
+    optimizer = tf.train.GradientDescentOptimizer(0.5).minimize(loss)
+
+    #Predict / test
+    train_prediction  = tf.nn.softmax(logits)
+    valid_hidden      = tf.nn.relu(tf.matmul(tf_valid_dataset, weights_to_hidden_layer) + biases_to_hidden_layer)
+    valid_prediction  = tf.nn.softmax(tf.matmul(valid_hidden, weights_to_output_layer) + biases_to_output_layer)
+    test_hidden       = tf.nn.relu(tf.matmul(tf_test_dataset, weights_to_hidden_layer) + biases_to_hidden_layer)
+    test_prediction   = tf.nn.softmax(tf.matmul(test_hidden, weights_to_output_layer) + biases_to_output_layer)
+
+
+    
+
+
+
+In [90]:
+
+    
+''' With regularization values '''
+num_steps   = 3001
+regConstVec = [1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1]   #(A3,P1)
+acc_values  = []                                  #(A3, P1)
+for beta in regConstVec:                          #(A3, P1)
+    print '\n'*2, 'With Beta: %f' % beta      #(A3, P1)
+    with tf.Session(graph=graph) as session:
+        tf.initialize_all_variables().run()
+        print('Initialized...')
+    
+        for step in range(num_steps):
+            offset       = (step * batch_size) % (train_labels.shape[0] - batch_size)
+            batch_data   = train_dataset[offset:(offset + batch_size) , :]
+            batch_labels = train_labels[offset:(offset + batch_size) , :]
+
+            feed_dict    = {tf_train_dataset : batch_data, tf_train_labels : batch_labels, tf_regularization_constant : beta} #beta (A3,P1)
+            _ , l , predictions = session.run([optimizer, loss, train_prediction], feed_dict = feed_dict)
+        
+        #Just the final step values
+        print 'Validation accuracy: %.1f%%'%(accuracy(valid_prediction.eval(),valid_labels))
+        print('Test accuracy: %.1f%%' % accuracy(test_prediction.eval(), test_labels))
+        acc_values.append(accuracy(test_prediction.eval(), test_labels))   #(A3, P1)
+
+
+    
+
+
+
+In [76]:
+
+    
+batch_size              = 64          #1 - for SGD
+num_hidden_nodes        = 1024
+
+graph        = tf.Graph()
+with graph.as_default():
+    tf_train_dataset = tf.placeholder(tf.float32,shape=(batch_size,image_size*image_size)) #2 - for SGD
+    tf_train_labels  = tf.placeholder(tf.float32,shape=(batch_size,num_labels))            #3 - for SGD
+    tf_valid_dataset = tf.constant(valid_dataset)
+    tf_test_dataset  = tf.constant(test_dataset)
+    tf_regularization_constant = tf.placeholder(tf.float32)
+
+    #weights = tf.Variable(tf.truncated_normal([image_size * image_size, num_labels]))
+    #biases = tf.Variable(tf.zeros([num_labels]))
+    weights_to_hidden_layer = tf.Variable(tf.truncated_normal([image_size * image_size, num_hidden_nodes]))  #4 - for 1-layer NN with RELU
+    biases_to_hidden_layer  = tf.zeros([num_hidden_nodes])                                                 #5 - for 1-layer NN with RELU
+    weights_to_output_layer = tf.Variable(tf.truncated_normal([num_hidden_nodes, num_labels]))               #6 - " " "
+    biases_to_output_layer  = tf.zeros([num_labels])                                                       #7
+    
+    # Training computation
+    logits_hidden = tf.nn.relu(tf.matmul(tf_train_dataset, weights_to_hidden_layer) + biases_to_hidden_layer)       #8 - "
+    logits        = tf.matmul(logits_hidden, weights_to_output_layer) + biases_to_output_layer                      #9 - "
+    loss          = tf.reduce_mean( tf.nn.softmax_cross_entropy_with_logits(logits, tf_train_labels)) + \
+                    tf_regularization_constant * (tf.nn.l2_loss(weights_to_hidden_layer) + tf.nn.l2_loss(weights_to_output_layer))        #10 - "
+    #NOTE - all these unnecessary variables can probably be avoided if you have a FUNCTION for GRAPH CONST DUMBHEAD.
+    
+    
+    #Optimizer
+    optimizer = tf.train.GradientDescentOptimizer(0.5).minimize(loss)
+
+    #Predict / test
+    train_prediction  = tf.nn.softmax(logits)
+    valid_hidden      = tf.nn.relu(tf.matmul(tf_valid_dataset, weights_to_hidden_layer) + biases_to_hidden_layer)
+    valid_prediction  = tf.nn.softmax(tf.matmul(valid_hidden, weights_to_output_layer) + biases_to_output_layer)
+    test_hidden       = tf.nn.relu(tf.matmul(tf_test_dataset, weights_to_hidden_layer) + biases_to_hidden_layer)
+    test_prediction   = tf.nn.softmax(tf.matmul(test_hidden, weights_to_output_layer) + biases_to_output_layer)
+
+
+    
+
+
+
+In [55]:
+
+    
+''' With regularization values '''
+num_steps   = 301
+regConstVec = [1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1]   #(A3,P1)
+acc_values  = []                                  #(A3, P1)
+for beta in regConstVec:                          #(A3, P1)
+    print '\n'*2, 'With Beta: %f' % beta      #(A3, P1)
+    with tf.Session(graph=graph) as session:
+        tf.initialize_all_variables().run()
+        print('Initialized...')
+    
+        for step in range(num_steps):
+            offset       = (step * batch_size) % (train_labels.shape[0] - batch_size)
+            batch_data   = train_dataset[offset:(offset + batch_size) , :]
+            batch_labels = train_labels[offset:(offset + batch_size) , :]
+
+            feed_dict    = {tf_train_dataset : batch_data, tf_train_labels : batch_labels, tf_regularization_constant : beta} #beta (A3,P1)
+            _ , l , predictions = session.run([optimizer, loss, train_prediction], feed_dict = feed_dict)
+        
+        #Just the final step values
+        print 'Validation accuracy: %.1f%%'%(accuracy(valid_prediction.eval(),valid_labels))
+        print('Test accuracy: %.1f%%' % accuracy(test_prediction.eval(), test_labels))
+        acc_values.append(accuracy(test_prediction.eval(), test_labels))   #(A3, P1)
+
+
+    
+
+
+
+In [143]:
+
+    
+batch_size              = 128       
+num_hidden_nodes        = 1024
+
+graph        = tf.Graph()
+with graph.as_default():
+    tf_train_dataset = tf.placeholder(tf.float32,shape=(batch_size,image_size*image_size))
+    tf_train_labels  = tf.placeholder(tf.float32,shape=(batch_size,num_labels))
+    tf_valid_dataset = tf.constant(valid_dataset)
+    tf_test_dataset  = tf.constant(test_dataset)
+    tf_regularization_constant = tf.placeholder(tf.float32)
+
+    #weights = tf.Variable(tf.truncated_normal([image_size * image_size, num_labels]))
+    #biases = tf.Variable(tf.zeros([num_labels]))
+    weights_to_hidden_layer = tf.Variable(tf.truncated_normal([image_size * image_size, num_hidden_nodes]))
+    biases_to_hidden_layer  = tf.zeros([num_hidden_nodes])                                  
+    weights_to_output_layer = tf.Variable(tf.truncated_normal([num_hidden_nodes, num_labels])) 
+    biases_to_output_layer  = tf.zeros([num_labels])                                                
+    
+    # Training computation
+    logits_hidden = tf.nn.dropout(
+                    tf.nn.relu(tf.matmul(tf_train_dataset, weights_to_hidden_layer) + biases_to_hidden_layer),0.72)
+    logits        = tf.matmul(logits_hidden, weights_to_output_layer) + biases_to_output_layer      
+    loss          = tf.reduce_mean( tf.nn.softmax_cross_entropy_with_logits(logits, tf_train_labels)) + \
+                    tf_regularization_constant * (tf.nn.l2_loss(weights_to_hidden_layer) + tf.nn.l2_loss(weights_to_output_layer))      
+        
+    # Optimizer
+    optimizer = tf.train.GradientDescentOptimizer(0.4).minimize(loss)
+
+    #Predict / test
+    train_prediction  = tf.nn.softmax(logits)
+    valid_hidden      = tf.nn.relu(tf.matmul(tf_valid_dataset, weights_to_hidden_layer) + biases_to_hidden_layer)
+    valid_prediction  = tf.nn.softmax(tf.matmul(valid_hidden, weights_to_output_layer) + biases_to_output_layer)
+    test_hidden       = tf.nn.relu(tf.matmul(tf_test_dataset, weights_to_hidden_layer) + biases_to_hidden_layer)
+    test_prediction   = tf.nn.softmax(tf.matmul(test_hidden, weights_to_output_layer) + biases_to_output_layer)
+
+
+    
+
+
+
+In [144]:
+
+    
+''' With regularization values '''
+num_steps   = 3001
+#regConstVec = [1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1]   #(A3,P1)
+regConstVec = [29e-4]
+acc_values  = []                                  #(A3, P1)
+for beta in regConstVec:                          #(A3, P1)
+    print '\n'*2, 'With Beta: %f' % beta      #(A3, P1)
+    with tf.Session(graph=graph) as session:
+        tf.initialize_all_variables().run()
+        print('Initialized...')
+    
+        for step in range(num_steps):
+            offset       = (step * batch_size) % (train_labels.shape[0] - batch_size)
+            batch_data   = train_dataset[offset:(offset + batch_size) , :]
+            batch_labels = train_labels[offset:(offset + batch_size) , :]
+
+            feed_dict    = {tf_train_dataset : batch_data, tf_train_labels : batch_labels, tf_regularization_constant : beta} #beta (A3,P1)
+            _ , l , predictions = session.run([optimizer, loss, train_prediction], feed_dict = feed_dict)
+            if (step%500==0):
+                #Just the final step values
+                print 'Validation accuracy: %.1f%%'%(accuracy(valid_prediction.eval(),valid_labels))
+                print('Test accuracy: %.1f%%' % accuracy(test_prediction.eval(), test_labels))
+        #acc_values.append(accuracy(test_prediction.eval(), test_labels))   #(A3, P1)
+
+
+    
+
+
+
+In [146]:
+
+    
+''' EXTREME OVERFITTING --- Reduce steps by a factor of 10'''
+num_steps   = 300
+regConstVec = [29e-4]
+acc_values  = []                                  #(A3, P1)
+for beta in regConstVec:                          #(A3, P1)
+    print '\n'*2, 'With Beta: %f' % beta      #(A3, P1)
+    with tf.Session(graph=graph) as session:
+        tf.initialize_all_variables().run()
+        print('Initialized...')
+    
+        for step in range(num_steps):
+            offset       = (step * batch_size) % (train_labels.shape[0] - batch_size)
+            batch_data   = train_dataset[offset:(offset + batch_size) , :]
+            batch_labels = train_labels[offset:(offset + batch_size) , :]
+
+            feed_dict    = {tf_train_dataset : batch_data, tf_train_labels : batch_labels, tf_regularization_constant : beta} #beta (A3,P1)
+            _ , l , predictions = session.run([optimizer, loss, train_prediction], feed_dict = feed_dict)
+            if (step%100==0):
+                #Just the final step values
+                print 'Validation accuracy: %.1f%%'%(accuracy(valid_prediction.eval(),valid_labels))
+                print('Test accuracy: %.1f%%' % accuracy(test_prediction.eval(), test_labels))
+
+
+    
+
+
+
+In [246]:
+
+    
+''' Build the tensorflow computation graph '''
+'''
+    1. Weights initialization --- hidden layer=?, output laer = ?.
+    2. Learning Rate Decay. 
+    
+    3. Combine both.
+    
+    4. Add more layers ---> depth
+    
+    5. Increase #hidden nodes? ---> width
+'''
+
+#  ------------------------------------------------
+batch_size              = 128       
+num_hidden_nodes_lay1   = 1024
+num_hidden_nodes_lay2   = 512
+
+graph        = tf.Graph()
+with graph.as_default():
+    tf_train_dataset = tf.placeholder(tf.float32,shape=(batch_size,image_size*image_size))
+    tf_train_labels  = tf.placeholder(tf.float32,shape=(batch_size,num_labels))
+    tf_valid_dataset = tf.constant(valid_dataset)
+    tf_test_dataset  = tf.constant(test_dataset)
+    tf_regularization_constant = tf.placeholder(tf.float32)
+
+    #weights = tf.Variable(tf.truncated_normal([image_size * image_size, num_labels]))
+    #biases = tf.Variable(tf.zeros([num_labels]))
+    weights_to_hidden_lay1 = tf.Variable(tf.truncated_normal([image_size * image_size, num_hidden_nodes_lay1],stddev=0.035,seed=5))
+    biases_to_hidden_lay1  = tf.zeros([num_hidden_nodes_lay1])
+    
+    weights_to_hidden_lay2 = tf.Variable(tf.truncated_normal([num_hidden_nodes_lay1, num_hidden_nodes_lay2],stddev=0.031,seed=5))
+    biases_to_hidden_lay2  = tf.zeros([num_hidden_nodes_lay2])
+    
+    weights_to_output_layer = tf.Variable(tf.truncated_normal([num_hidden_nodes_lay2, num_labels],stddev=0.045, seed=5)) 
+    biases_to_output_layer  = tf.zeros([num_labels])                                                
+    
+    # Training computation
+    logits_hidden1 = tf.nn.dropout(
+                     tf.nn.relu(tf.matmul(tf_train_dataset, weights_to_hidden_lay1) + biases_to_hidden_lay1),0.9)
+    logits_hidden2 = tf.nn.dropout(
+                     tf.nn.relu(tf.matmul(logits_hidden1, weights_to_hidden_lay2) + biases_to_hidden_lay2),0.9)
+    
+    logits         = tf.matmul(logits_hidden2, weights_to_output_layer) + biases_to_output_layer
+    
+    loss           = tf.reduce_mean( tf.nn.softmax_cross_entropy_with_logits(logits, tf_train_labels)) + \
+                     tf_regularization_constant * (tf.nn.l2_loss(weights_to_hidden_lay1) + \
+                                                  tf.nn.l2_loss(weights_to_hidden_lay2) + tf.nn.l2_loss(weights_to_output_layer))      
+        
+    
+    # Optimizer
+    #optimizer = tf.train.GradientDescentOptimizer(0.8).minimize(loss)
+    
+    global_step = tf.Variable(0)
+    starter_learning_rate = 0.8
+    learning_rate = tf.train.exponential_decay(starter_learning_rate, global_step,
+                                           100, 0.95, staircase=True)
+    optimizer = tf.train.GradientDescentOptimizer(learning_rate).minimize(loss, global_step=global_step)
+
+    #Predict / test
+    train_prediction  = tf.nn.softmax(logits)
+    
+    valid_hidden_lay1 = tf.nn.relu(tf.matmul(tf_valid_dataset, weights_to_hidden_lay1)  + biases_to_hidden_lay1)
+    valid_hidden_lay2 = tf.nn.relu(tf.matmul(valid_hidden_lay1, weights_to_hidden_lay2) + biases_to_hidden_lay2)
+    valid_prediction  = tf.nn.softmax(tf.matmul(valid_hidden_lay2, weights_to_output_layer) + biases_to_output_layer)
+    
+    test_hidden_lay1  = tf.nn.relu(tf.matmul(tf_test_dataset, weights_to_hidden_lay1) + biases_to_hidden_lay1)
+    test_hidden_lay2  = tf.nn.relu(tf.matmul(test_hidden_lay1,weights_to_hidden_lay2) + biases_to_hidden_lay2)
+    test_prediction   = tf.nn.softmax(tf.matmul(test_hidden_lay2, weights_to_output_layer) + biases_to_output_layer)
+
+
+    
+
+
+
+In [247]:
+
+    
+''' With regularization values '''
+num_steps   = 3001
+#regConstVec = [1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1]   #(A3,P1)
+regConstVec = [0.00055]
+acc_values  = []                                  #(A3, P1)
+for beta in regConstVec:                          #(A3, P1)
+    print '\n'*2, 'With Beta: %f' % beta      #(A3, P1)
+    with tf.Session(graph=graph) as session:
+        tf.initialize_all_variables().run()
+        print('Initialized...')
+    
+        for step in range(num_steps):
+            offset       = (step * batch_size) % (train_labels.shape[0] - batch_size)
+            batch_data   = train_dataset[offset:(offset + batch_size) , :]
+            batch_labels = train_labels[offset:(offset + batch_size) , :]
+
+            feed_dict    = {tf_train_dataset : batch_data, tf_train_labels : batch_labels, tf_regularization_constant : beta} #beta (A3,P1)
+            _ , l , predictions = session.run([optimizer, loss, train_prediction], feed_dict = feed_dict)
+            if (step%500==0):
+                #Just the final step values
+                print 'Validation accuracy: %.1f%%'%(accuracy(valid_prediction.eval(),valid_labels))
+                print('Test accuracy: %.1f%%' % accuracy(test_prediction.eval(), test_labels))
+        #acc_values.append(accuracy(test_prediction.eval(), test_labels))   #(A3, P1)
+
+
+    
+
+
+
+In [ ]:
+
+    
+#---- FINAL NUMBERS WITHOUT SECOND HIDDEN LAYER. -----
+With Beta: 0.001000
+Initialized...
+Validation accuracy: 40.5%
+Test accuracy: 45.6%
+Validation accuracy: 84.9%
+Test accuracy: 91.5%
+Validation accuracy: 87.1%
+Test accuracy: 93.1%
+Validation accuracy: 88.0%
+Test accuracy: 93.9%
+Validation accuracy: 88.1%
+Test accuracy: 94.2%
+Validation accuracy: 88.5%
+Test accuracy: 94.4%
+Validation accuracy: 88.6%
+Test accuracy: 94.4%
+    
+    Params: stddev=0.035, stddev = 0.03125,  
+         starter_learning_rate = 0.9
+    learning_rate = tf.train.exponential_decay(starter_learning_rate, global_step,
+                                           50, 0.95, staircase=True), droput = 0.85
+    
+
+
+    
+

@@ -1,0 +1,21 @@
+import numpy as  np
+from keras import Input
+from keras.engine import Model
+from keras.models import Sequential
+from keras.layers.core import Flatten, Dense, Dropout
+from keras.layers.normalization import BatchNormalization
+from keras.optimizers import SGD
+from keras.optimizers import Adam, RMSprop, Adagrad
+from keras.layers import LSTM, Convolution1D, LeakyReLU, MaxPooling1D, UpSampling1D, Merge, Conv1D, concatenate
+from keras.utils.vis_utils import plot_model
+from keras.models import load_model
+import io
+import time
+t0 = time.time()
+model = Sequential()
+model.add(LSTM(100, input_shape=(5, 37)))
+model.add(Dense(37, activation='softmax'))
+model.load_weights('D:/Typing/data/models_grammar/weights_grammar_1')
+t1 = time.time()
+tt = t1 - t0
+print 'time: ' + str(tt)

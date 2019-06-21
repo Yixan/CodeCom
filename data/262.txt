@@ -1,0 +1,112 @@
+from .base import BaseNet
+import numpy as np
+import time
+import math as m
+import tensorflow as tf
+import keras
+from keras import Model
+from keras.models import Sequential, Model
+from keras.layers import InputLayer
+from keras.layers import Conv1D
+from keras.layers import LSTM
+from keras.layers import Bidirectional
+from keras.layers import Dense, Dropout, Flatten
+from keras.layers import Input, Concatenate, Permute, Reshape, Merge
+from keras.layers import concatenate
+from keras.optimizers import Adam
+from keras.layers.embeddings import Embedding
+from keras.layers import TimeDistributed, Dense, Dropout, Flatten
+import json
+import pickle
+class iEEGSeq(BaseNet):
+    def __init__(self, name, num_classes=2, num_timewins=5, DROPOUT=True, BIDIRECT=False, FREEZE=True):
+        if name not in _availmodels:
+            raise AttributeError('Name needs to be one of the following:'AMECNNLSTM CNNLSTM MIX')
+        self.name = name
+        self.num_timewins = num_timewins
+        self.DROPOUT = DROPOUT
+        self.BIDIRECT = BIDIRECT
+        self.FREEZE = FREEZE
+        self.model = Sequential()
+    def loadmodel(self, modelfile, weightsfile):
+        json_file = open(modelfile, 'r')
+        loaded_model_json = json_file.read()
+        json_file.close()
+        fixed_cnn_model = keras.models.model_from_json(loaded_model_json)
+        fixed_cnn_model.load_weights(weightsfile)
+        fixed_cnn_model.pop()
+        fixed_cnn_model.pop()
+        return fixed_cnn_model
+    def buildmodel(self, convnet):
+        size_mem = 128
+        num_timewins = self.num_timewins
+        self.input_shape = convnet.input_shape
+        if self.name == 'SAME':
+            self._build_same_cnn_lstm(vnet, num_timewins=num_timewins, size_mem=size_mem, BIDIRECT=self.BIDIRECT)
+        elif self.name == 'CNNLSTM':
+            self._build_cnn_lstm(vnet, num_timewins=num_timewins, size_mem=size_mem, BIDIRECT=self.BIDIRECT)
+        elif self.name == 'MIX':
+            self._build_cnn_lstm_mix(vnet, num_timewins=num_timewins, size_mem=size_mem, BIDIRECT=self.BIDIRECT)
+        elif self.name == 'LOAD':
+            self._appendlstm(nvnet, num_timewins=num_timewins, size_mem=size_mem)
+    def buildoutput(self):
+        if self.name == 'SAME' or self.name == 'CNNLSTM':
+            self._build_seq_output(size_fc=size_fc)
+        elif self.name == 'MIX':
+            self._build_output(self.auxmodel, size_fc)
+        elif self.name == 'LOAD':
+            self.model = self._build_seq_output(size_fc=size_fc)
+        return self.model
+    def _build_same_cnn_lstm(self, convnet, num_timewins, size_mem=128, BIDIRECT=True):
+            convnet.trainable = False
+        convnet.add(Flatten())
+        cnn_output_shape = convnet.output_shape[1]
+        cnn_input_shape = tuple(list(convnet.input_shape)[1:])
+        self.model.add(TimeDistributed(onvnet, input_shape=(num_timewins,)+cnn_input_shape))
+        if BIDIRECT:
+            self.model.add(Bidirectional(LSTM(units=size_mem,activation='relu',return_sequences=False)))
+        else:
+            self.model.add(LSTM(units=size_mem,activation='relu',return_sequences=False))
+    def _build_cnn_lstm(self, convnet, num_timewins, size_mem=128, BIDIRECT=True):
+        buffweights = convnet.weights
+        convnet.add(Flatten())
+        for i in range(num_timewins):
+            convnets.append(convnet)
+        self.model.add(Merge(convnets, mode='concat'))
+        num_cnn_features = convnets[0].output_shape[1]
+        self.model.add(Reshape((num_timewins, num_cnn_features)))
+        if BIDIRECT:
+            self.model.add(Bidirectional(LSTM(units=size_mem,activation='relu',return_sequences=False)))
+        else:
+            self.model.add(LSTM(units=size_mem,activation='relu',return_sequences=False))
+    def _build_cnn_lstm_mix(self, convnet, num_timewins, size_mem=128, BIDIRECT=True):
+        buffweights = convnet.weights
+        convnet.add(Flatten())
+        cnn_input_shape = tuple(list(convnet.input_shape)[1:])
+        for i in range(num_timewins):
+            convnets.append(convnet)
+        if self.FREEZE:
+            for net in convnets:
+                net.trainable = False
+        self.model.add(Merge(convnets, mode='concat'))
+        num_cnn_features = convnets[0].output_shape[1]
+        self.model.add(Reshape((num_timewins, num_cnn_features)))
+        convpool = self.model.output
+        reform_convpool = Permute((2, 1))(convpool)
+        convout_1d = Conv1D(filters=64, kernel_size=3)(reform_convpool)
+        convout_1d = Flatten()(convout_1d)
+        if BIDIRECT:
+            lstm = Bidirectional(LSTM(units=size_mem,activation='relu',return_sequences=False))(convpool)
+        else:
+            lstm = LSTM(units=size_mem,activation='relu',return_sequences=False)(convpool)
+        self.auxmodel = keras.layers.concatenate([lstm, convout_1d])
+    def _build_lstm(self, input_dim, embed_vector_dim, input_len, output_dim, size_mem):
+        self.model.add(LSTM(size_mem))
+        self.model.add(Dense(output_dim, activation='relu'))
+        return self.model
+    def _appendlstm(self, fixed_model, num_timewins, size_mem, BIDIRECT):
+        self.model.add(TimeDistributed(ixed_model, input_shape=(num_timewins,)+self.input_shape))
+        if BIDIRECT:
+            self.model.add(Bidirectional(LSTM(units=size_mem,activation='relu',return_sequences=False)))
+        else:
+            self.model.add(LSTM(units=size_mem,activation='relu',return_sequences=False)

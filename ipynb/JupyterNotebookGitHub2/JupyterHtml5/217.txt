@@ -1,0 +1,293 @@
+
+In [97]:
+
+    
+import numpy as np
+import pandas as pd
+import tensorflow as tf
+import math
+from PIL import Image
+import cv2
+import os
+import matplotlib.pyplot as plt
+import pandas as pd
+
+
+    
+
+
+
+In [98]:
+
+    
+def label_img(name, folder):
+    if folder!= 'pictures/data_vlad':
+        word_label = list(name)[0]
+    else:
+        word_label = list(name)[-5]
+    return word_label
+
+
+    
+
+
+
+In [99]:
+
+    
+import random
+IMG_SIZE = 28
+DIR = ['pictures/data_rus', 'pictures/data_yar', 'pictures/data_max', 'pictures/data_vlad']
+def load_training_data():
+    k=0
+    train_data = []
+    labels = []
+    for folder in DIR:
+        for img in os.listdir(str(folder)):
+            label = label_img(img, folder)
+            path = os.path.join(str(folder), img)
+            img = Image.open(path)
+            img = img.convert('L')
+            img = img.resize((IMG_SIZE, IMG_SIZE), Image.ANTIALIAS)
+            k+=1
+#             img.save('pictures/lol/niga'+str(k)+'.jpg')
+            
+            train_data.append(np.array(img))
+            labels.append(label)
+            # Basic Data Augmentation - Horizontal Flipping and Vertical Flipping
+            flip_img = Image.open(path)
+            flip_img = flip_img.convert('L')
+            flip_img = flip_img.resize((IMG_SIZE, IMG_SIZE), Image.ANTIALIAS)
+            flip_img1 = np.array(flip_img)
+            
+            flip_img = np.flip(flip_img1,axis=0)
+            train_data.append(flip_img)
+            labels.append(label)
+
+    #     random.shuffle(train_data)
+    train_data = np.array(train_data)
+    return train_data, labels
+data, labels = load_training_data()
+
+
+    
+
+
+
+In [100]:
+
+    
+set(labels)
+
+
+    
+
+
+
+In [101]:
+
+    
+def augment_images(data, labels, copies = 1, rotation=True, shear=True, shift=True, zoom=True):
+    augmented_data = []
+    augmented_labels = []
+    
+    for i in range (0, np.shape(labels)[0]):
+        augmented_data.append(data[i])
+        augmented_labels.append(labels[i])
+        
+        for j in range(1, copies):            
+            img = data[i]
+            lbl = labels[i]
+                        
+            if (rotation):
+                img = tf.contrib.keras.preprocessing.image.random_rotation(img, 15, row_axis=0, col_axis=1, channel_axis=2)
+            if (shear):
+                img = tf.contrib.keras.preprocessing.image.random_shear(img, 0.1, row_axis=0, col_axis=1, channel_axis=2)
+            if (shift):
+                img = tf.contrib.keras.preprocessing.image.random_shift(img, 0.15, 0.15, row_axis=0, col_axis=1, channel_axis=2)
+            if (zoom):
+                img = tf.contrib.keras.preprocessing.image.random_zoom(img, (0.9, 1.1), row_axis=0, col_axis=1, channel_axis=2)
+            
+            augmented_data.append(img)
+            augmented_labels.append(lbl)
+    
+    return np.array(augmented_data), np.array(augmented_labels)
+
+
+    
+
+
+
+In [102]:
+
+    
+X = data.reshape(-1, 28, 28, 1).astype(np.float32)
+X /= 255.0
+
+
+    
+
+
+
+In [103]:
+
+    
+data_, labels_ = augment_images(X, labels, copies=10,zoom=False)
+
+
+    
+
+
+
+In [104]:
+
+    
+from sklearn.model_selection import train_test_split
+
+
+    
+
+
+
+In [105]:
+
+    
+X_train, X_valid, Y_train, Y_valid = train_test_split(data_, labels_, test_size=0.1, random_state = 42)
+
+
+    
+
+
+
+In [106]:
+
+    
+import pandas as pd
+Y_train = np.array(pd.get_dummies(Y_train))
+Y_valid = np.array(pd.get_dummies(Y_valid))
+
+
+    
+
+
+
+In [107]:
+
+    
+num_channels = 1
+num_labels = 8
+X_test = X_valid
+graph = tf.Graph()
+with graph.as_default():
+    
+    X = tf.placeholder(tf.float32, shape=(None,28,28,num_channels))
+    Y_ = tf.placeholder(tf.float32, shape=(None,num_labels))
+    tf_step = tf.placeholder(tf.float32)
+    tf_pkeep = tf.placeholder(tf.float32)
+    
+    tf_test_dataset = tf.constant(X_test)
+    
+    K = 6  # first convolutional layer output depth
+    L = 12  # second convolutional layer output depth
+    M = 24  # third convolutional layer output depth
+    N = 200  # fully connected layer
+
+    W1 = tf.Variable(tf.truncated_normal([6, 6, 1, K], stddev=0.1))  # 6x6 patch, 1 input channel, K output channels
+    B1 = tf.Variable(tf.constant(0.1, tf.float32, [K]))
+    W2 = tf.Variable(tf.truncated_normal([5, 5, K, L], stddev=0.1))
+    B2 = tf.Variable(tf.constant(0.1, tf.float32, [L]))
+    W3 = tf.Variable(tf.truncated_normal([4, 4, L, M], stddev=0.1))
+    B3 = tf.Variable(tf.constant(0.1, tf.float32, [M]))
+    W4 = tf.Variable(tf.truncated_normal([7 * 7 * M, N], stddev=0.1))
+    B4 = tf.Variable(tf.constant(0.1, tf.float32, [N]))
+    W5 = tf.Variable(tf.truncated_normal([N, 8], stddev=0.1))
+    B5 = tf.Variable(tf.constant(0.1, tf.float32, [8]))
+    
+    def model(data):
+        Y1 = tf.nn.relu(tf.nn.conv2d(data, W1, strides=[1, 1, 1, 1], padding='SAME') + B1) # output is 28x28
+        Y2 = tf.nn.relu(tf.nn.conv2d(Y1, W2, strides=[1, 2, 2, 1], padding='SAME') + B2) # output is 14x14
+        Y3 = tf.nn.relu(tf.nn.conv2d(Y2, W3, strides=[1, 2, 2, 1], padding='SAME') + B3)  # output is 7x7
+        Y3_flat = tf.reshape(Y3, shape=[-1, 7 * 7 * M])
+        Y4 = tf.nn.dropout(tf.nn.relu(tf.matmul(Y3_flat, W4) + B4), tf_pkeep)
+        return tf.matmul(Y4, W5) + B5
+    
+    logits = model(X)
+    loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=logits, labels=Y_))*100
+    
+    lr = 0.0001 + tf.train.exponential_decay(0.005, tf_step, 2000, 1/math.e)
+    optimizer = tf.train.AdamOptimizer(lr).minimize(loss)   
+    
+    Y = tf.nn.softmax(logits)
+    Y_test = tf.nn.softmax(model(tf_test_dataset))
+    
+    accuracy = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(Y, 1), tf.argmax(Y_, 1)), tf.float32))
+
+
+    
+
+
+
+In [1]:
+
+    
+num_steps = 3000
+batch_size = 64
+
+
+
+with tf.Session(graph=graph) as session:
+    tf.global_variables_initializer().run()
+    
+    for step in range(num_steps):
+        offset = (step * batch_size) % (Y_train.shape[0] - batch_size)
+        batch_data = X_train[offset:(offset + batch_size), :, :, :]
+        batch_labels = Y_train[offset:(offset + batch_size), :]
+        
+        if (step % 100 == 0):
+            a, l, r = session.run([accuracy, loss, lr], feed_dict={
+                X : batch_data, 
+                Y_ : batch_labels,
+                tf_pkeep : 1.0,
+                tf_step : step
+            })
+            print(str(step) + ": accuracy: " + str(a) + " loss: " + str(l) + " (lr:" + str(r) + ")")
+        
+        if (step % 500 == 0):
+            a, l = session.run([accuracy, loss], feed_dict={
+                X : X_valid, 
+                Y_ : Y_valid,
+                tf_pkeep : 1.0
+            })
+            print(str(step) + ": validation accuracy: " + str(a) + " validation loss: " + str(l))        
+        
+        _, a, l, r = session.run([optimizer, accuracy, loss, lr], feed_dict={
+            X : batch_data, 
+            Y_: batch_labels,
+            tf_pkeep : 0.75,
+            tf_step : step
+        })
+        
+
+
+    
+
+
+
+In [109]:
+
+    
+batch_labels.shape
+
+
+    
+
+
+
+In [ ]:
+
+    
+ 
+
+
+    
+

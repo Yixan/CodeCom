@@ -1,0 +1,134 @@
+
+In [6]:
+
+    
+import tensorflow as tf
+#
+
+a= tf.constant([1.0, 2.0])
+b= tf.constant([3.0, 4.0])
+c= a * b
+# 创建会话
+sess = tf.Session()
+# 计算 c
+print(sess.run(c)) #进行矩阵乘法,输出 [3., 8.]
+sess.close()
+
+
+    
+
+
+
+In [9]:
+
+    
+# 创建一个常量运算操作,产生一个 1 × 2 矩阵
+matrix1 = tf.constant([[3., 3.]])
+# 创建另外一个常量运算操作,产生一个 2 × 1 矩阵
+matrix2 = tf.constant([[2.],[2.]])
+# 创建一个矩阵乘法运算 ,把 matrix1 和 matrix2 作为输入
+# 返回值 product 代表矩阵乘法的结果
+product = tf.matmul(matrix1, matrix2)
+with tf.Session() as sess:
+    result = sess.run([product])
+    print(result)
+
+
+    
+
+
+
+In [10]:
+
+    
+# 创建一个变量,初始化为标量 0
+state = tf.Variable(0, name="counter")
+
+
+    
+
+
+
+In [14]:
+
+    
+input1 = tf.placeholder(tf.float32)
+input2 = tf.placeholder(tf.float32)
+output = tf.multiply(input1, input2)
+with tf.Session() as sess:
+    print(sess.run([output], feed_dict={input1:[7.], input2:[2.]}))
+# 输出 [array([ 14.], dtype=float32)]
+
+
+    
+
+
+
+In [ ]:
+
+    
+ 
+
+
+    
+
+
+
+In [ ]:
+
+    
+'''
+激活函数不会更改输入数据的维度,也就是输入和输出的维度是相同的。TensorFlow 中有
+如下激活函数,它们定义在 tensorflow-1.1.0/tensorflow/python/ops/nn.py 文件中,这里包括平滑
+非线性的激活函数,如 sigmoid、tanh、elu、softplus 和 softsign,也包括连续但不是处处可微的
+函数 relu、relu6、crelu 和 relu_x,以及随机正则化函数 dropout:
+tf.nn.relu()
+tf.nn.sigmoid()
+tf.nn.tanh()
+tf.nn.elu()
+tf.nn.bias _ add()
+tf.nn.crelu()
+tf.nn.relu6()
+tf.nn.softplus()
+tf.nn.softsign()
+tf.nn.dropout() # 防止过拟合,用来舍弃某些神经元
+'''
+
+
+    
+
+
+
+In [35]:
+
+    
+with tf.Session() as sess:
+    a = tf.constant([[1.0, 2.0], [1.0, 2.0], [1.0, 2.0]])
+    sess = tf.Session()
+    print(sess.run(tf.sigmoid(a)))
+
+
+    
+
+
+
+In [ ]:
+
+    
+def conv2d(input, filter, strides, padding, use _ cudnn _ on _ gpu=None,
+data _ format=None, name=None)
+# 输入:
+#input :一个 Tensor 。数据类型必须是 float32 或者 float64
+#filter :一个 Tensor 。数据类型必须是 input 相同
+#strides :一个长度是 4 的一维整数类型数组,每一维度对应的是 input 中每一维的对应移动步数,
+#比如, strides[1] 对应 input[1] 的移动步数
+#padding :一个字符串,取值为 SAME 或者 VALID
+#padding='SAME' :仅适用于全尺寸操作,即输入数据维度和输出数据维度相同
+#padding='VALID :适用于部分窗口,即输入数据维度和输出数据维度不同
+#use _ cudnn _ on _ gpu :一个可选布尔值,默认情况下是 True
+#name :(可选)为这个操作取一个名字
+# 输出:一个 Tensor ,数据类型是 input 相同
+
+
+    
+

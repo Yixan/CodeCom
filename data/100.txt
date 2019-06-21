@@ -1,0 +1,96 @@
+from keras.preprocessing import sequence
+from keras.optimizers import SGD, RMSprop, Adagrad
+from keras.utils import np_utils
+from keras.models import Sequential
+from keras.layers import Input
+from keras.models import Model
+from keras.layers.core import Dense, Dropout, Activation
+from keras.layers.embeddings import Embedding
+from keras.layers.recurrent import LSTM, GRU
+from keras.constraints import unitnorm
+from keras.layers.core import Reshape, Flatten, Merge
+from keras.layers.convolutional import Convolution2D, MaxPooling2D, Convolution1D, MaxPooling1D
+from sklearn.cross_validation import KFold
+from keras.callbacks import EarlyStopping
+from keras.regularizers import l2
+import numpy as np
+from sklearn import cross_validation
+import math
+from keras_input_data import make_idx_data
+from load_vai import loadVAI
+import _pickle as cPickle
+from metrics import continuous_metrics
+def lstm_cnn(W):
+    nb_filter = 100
+    filter_length = 5
+    pool_length = 2
+    lstm_output_size = 100
+    p = 0.25
+    region_input = Input(shape=(maxlen,), dtype='int32', name='region_input')
+    x = Embedding(W.shape[0], W.shape[1], weights=[W], input_length=maxlen)(region_input)
+    lstm_output = LSTM(64, return_sequences=True, name='lstm')(x)  
+    region_conv = Convolution1D(nb_filter=nb_filter,filter_length=filter_length,border_mode='valid',activation='relu',subsample_length=1)(lstm_output)
+    region_max = MaxPooling1D(pool_length=maxlen - filter_length + 1)(region_conv)
+    region_vector = Flatten()(region_max)
+    textvector = Dense(64, activation='relu')(region_vector)
+    predictions = Dense(1, activation='linear')(textvector)
+    final_model = Model(region_input, predictions, name='model')
+    model=final_model
+    return model
+if __name__ == '__main__':
+    x = cPickle.load(open("mr.p", "rb"))
+    revs, W, W2, word_idx_map, vocab = x[0], x[1], x[2], x[3], x[4]
+    print("data loaded!")
+    sentences=[]
+    for rev in revs:
+        sentence = rev['text']
+        sentences.append(sentence)
+    idx_data = make_idx_data(sentences, word_idx_map)
+    dim = 'I'
+    column = loadVAI(dim)
+    irony=column
+    batch_size = 8
+    Y = np.array(irony)
+    Y = [float(x) for x in Y]
+    print(option + ' prediction.......................')
+    n_MAE=0
+    n_Pearson_r=0
+    n_Spearman_r=0
+    n_MSE=0
+    n_R2=0
+    n_MSE_sqrt=0
+    SEED = 42
+    for i in range(n):
+        X_train, X_test, y_train, y_test = cross_validation.train_test_split(ata, Y, test_size=.20, random_state=i * SEED)
+        print(len(X_train), 'train sequences')
+        print(len(X_test), 'test sequences')
+        print("Pad sequences (samples x time)")
+        X_train = sequence.pad_sequences(X_train, maxlen=maxlen)
+        X_test = sequence.pad_sequences(X_test, maxlen=maxlen)
+        print('X_train shape:', X_train.shape)
+        print('X_test shape:', X_test.shape)
+        model =lstm_cnn(W)
+        print('-------------now is lstm_cnn---------')
+        print("Train...")
+        early_stopping = EarlyStopping(monitor='val_loss', patience=5)
+        result = model.fit(X_train, y_train, batch_size=batch_size, nb_epoch=10,validation_data=(X_test, y_test),callbacks=[early_stopping])
+        score = model.evaluate(X_test, y_test, batch_size=batch_size)
+        print('Test score:', score)
+        predict = model.predict(X_test, batch_size=batch_size).reshape((1, len(X_test)))[0]
+        estimate=continuous_metrics(y_test, predict, 'prediction result:')
+        n_MSE += estimate[0]
+        n_MAE += estimate[1]
+        n_Pearson_r += estimate[2]
+        n_R2 += estimate[3]
+        n_Spearman_r += estimate[4]
+        n_MSE_sqrt += estimate[5]
+    ndigit=3
+    avg_MSE =  round(n_MSE/5, ndigit)
+    avg_MAE =  round(n_MAE/5, ndigit)
+    avg_Pearson_r =  round(n_Pearson_r/5, ndigit)
+    avg_R2 =  round(n_R2/5, ndigit)
+    avg_Spearman_r =  round(n_Spearman_r/5, ndigit)
+    avg_MSE_sqrt =  round(n_MSE_sqrt/5, ndigit)
+    print('average evaluate result:')
+    print(avg_MSE,avg_MAE ,avg_Pearson_r ,avg_R2,avg_Spearman_r,avg_MSE_sqrt)
+    from visualize import plot_keras, draw_hist

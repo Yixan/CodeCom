@@ -1,0 +1,175 @@
+
+In [1]:
+
+    
+#practice's convolution
+# test for showing how convolution is working in real life
+import tensorflow as tf
+import numpy as np
+x_inp = tf.placeholder(tf.float32,[5,5])
+# convolution's filter
+w_inp = tf.placeholder(tf.float32,[3,3])
+# for 2D convolution in tensorflow using conv2d and input variable must have dim equal 4
+#[batch's size,length,width,channels]
+# weight must have [length,width,input channels,output channels] 
+# reshaping
+#white-black
+x = tf.reshape(x_inp,[1,5,5,1])
+w = tf.reshape(w_inp,[3,3,1,1])
+
+#convolution
+#strides is a step by picture [1,N,N,1] -> with step N
+#padding = "Valid"  say that convolution is applied for only windows who is fully entered in massive length
+#padding = "same" save old dimension with using zeros into basic vector
+x_valid = tf.nn.conv2d(x,w,strides= [1,1,1,1],padding = "VALID")
+x_same = tf.nn.conv2d(x,w,strides = [1,1,1,1],padding = "SAME")
+x_valid_half = tf.nn.conv2d(x,w,strides= [1,2,2,1],padding = "VALID")
+x_same_half = tf.nn.conv2d(x,w,strides = [1,2,2,1],padding = "SAME")
+
+x = np.array([[0,1,2,1,0],
+              [4,1,0,1,0],
+              [2,0,1,1,1],
+              [1,2,3,1,0],
+              [0,4,3,2,0]])
+w = np.array([[0,1,0],
+              [1,0,1],
+              [2,1,0]])
+sess = tf.Session()
+y_valid,y_same,y_half,y_same_half = sess.run(
+                                        [x_valid,x_same,x_valid_half,x_same_half],feed_dict ={x_inp:x,w_inp:w})
+print(y_valid[0,:,:,0])
+print(y_same[0,:,:,0])
+print("stride = 2")
+print(y_half)
+print(y_same_half)
+
+
+    
+
+
+
+In [5]:
+
+    
+#max pooling
+import tensorflow as tf
+import numpy as np
+x_inp = tf.placeholder(tf.float32,[4,4])
+x = tf.reshape(x_inp,[1,4,4,1])
+x_valid = tf.nn.max_pool(x, ksize = [1,2,2,1],strides = [1,1,1,1],padding = "VALID")
+x_valid_h = tf.nn.max_pool(x,ksize = [1,2,2,1],strides = [1,2,2,1],padding = "VALID")
+
+x = np.array([[0,1,2,1],
+             [4,1,0,1],
+             [2,0,1,1],
+             [1,2,3,1]])
+sess = tf.Session()
+y_valid,y_valid_half = sess.run(
+[x_valid,x_valid_h],feed_dict={x_inp:x})
+print("Padding: ")
+print(y_valid[0,:,:,0])
+print("Padding: strides = 2  ")
+print(y_valid_half[0,:,:,0])
+
+
+    
+
+
+
+In [3]:
+
+    
+import tensorflow as tf
+from tensorflow.examples.tutorials.mnist import input_data
+
+mnist = input_data.read_data_sets("MNIST_data/",one_hot = True)
+
+x = tf.placeholder(tf.float32,[None,784])
+y = tf.placeholder(tf.float32,[None,10])
+#gray_scale
+x_image = tf.reshape(x,[-1,28,28,1])
+
+w_conv_1 = tf.Variable(tf.truncated_normal([5,5,1,64],stddev = 0.1))
+
+b_conv_1 = tf.Variable(tf.constant(0.1,shape = [64]))
+conv_1 = tf.nn.conv2d(x_image,w_conv_1,strides=[1,1,1,1],padding = "SAME") + b_conv_1
+h_conv_1 = tf.nn.relu(conv_1)
+h_pool = tf.nn.max_pool(h_conv_1,ksize = [1,2,2,1],strides = [1,2,2,1],padding = "SAME")
+#h_dropout = tf.nn.dropout(h_pool,0.5)
+#second Layer
+w_conv_2 = tf.Variable(tf.truncated_normal([5,5,64,128],stddev = 0.1))
+b_conv_2 = tf.Variable(tf.constant(0.1,shape = [128]))
+
+conv_2 = tf.nn.conv2d(h_pool,w_conv_2,strides = [1,1,1,1],padding = "SAME") + b_conv_2
+h_conv_2 = tf.nn.relu(conv_2)
+h_pool_2 = tf.nn.max_pool(h_conv_2,ksize =[1,2,2,1],strides = [1,2,2,1],padding = "SAME")
+
+h_pool_2_flat = tf.reshape(h_pool_2,[-1,7*7*128])
+
+W_fc_1 = tf.Variable(tf.truncated_normal([7*7*128,1024],stddev = 0.1))
+b_fc_1 = tf.Variable(tf.constant(0.1,shape = [1024]))
+
+h_fc_1 = tf.nn.relu(tf.matmul(h_pool_2_flat,W_fc_1) + b_fc_1)
+keep_probability = tf.placeholder(tf.float32)
+h_fc_1_drop = tf.nn.dropout(h_fc_1,keep_probability)
+
+W_fc_2 = tf.Variable(tf.truncated_normal([1024,10],stddev = 0.1))
+b_fc_2 = tf.Variable(tf.constant(0.1,shape = [10]))
+logit_conv = tf.matmul(h_fc_1_drop,W_fc_2) + b_fc_2
+
+y_conv = tf.nn.softmax(logit_conv)
+
+cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits = logit_conv,labels = y))
+train_step = tf.train.AdamOptimizer(0.0001).minimize(cross_entropy)
+correct_prediction = tf.equal(tf.arg_max(y_conv,1),tf.argmax(y,1))
+accuracy = tf.reduce_mean(tf.cast(correct_prediction,tf.float32))
+init = tf.global_variables_initializer()
+sess = tf.Session()
+sess.run(init)
+for idx in range(100):
+    #choose 100 examples
+    batch_xs,batch_ys = mnist.train.next_batch(10)
+    sess.run(train_step,feed_dict = {x:batch_xs,y:batch_ys,keep_probability: 0.5})
+#print(sess.run(accuracy,feed_dict = {x:mnist.test.images,y:mnist.test.labels,keep_probability:0.8}))
+
+
+    
+
+
+
+In [9]:
+
+    
+import tensorflow as tf
+from tensorflow.examples.tutorials.mnist import input_data
+
+mnist = input_data.read_data_sets("MNIST_data/",one_hot = True)
+batch_size = 64
+latent_space = 128
+lr = 0.1
+#однослойный кодировщик
+
+ae_weight = {
+    "encoder_w": tf.Variable(tf.truncated_normal([784,latent_space],stddev = 0.1)),
+    "encoder_b":tf.Variable(tf.truncated_normal([latent_space],stddev = 0.1)),
+    "decoder_w":tf.Variable(tf.truncated_normal([latent_space,784],stddev = 0.1)),
+    "decoder_b":tf.Variable(tf.truncated_normal([784],stddev = 0.1))
+}
+
+ae_input = tf.placeholder(tf.float32,[batch_size,784])
+hidden = tf.nn.relu(tf.matmul(ae_input,ae_weight["encoder_w"]) + ae_weight["encoder_b"])
+visible_logits = tf.matmul(hidden,ae_weight["decoder_w"]) + ae_weight["decoder_b"]
+#for visualization
+visible = tf.nn.relu(visible_logits)
+ae_cost = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits = visible_logits,labels=ae_input))
+optimizer = tf.train.AdagradOptimizer(lr)
+ae_op = optimizer.minimize(ae_cost)
+sess = tf.Session()
+sess.run(tf.global_variables_initializer())
+for idx in range(10000):
+    x_batch,_ = mnist.train.next_batch(batch_size)
+    sess.run(ae_op,feed_dict = {ae_input:x_batch})
+
+
+    
+

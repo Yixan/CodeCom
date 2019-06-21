@@ -1,0 +1,290 @@
+
+In [2]:
+
+    
+%matplotlib inline
+import numpy as np
+import tensorflow as tf
+import matplotlib.pyplot as plt
+import datetime
+
+auTrain = np.load('auTrain.npz')
+itk=np.random.random(10000)<0.9
+print(itk)
+auTrain_images = auTrain['digits']
+auTrain_labels = auTrain['labels']
+print(auTrain_labels)
+print(auTrain_images.shape[0])
+auTest = np.load('auTest.npz')
+auTest_images = auTest['digits']
+auTest_labels = auTest['labels']
+batch_size = 16
+epochs = 20
+prob=0.9
+d = auTrain_images.shape[1]
+def plot_perf(names, fig=None, ax=None, xlim=None, ylim=None, figsize=(15, 10)):
+    import matplotlib
+    from IPython.display import display, clear_output
+
+    formats = ['%s: %%s' % n for n in names]
+    n = len(formats)
+
+    if ax is None or isinstance(ax, int):
+        if fig is None:
+            fig = matplotlib.figure.Figure(figsize=figsize)
+            fig.canvas = matplotlib.backends.backend_agg.FigureCanvasAgg(fig)
+
+        if isinstance(ax, int):
+            ax = fig.add_subplot(ax)
+        else:
+            ax = fig.gca()
+        if xlim is None:
+            ax.set_autoscalex_on(True)
+        else:
+            ax.set_autoscalex_on(False)
+            ax.set_xlim(*xlim)
+        if ylim is None:
+            ax.set_autoscaley_on(True)
+        else:
+            ax.set_autoscaley_on(False)
+            ax.set_ylim(*ylim)
+        ax.grid()
+    lines = [([], [], ax.plot([], [])[0]) for _ in range(n)]
+
+    def add(*points):
+        legend = ax.get_legend()
+        if legend is not None:
+            legend.remove()
+
+        for y, (xs, ys, line) in zip(points, lines):
+            xs.append(len(xs))
+            ys.append(y)
+            line.set_data(xs, ys)
+        ax.legend([f % p for f, p in zip(formats, points)])
+        ax.relim()
+        ax.autoscale(enable=None)
+        clear_output(wait=True)
+        display(fig)
+
+    return fig, add
+
+def weight_variable(shape):
+    initial = tf.truncated_normal(shape, stddev=0.1)
+    return tf.Variable(initial)
+
+def bias_variable(shape):
+    initial = tf.constant(0.1, shape=shape) #aendre??
+    return tf.Variable(initial)
+
+def conv2d(x, W):
+    return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
+
+def max_pool_2x2(x):
+    return tf.nn.max_pool(x, ksize=[1, 2, 2, 1],
+                        strides=[1, 2, 2, 1], padding='SAME')
+
+def permute_data_all():
+    assert auTrain_images.flags.c_contiguous
+    # Return a random permutation of the data
+    perm = np.random.permutation(len(auTrain_labels))
+    return auTrain_images[perm], auTrain_labels[perm]
+
+def main():
+    starttid =datetime.datetime.now().time()
+    with tf.Graph().as_default():
+        
+        data = tf.placeholder(tf.float32, shape = [None, 784])
+        labels = tf.placeholder(tf.int32, shape = [None])
+        learning_rate = tf.placeholder(tf.float32)
+
+        conv_image=tf.reshape(data, [-1,28,28,1])
+
+        #convolutionlayer 1
+        W_conv1 = weight_variable([5, 5, 1, 32])
+        b_conv1 = bias_variable([32])
+        h_conv1 = tf.nn.relu(conv2d(conv_image, W_conv1) + b_conv1)
+        h_pool1 = max_pool_2x2(h_conv1)
+        
+        #convolutionlayer 2
+        W_conv2 = weight_variable([5, 5, 32, 64])
+        b_conv2 = bias_variable([64])
+        h_conv2 = tf.nn.relu(conv2d(h_pool1, W_conv2) + b_conv2)
+        h_pool2 = max_pool_2x2(h_conv2)
+        
+        #layer 1
+        W1 = weight_variable([7*7*64, 512])
+        b1 = bias_variable([512])
+        h_pool2_flat = tf.reshape(h_pool2, [-1, 7*7*64])
+        y1 = tf.nn.relu(tf.matmul(h_pool2_flat, W1) + b1)
+
+        #DropOut
+        keep_prob=tf.placeholder(tf.float32)
+        drop=tf.nn.dropout(y1,keep_prob)
+        
+        #Output
+        W2 = tf.Variable(tf.truncated_normal([512, 10], stddev=0.1))
+        b2 = tf.Variable(tf.truncated_normal([10], stddev=0.1))
+        y2 = tf.nn.softmax(tf.matmul(drop, W2) + b2)
+
+        
+        cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
+        y2, labels)
+        reg_rate = 1e-4
+        loss = tf.reduce_mean(cross_entropy)
+        reg = reg_rate * (tf.reduce_sum(W2 ** 2)+tf.reduce_sum(W1**2)+tf.reduce_sum(b1 ** 2)+tf.reduce_sum(b2**2))
+        # Minimization target is the sum of cross-entropy loss and regularization
+        target = loss + reg
+
+#        opt = tf.train.AdamOptimizer(learning_rate)
+        opt = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
+        train_step = opt.minimize(target)
+        fig, perf = plot_perf(names=['E_in', 'loss', 'E_test', 'reg'],
+                          ax=211, xlim=(0, epochs-1), ylim=(0, 0.7), figsize=(12, 10))
+#        weight_ax = fig.add_subplot(212)
+#        weight_image = weight_ax.imshow(np.zeros((2*28, 5*28)), cmap='bone')
+
+        correct_prediction = tf.equal(labels, tf.cast(tf.argmax(y2, 1), labels.dtype))
+        accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+        
+        saver=tf.train.Saver()
+        
+        
+        with tf.Session() as session:
+            session.run(tf.initialize_all_variables())
+            print("init done")
+
+            for epoch in range(epochs):
+                input_value, labels_value = permute_data_all()
+    
+                # Run train_step in mini-batches
+                for i in range(0, len(auTrain_labels), batch_size):
+                    j = min(len(auTrain_labels), i+batch_size)
+                    results = session.run(
+                        train_step,
+                        feed_dict={data: input_value[i:j],
+                                   labels: labels_value[i:j],
+                                   keep_prob:prob,
+                                   learning_rate: 0.1}) #1e-4
+                saver.save(session, "/home/weigths.ckpt")
+                train_accuracy = session.run(accuracy,feed_dict={data: auTrain_images, labels: auTrain_labels,keep_prob:1.0})
+                correctly_labeled = session.run(correct_prediction, feed_dict={data: auTest_images, labels: auTest_labels,keep_prob:1.0})
+                print("shape ",correctly_labeled.shape)
+                print(auTest_labels[correctly_labeled==True])
+                print(auTest_labels[correctly_labeled!=True])
+                test_accuracy = session.run(accuracy, feed_dict={data: auTest_images, labels: auTest_labels,keep_prob:1.0})
+                test_error = 1 - test_accuracy
+                print("test_error ",test_error)
+                current_loss = session.run(loss, feed_dict={data: auTrain_images, labels: auTrain_labels,keep_prob:prob})
+                in_sample_error = 1 - train_accuracy
+ #               perf(in_sample_error,  current_loss/3, test_error, session.run(reg)/3)
+
+            test_accuracy = session.run( accuracy,
+            feed_dict={data: auTest_images,
+                       labels: auTest_labels,
+                      keep_prob:1.0})
+            test_error = 1 - test_accuracy
+            print(test_error)
+        print("starttid ",starttid," sluttid ",datetime.datetime.now().time())           
+            
+if __name__ == '__main__':
+    print(main())
+
+
+    
+
+
+
+In [3]:
+
+    
+%matplotlib inline
+import numpy as np
+import tensorflow as tf
+import matplotlib.pyplot as plt
+import datetime
+
+auTest = np.load('auTest.npz')
+auTest_images = auTest['digits']
+auTest_labels = auTest['labels']
+prob=0.9
+d = auTrain_images.shape[1]
+
+def weight_variable(shape):
+    initial = tf.truncated_normal(shape, stddev=0.1)
+    return tf.Variable(initial)
+
+def bias_variable(shape):
+    initial = tf.constant(0.1, shape=shape) #aendre??
+    return tf.Variable(initial)
+
+def conv2d(x, W):
+    return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
+
+def max_pool_2x2(x):
+    return tf.nn.max_pool(x, ksize=[1, 2, 2, 1],
+                        strides=[1, 2, 2, 1], padding='SAME')
+
+def permute_data_all():
+    assert auTrain_images.flags.c_contiguous
+    # Return a random permutation of the data
+    perm = np.random.permutation(len(auTrain_labels))
+    return auTrain_images[perm], auTrain_labels[perm]
+
+def main():
+    starttid =datetime.datetime.now().time()
+    with tf.Graph().as_default():
+        
+        data = tf.placeholder(tf.float32, shape = [None, 784])
+        labels = tf.placeholder(tf.int32, shape = [None])
+        learning_rate = tf.placeholder(tf.float32)
+
+        conv_image=tf.reshape(data, [-1,28,28,1])
+
+        #convolutionlayer 1
+        W_conv1 = weight_variable([5, 5, 1, 32])
+        b_conv1 = bias_variable([32])
+        h_conv1 = tf.nn.relu(conv2d(conv_image, W_conv1) + b_conv1)
+        h_pool1 = max_pool_2x2(h_conv1)
+        
+        #convolutionlayer 2
+        W_conv2 = weight_variable([5, 5, 32, 64])
+        b_conv2 = bias_variable([64])
+        h_conv2 = tf.nn.relu(conv2d(h_pool1, W_conv2) + b_conv2)
+        h_pool2 = max_pool_2x2(h_conv2)
+        
+        #layer 1
+        W1 = weight_variable([7*7*64, 512])
+        b1 = bias_variable([512])
+        h_pool2_flat = tf.reshape(h_pool2, [-1, 7*7*64])
+        y1 = tf.nn.relu(tf.matmul(h_pool2_flat, W1) + b1)
+
+        #DropOut
+        keep_prob=tf.placeholder(tf.float32)
+        drop=tf.nn.dropout(y1,keep_prob)
+        
+        #Output
+        W2 = tf.Variable(tf.truncated_normal([512, 10], stddev=0.1))
+        b2 = tf.Variable(tf.truncated_normal([10], stddev=0.1))
+        y2 = tf.nn.softmax(tf.matmul(drop, W2) + b2)
+
+        
+        correct_prediction = tf.equal(labels, tf.cast(tf.argmax(y2, 1), labels.dtype))
+        accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+        saver=tf.train.Saver()
+        with tf.Session() as session:
+            saver.restore(session,"/home/weigths.ckpt")
+
+            test_accuracy = session.run( accuracy,
+            feed_dict={data: auTest_images,
+                       labels: auTest_labels,
+                      keep_prob:1.0})
+            test_error = 1 - test_accuracy
+            print(test_error)
+        print("starttid ",starttid," sluttid ",datetime.datetime.now().time())           
+            
+if __name__ == '__main__':
+    print(main())
+
+
+    
+

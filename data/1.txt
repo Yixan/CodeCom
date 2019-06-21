@@ -1,0 +1,112 @@
+from keras.models import Sequential
+from keras.layers import Dense, Dropout, Flatten, Activation, Merge, Add, merge, Conv1D, MaxPooling1D, LeakyReLU, CuDNNLSTM, CuDNNGRU
+from keras.layers import Conv2D, MaxPooling2D, UpSampling2D
+from keras.layers.normalization import BatchNormalization
+from keras.layers.core import Reshape
+from keras.layers.recurrent import LSTM
+from keras.layers.wrappers import Bidirectional
+from keras.regularizers import l2
+def Convolutional(input_shape, n_classes, print_info = False):
+    model = Sequential()
+    model.add(BatchNormalization(input_shape = input_shape))
+    model.add(Conv1D(filters = 18, kernel_size=5, strides=1, padding='same'))
+    model.add(LeakyReLU(alpha=0.3))
+    model.add(MaxPooling1D(pool_size=2, strides=2, padding='same'))
+    model.add(BatchNormalization())
+    model.add(Conv1D(filters = 36, kernel_size=7, strides=1, padding='same'))
+    model.add(LeakyReLU(alpha=0.3))
+    model.add(MaxPooling1D(pool_size=2, strides=2, padding='same'))
+    model.add(BatchNormalization())
+    model.add(Conv1D(filters = 72, kernel_size=7, strides=1, padding='same'))
+    model.add(LeakyReLU(alpha=0.3))
+    model.add(MaxPooling1D(pool_size=2, strides=2, padding='same'))
+    model.add(Flatten())
+    model.add(Dense(64, kernel_regularizer=l2(0.01)))
+    model.add(LeakyReLU(alpha=0.3))
+    model.add(Dense(n_classes))
+    model.add(Activation('softmax'))
+    if print_info:
+        model.summary()
+    return model
+def Convolutional2DRecurrent(input_shape, n_classes, GPU=False, print_info = False):
+    model = Sequential()
+    model.add(BatchNormalization(input_shape = input_shape))
+    model.add(Conv2D(filters = 50, kernel_size = (11,1), activation='relu'))
+    model.add(MaxPooling2D(pool_size=(2,1)))
+    model.add(Reshape((model.layers[2].output_shape[1],model.layers[2].output_shape[2] * model.layers[2].output_shape[3])))  
+    if GPU:
+        model.add(CuDNNLSTM(300, return_sequences=True))
+    else:
+        model.add(LSTM(300, return_sequences=True))
+    if GPU:
+        model.add(CuDNNLSTM(300))
+    else:
+        model.add(LSTM(300))
+    model.add(Dense(512,activation='relu'))
+    model.add(Dense(n_classes, activation='softmax'))
+    if print_info:
+        model.summary()
+    return model
+def Convolutional1DRecurrent(input_shape, n_classes, GPU=False, print_info = False):
+    model = Sequential()
+    model.add(BatchNormalization(input_shape = input_shape))
+    model.add(Conv1D(filters = 50, kernel_size = 11))
+    model.add(LeakyReLU(alpha=0.3))
+    model.add(MaxPooling1D(pool_size=2))
+    if GPU:
+        model.add(CuDNNLSTM(300, return_sequences=True))
+    else:
+        model.add(LSTM(300, return_sequences=True))
+    if GPU:
+        model.add(CuDNNLSTM(300))
+    else:
+        model.add(LSTM(300))
+    model.add(Dense(512))
+    model.add(LeakyReLU(alpha=0.3))
+    model.add(Dense(n_classes, activation='softmax'))
+    if print_info:
+        model.summary()
+    return model
+def ConvolutionalDeepRecurrent(input_shape, n_classes, GPU=False, print_info = False):
+    model = Sequential()
+    model.add(BatchNormalization(input_shape = input_shape))
+    model.add(Conv1D(filters = 18, kernel_size=5, strides=1, padding='same'))
+    model.add(LeakyReLU(alpha=0.3))
+    model.add(MaxPooling1D(pool_size=2, strides=2, padding='same'))
+    model.add(BatchNormalization())
+    model.add(Conv1D(filters = 36, kernel_size=7, strides=1, padding='same'))
+    model.add(LeakyReLU(alpha=0.3))
+    model.add(MaxPooling1D(pool_size=2, strides=2, padding='same'))
+    model.add(Dropout(0.2))
+    model.add(BatchNormalization())
+    model.add(Conv1D(filters = 72, kernel_size=7, strides=1, padding='same'))
+    model.add(LeakyReLU(alpha=0.3))
+    model.add(MaxPooling1D(pool_size=2, strides=2, padding='same'))
+    if GPU:
+        model.add(CuDNNLSTM(60, return_sequences=True))
+    else:
+        model.add(LSTM(60, return_sequences=True))
+    if GPU:
+        model.add(CuDNNLSTM(60))
+    else:
+        model.add(LSTM(60))
+    model.add(Dense(512))
+    model.add(LeakyReLU(alpha=0.3))
+    model.add(Dense(n_classes, activation = 'softmax'))
+    if print_info:
+        model.summary()
+    return model
+def MotionDetection(input_shape, n_classes, print_info = False):
+    model = Sequential()
+    model.add(BatchNormalization(input_shape = input_shape))
+    model.add(Conv1D(filters = 36,rnel_size = 11,strides=1))
+    model.add(LeakyReLU(alpha=0.3))
+    model.add(MaxPooling1D(pool_size=2))
+    model.add(LSTM(600, return_sequences=True))
+    model.add(LSTM(600))
+    model.add(Dense(512))
+    model.add(LeakyReLU(alpha=0.3))
+    model.add(Dense(n_classes, activation = 'softmax'))
+    if print_info:
+        model.summary()
+    return model

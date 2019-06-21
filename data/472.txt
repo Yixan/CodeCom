@@ -1,0 +1,42 @@
+import json
+from collections import defaultdict
+from keras.preprocessing import sequence
+from keras.models import Sequential
+from keras.layers.core import Dense, Dropout, Activation
+from keras.layers.embeddings import Embedding
+from keras.layers.recurrent import LSTM, GRU
+from keras.optimizers import SGD
+from keras.callbacks import LearningRateScheduler
+from keras.callbacks import EarlyStopping
+from keras.callbacks import ModelCheckpoint
+maxlen = 50
+PATH_PN = '../data/taobao-comment/pn.csv'
+PATH_TOKENIZER = '../data/taobao-comment/tokenizer'
+tokenizer = defaultdict(lambda: 0)
+tokenizer.update(json.load(open(PATH_TOKENIZER, 'r')))
+tokens = list(set([tokenizer[x] for x in tokenizer]))
+token_min = min(tokens)
+token_max = max(tokens)
+def tokenize(word_list):
+    return list(map(lambda word: tokenizer[word], word_list))
+pn = pd.read_csv(PATH_PN)
+pn['words'] = pn['text'].apply(lambda line: list(jieba.cut(line)))
+pn['vec'] = list(sequence.pad_sequences(pn['vec'], maxlen=maxlen))
+x = np.array(list(pn['vec']))
+y = np.array(list(pn['mark']))
+model = Sequential()
+model.add(Embedding(name='embedding',put_dim=token_max+1, output_dim=256, input_length=maxlen,))
+model.add(Dropout(0.9))
+model.add(Dense(1))
+model.add(Activation('sigmoid'))
+MODEL_LSTM_PATH = 'sentiment-analysis-lstm'
+model_checkpoint_better_path = MODEL_LSTM_PATH + '.checkpoint' \
+                                                 '.epoch-{epoch:02d}' \
+                                                 '.val_loss-{val_loss:.6f}' \
+                                                 '.val_acc-{val_acc:.6f}'
+model_checkpoint_best_path = MODEL_LSTM_PATH + '.checkpoint.best'
+sgd = SGD(lr=0.0, momentum=0.9, decay=0.0, nesterov=False)
+early_stopping = EarlyStopping(monitor='val_loss', min_delta=0.0001, mode='min', patience=5, verbose=1)
+checkpoint_better = ModelCheckpoint(_checkpoint_better_path, save_best_only=True, monitor='val_acc',  mode='max', verbose=1)
+checkpoint_best = ModelCheckpoint(_checkpoint_best_path, save_best_only=True, monitor='val_acc',  mode='max', verbose=1)
+model.compile(loss='binary_crossentropy', optimizer='adam',  metrics=['accuracy'])

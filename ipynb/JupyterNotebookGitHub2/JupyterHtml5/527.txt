@@ -1,0 +1,241 @@
+
+In [ ]:
+
+    
+from __future__ import print_function
+import tensorflow as tf
+from util import *
+
+%matplotlib inline
+
+
+    
+
+
+
+In [ ]:
+
+    
+# Totally minimalistic example:
+
+# An array:
+a = np.array([[1, 1, 1],
+              [2, 2, 2],
+              [3, 3, 3]], dtype=np.float32)
+
+# TF variable created from the array
+a_var = tf.Variable(a)
+
+# TF placeholder (input)
+v_placeholder = tf.placeholder(tf.float32, [3,1])
+
+# Multiplication operation
+res = tf.matmul(a_var, v_placeholder)
+
+
+    
+
+
+
+In [ ]:
+
+    
+# Session and initialization of variables
+sess = tf.InteractiveSession()
+sess.run(tf.global_variables_initializer())
+
+
+    
+
+
+
+In [ ]:
+
+    
+# Runing the multiplication in TF session
+v = np.array([[2, 4, 8]], dtype=np.float32).T
+feed_dict = {v_placeholder: v}
+print(res.eval(feed_dict=feed_dict))
+
+
+    
+
+
+
+In [ ]:
+
+    
+dataset_separable = read_file("dataset1")
+dataset_inseparable = read_file("dataset2")
+
+
+    
+
+
+
+In [ ]:
+
+    
+plot_dataset(dataset_separable, False)
+plot_dataset(dataset_separable, True)
+
+plot_dataset(dataset_inseparable, False)
+plot_dataset(dataset_inseparable, True)
+
+
+    
+
+
+
+In [ ]:
+
+    
+# Some hyper parameters (actually only 1)
+learning_rate = 0.01
+
+
+    
+
+
+
+In [ ]:
+
+    
+# Defining placeholders
+x = tf.placeholder(tf.float32, [None, 2])
+labels = tf.placeholder(tf.float32, [None, 1])
+
+
+    
+
+
+
+In [ ]:
+
+    
+# Logistic regression model
+
+W = tf.Variable(tf.zeros([2, 1]))
+b = tf.Variable(tf.zeros([1]))
+
+h = tf.matmul(x, W) + b
+
+
+    
+
+
+
+In [ ]:
+
+    
+# 'Deep' network model (the easy way)
+
+fc1 = tf.contrib.layers.fully_connected(x, num_outputs=10, activation_fn=tf.nn.relu)
+fc2 = tf.contrib.layers.fully_connected(fc1, num_outputs=10, activation_fn=tf.nn.relu)
+h = tf.contrib.layers.fully_connected(fc2, num_outputs=1, activation_fn=None)
+
+
+    
+
+
+
+In [ ]:
+
+    
+# Defining the rest of the computation graph
+pred = tf.greater(tf.nn.sigmoid(h), 0.5)
+loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(h, labels))
+optimizer = tf.train.GradientDescentOptimizer(learning_rate)
+train_step = optimizer.minimize(loss)
+correct_prediction = tf.equal(tf.cast(pred, tf.float32), labels)
+accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+
+
+    
+
+
+
+In [ ]:
+
+    
+# Creating Tensorflow session and initialization of variables
+sess = tf.InteractiveSession()
+sess.run(tf.global_variables_initializer())
+
+
+    
+
+
+
+In [ ]:
+
+    
+def run_epoch(dataset, n=1):
+    for epoch in range(n):
+        avg_loss = 0.
+        for train_x, train_labels in dataset.get_train_batches():
+            _, l = sess.run([train_step, loss], feed_dict={x: train_x, labels: train_labels})
+            avg_loss += l * len(train_x)
+        print("Epoch:", '%d' % (epoch + 1), "loss=", "{:.10f}".format(avg_loss / len(dataset.train[0])))
+        print("\tValidaton accuracy: {:.3f}".format(accuracy.eval({x: dataset.valid[0], labels: dataset.valid[1]})))
+        print("\tTrain accuracy: {:.3f}".format(accuracy.eval({x: dataset.train[0], labels: dataset.train[1]})))
+
+
+    
+
+
+
+In [ ]:
+
+    
+run_epoch(dataset_separable)
+
+
+    
+
+
+
+In [ ]:
+
+    
+run_epoch(dataset_inseparable, 100)
+
+
+    
+
+
+
+In [ ]:
+
+    
+dataset = dataset_separable
+# dataset = dataset_inseparable
+run_epoch(dataset, 100)
+predicted_labels_train = pred.eval(feed_dict={x: dataset.train[0], labels: dataset.train[1]})
+plot_predicted_data(dataset.train, predicted_labels_train.flatten())
+predicted_labels_valid = pred.eval(feed_dict={x: dataset.valid[0], labels: dataset.valid[1]})
+plot_predicted_data(dataset.valid, predicted_labels_valid.flatten())
+
+
+    
+
+
+
+In [ ]:
+
+    
+ 
+
+
+    
+
+
+
+In [ ]:
+
+    
+ 
+
+
+    
+

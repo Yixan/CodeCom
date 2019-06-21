@@ -1,0 +1,5 @@
+from keras.layers.core import Dense, Activation, Dropout
+from keras.layers.recurrent import LSTM
+import numpy as np
+class LSTM_NN():
+    def __init__(self):

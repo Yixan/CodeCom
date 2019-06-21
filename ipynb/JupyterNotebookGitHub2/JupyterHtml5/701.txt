@@ -1,0 +1,325 @@
+
+In [1]:
+
+    
+# These are all the modules we'll be using later. Make sure you can import them
+# before proceeding further.
+from __future__ import print_function
+import numpy as np
+import tensorflow as tf
+from six.moves import cPickle as pickle
+from six.moves import range
+import time
+
+
+    
+
+
+
+In [2]:
+
+    
+pickle_file = 'saniMNIST.pickle'
+
+with open(pickle_file, 'rb') as f:
+  save = pickle.load(f)
+  train_dataset = save['train_dataset']
+  train_labels = save['train_labels']
+  valid_dataset = save['valid_dataset']
+  valid_labels = save['valid_labels']
+  test_dataset = save['test_dataset']
+  test_labels = save['test_labels']
+  del save  # hint to help gc free up memory
+  print('Training set', train_dataset.shape, train_labels.shape)
+  print('Validation set', valid_dataset.shape, valid_labels.shape)
+  print('Test set', test_dataset.shape, test_labels.shape)
+
+
+    
+
+
+
+In [3]:
+
+    
+image_size = 28
+num_labels = 10
+
+def reformat(dataset, labels):
+  dataset = dataset.reshape((-1, image_size * image_size)).astype(np.float32)
+  # Map 0 to [1.0, 0.0, 0.0 ...], 1 to [0.0, 1.0, 0.0 ...]
+  labels = (np.arange(num_labels) == labels[:,None]).astype(np.float32)
+  return dataset, labels
+train_dataset, train_labels = reformat(train_dataset, train_labels)
+valid_dataset, valid_labels = reformat(valid_dataset, valid_labels)
+test_dataset, test_labels = reformat(test_dataset, test_labels)
+print('Training set', train_dataset.shape, train_labels.shape)
+print('Validation set', valid_dataset.shape, valid_labels.shape)
+print('Test set', test_dataset.shape, test_labels.shape)
+
+
+    
+
+
+
+In [4]:
+
+    
+def accuracy(predictions, labels):
+  return (100.0 * np.sum(np.argmax(predictions, 1) == np.argmax(labels, 1))
+          / predictions.shape[0])
+
+
+    
+
+
+
+In [ ]:
+
+    
+train_subset = 10000
+
+# from scipy.stats import norm
+with tf.Graph().as_default() as graph:
+
+  # Input the data, stored as constants
+  tf_train_dataset = tf.constant(train_dataset[:train_subset, :])
+  tf_train_labels = tf.constant(train_labels[:train_subset])
+  tf_valid_dataset = tf.constant(valid_dataset)
+  tf_test_dataset = tf.constant(test_dataset)
+
+  #Input the variables: the weights and the biases
+  weights = tf.Variable(tf.truncated_normal([image_size**2, num_labels]))
+  biases = tf.Variable(tf.zeros([num_labels]))
+    
+  # Training computation.
+  # We multiply the inputs with the weight matrix, and add biases. We compute
+  # the softmax and cross-entropy. We take the average of this
+  # cross-entropy across all training examples: that's our loss.
+  X, W, b, y = tf_train_dataset, weights, biases, tf_train_labels
+  yfit = tf.nn.softmax(tf.matmul(X, W) + b)
+  loss = tf.reduce_mean(-tf.reduce_sum(y * tf.log(yfit), reduction_indices=[1]))
+
+  # Optimizer.
+  # We are going to find the minimum of this loss using gradient descent.
+  optimizer = tf.train.GradientDescentOptimizer(0.5).minimize(loss)
+
+  # Predictions for the training, validation, and test data.
+  # These are not part of training, but merely here so that we can report
+  # accuracy figures as we train.
+  train_prediction = yfit
+  Xv, Xt = tf_valid_dataset, tf_test_dataset
+  valid_prediction = tf.nn.softmax(tf.matmul(Xv, W) + b)
+  test_prediction = tf.nn.softmax(tf.matmul(Xt, W) + b)
+
+
+    
+
+
+
+In [ ]:
+
+    
+num_steps = 801
+
+start = time.time()
+with tf.Session(graph=graph) as session:
+  # This is a one-time operation which ensures the parameters get initialized as
+  # we described in the graph: random weights for the matrix, zeros for the
+  # biases. 
+  tf.initialize_all_variables().run()
+  print('Initialized')
+  for step in range(num_steps):
+    # Run the computations. We tell .run() that we want to run the optimizer,
+    # and get the loss value and the training predictions returned as numpy
+    # arrays.
+    _, l, predictions = session.run([optimizer, loss, train_prediction])
+    if (step % 100 == 0):
+      print('Loss at step %d: %f' % (step, l))
+      print('Training accuracy: %.1f%%' % accuracy(
+        predictions, train_labels[:train_subset, :]))
+      # Calling .eval() on valid_prediction is basically like calling run(), but
+      # just to get that one numpy array. Note that it recomputes all its graph
+      # dependencies.
+      print('Validation accuracy: %.1f%%' % accuracy(
+        valid_prediction.eval(), valid_labels))
+  print('Test accuracy: %.1f%%' % accuracy(test_prediction.eval(), test_labels))
+
+print (time.time()-start)
+
+
+    
+
+
+
+In [ ]:
+
+    
+batch_size = 128
+pop_size = train_labels.shape[0]
+
+with tf.Graph().as_default() as graph:
+
+  # Input data. For the training data, we use a placeholder that will be fed
+  # at run time with a training minibatch.
+  tf_train_dataset = tf.placeholder(tf.float32, shape=(batch_size, image_size**2))
+  tf_train_labels = tf.placeholder(tf.float32, shape=(batch_size, num_labels))
+  tf_valid_dataset = tf.constant(valid_dataset)
+  tf_test_dataset = tf.constant(test_dataset)
+  
+  # Variables.
+  weights = tf.Variable(tf.truncated_normal([image_size**2, num_labels]))
+  biases = tf.Variable(tf.zeros([num_labels]))
+  
+  # Training computation.
+  X, W, b, y = tf_train_dataset, weights, biases, tf_train_labels
+  yfit = tf.nn.softmax(tf.matmul(X, W) + b)
+  loss = tf.reduce_mean(-tf.reduce_sum(y * tf.log(yfit), reduction_indices=[1]))
+  
+  # Optimizer.
+  optimizer = tf.train.GradientDescentOptimizer(0.5).minimize(loss)
+  
+  # Predictions for the training, validation, and test data.
+  train_prediction = yfit
+  Xv, Xt = tf_valid_dataset, tf_test_dataset
+  valid_prediction = tf.nn.softmax(tf.matmul(Xv, W) + b)
+  test_prediction = tf.nn.softmax(tf.matmul(Xt, W) + b)
+
+
+    
+
+
+
+In [ ]:
+
+    
+num_steps = 3001
+start = time.time()
+with tf.Session(graph=graph) as session:
+  tf.initialize_all_variables().run()
+  print("Initialized")
+  for step in xrange(num_steps):
+    indices = np.random.random_integers(0,pop_size,batch_size)
+    # Generate a minibatch.
+    batch_data = train_dataset[indices, :]
+    batch_labels = train_labels[indices, :]
+    # Prepare a dictionary telling the session where to feed the minibatch.
+    # The key of the dictionary is the placeholder node of the graph to be fed,
+    # and the value is the numpy array to feed to it.
+    feed_dict = {tf_train_dataset : batch_data, tf_train_labels : batch_labels}
+    _, l, predictions = session.run([optimizer, loss, train_prediction], feed_dict=feed_dict)
+    if (step % 500 == 0):
+      print("Minibatch loss at step %d: %f" % (step, l))
+      print("Minibatch accuracy: %.1f%%" % accuracy(predictions, batch_labels))
+      print("Validation accuracy: %.1f%%" % accuracy(valid_prediction.eval(), valid_labels))
+  print("Test accuracy: %.2f%%" % accuracy(test_prediction.eval(), test_labels))
+
+print ('This took %.2f seconds' % (time.time()-start))
+
+
+    
+
+
+
+In [43]:
+
+    
+num_labels = 10
+pop_size = train_labels.shape[0]
+hidden_nodes = 128
+batch_size = 128
+
+def weight_variable(shape):
+  initial = tf.truncated_normal(shape, stddev=0.1)
+  return tf.Variable(initial)
+
+def bias_variable(shape):
+  initial = tf.constant(0.01, shape=shape)
+  return tf.Variable(initial)
+
+with tf.Graph().as_default() as graph:
+
+  # Input data. For the training data, we use a placeholder that will be fed
+  # at run time with a training minibatch.
+  tf_train_dataset = X = tf.placeholder(tf.float32, shape=(batch_size, image_size**2))
+  tf_train_labels = y = tf.placeholder(tf.float32, shape=(batch_size, num_labels))
+  tf_valid_dataset = Xv = tf.constant(valid_dataset)
+  tf_test_dataset = Xt = tf.constant(test_dataset)
+    
+  with tf.name_scope('hidden1'):
+    # Variables.
+    weights = weight_variable([image_size**2, hidden_nodes])
+    biases = bias_variable([hidden_nodes])
+    H1 = tf.nn.relu(tf.matmul(X, weights) + biases)
+    H1v = tf.nn.relu(tf.matmul(Xv, weights) + biases)
+    H1t = tf.nn.relu(tf.matmul(Xt, weights) + biases)
+
+  with tf.name_scope('hidden2'):
+    # Variables.
+    weights = weight_variable([hidden_nodes, hidden_nodes])
+    biases = bias_variable([hidden_nodes])
+    H2 = tf.nn.relu(tf.matmul(H1, weights) + biases)
+    H2v = tf.nn.relu(tf.matmul(H1v, weights) + biases)
+    H2t = tf.nn.relu(tf.matmul(H1t, weights) + biases)
+    
+  with tf.name_scope('output'):
+    weights = weight_variable([hidden_nodes, num_labels])
+    biases = bias_variable([num_labels])
+    yfit = tf.nn.softmax(tf.matmul(H2, weights) + biases)
+    yv = tf.nn.softmax(tf.matmul(H2v, weights) + biases)
+    yt = tf.nn.softmax(tf.matmul(H2t, weights) + biases)
+
+  # Optimizer.
+  loss = tf.reduce_mean(-tf.reduce_sum(y * tf.log(yfit), reduction_indices=[1]))
+  alpha = tf.placeholder(tf.float32, shape=())
+  optimizer = tf.train.GradientDescentOptimizer(0.5).minimize(loss)
+  
+  # Predictions for the training, validation, and test data.
+  train_prediction = yfit
+  valid_prediction = yv
+  test_prediction = yt
+
+
+    
+
+
+
+In [44]:
+
+    
+num_steps = 9001
+start = time.time()
+with tf.Session(graph=graph) as session:
+  tf.initialize_all_variables().run()
+  print("Initialized")
+  for step in xrange(num_steps):
+    indices = np.random.random_integers(0,pop_size-1,batch_size)
+    # Generate a minibatch.
+    batch_data = train_dataset[indices, :]
+    batch_labels = train_labels[indices, :]
+    # Prepare a dictionary telling the session where to feed the minibatch.
+    # The key of the dictionary is the placeholder node of the graph to be fed,
+    # and the value is the numpy array to feed to it.
+    feed_dict = {tf_train_dataset : batch_data, tf_train_labels : batch_labels, alpha : 0.5*np.exp(step/1000.)}
+    _, l, predictions = session.run([optimizer, loss, train_prediction], feed_dict=feed_dict)
+    if (step % 500 == 0):
+      print("Minibatch loss at step %d: %f" % (step, l))
+      print("Minibatch accuracy: %.1f%%" % accuracy(predictions, batch_labels))
+      print("Validation accuracy: %.1f%%" % accuracy(valid_prediction.eval(), valid_labels))
+  print("Test accuracy: %.2f%%" % accuracy(test_prediction.eval(), test_labels))
+
+print ('This took %.2f seconds' % (time.time()-start))
+
+
+    
+
+
+
+In [ ]:
+
+    
+ 
+
+
+    
+

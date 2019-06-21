@@ -1,0 +1,25 @@
+import tensorflow as tf
+sess = tf.Session()
+x = tf.placeholder(tf.float32)
+y = tf.placeholder(tf.float32)
+z = x + y + 1
+z_result = sess.run(z, feed_dict={x: 2.0, y: 3.2})
+print(z_result)
+x_constant = tf.constant([[1, 2, 3], [5, 98, 20]])
+r_s_1 = tf.reduce_sum(x_constant, axis=0)
+r_s_2 = tf.reduce_sum(x_constant, axis=1)
+r_1_result = sess.run(r_s_1)
+r_2_result = sess.run(r_s_2)
+print(r_1_result)
+print(r_2_result)
+v_1 = tf.constant(2)
+v_2 = tf.constant(3)
+mul_12 = tf.multiply(v_1, v_2)
+mul_12_result = sess.run(mul_12)
+print(mul_12_result)
+t_1 = [[1, 4, 3], [2, 5, 6]]
+t_2 = [[8, 9, 7], [10, 9, 26]]
+concat_1 = tf.concat([t_1, t_2], 0)
+concat_2 = tf.concat([t_1, t_2], 1)
+print(sess.run(concat_1))
+print(sess.run(concat_2))

@@ -1,0 +1,38 @@
+from keras.preprocessing import sequence
+from keras.utils import np_utils
+from keras.models import Sequential
+from keras.layers import Dense, Dropout, Activation, Embedding
+from keras.layers import LSTM, SimpleRNN, GRU, Flatten, Convolution1D, MaxPooling1D
+from keras.initializers import RandomUniform
+from keras import optimizers
+def main():
+    model_name = "chatbot.h5"
+    np.random.seed(SEED)
+    hidden_units = 1000
+    dim = 1000
+    batch_size = 256
+    initializer = RandomUniform(minval=-0.08, maxval=0.08, seed=SEED)
+    sgd = optimizers.SGD(lr=0.1, clipnorm=1)
+    print('Building model...')
+    left = Sequential()
+    model.add(Embedding(hidden_units, dim, input_length=dim, \dropout=drop_rate))
+    left.add(LSTM(output_dim=hidden_units, init=initializer, \nner_init=initializer, return_sequences=True))
+    left.add(LSTM(output_dim=hidden_units, init=initializer, \nner_init=initializer, return_sequences=True))
+    left.add(LSTM(output_dim=hidden_units, init=initializer, \nner_init=initializer, return_sequences=True))
+    left.add(LSTM(output_dim=hidden_units, init=initializer, \nner_init=initializer, return_sequences=True))
+    right = Sequential()
+    right.add(LSTM(output_dim=hidden_units, init=initializer, \ner_init=initializer, return_sequences=True, go_backwards=True))
+    right.add(LSTM(output_dim=hidden_units, init=initializer, \ner_init=initializer, return_sequences=True, go_backwards=True))
+    right.add(LSTM(output_dim=hidden_units, init=initializer, \ner_init=initializer, return_sequences=True, go_backwards=True))
+    right.add(LSTM(output_dim=hidden_units, init=initializer, \nner_init=initializer, return_sequences=True))
+    model = Sequential()
+    model.add(Merge([left, right], mode='sum'))
+    model.compile(loss='binary_crossentropy',optimizer=sgd,metrics=['accuracy'])
+    print('Train...')
+    model.fit(X_train, y_train, batch_size=batch_size, nb_epoch=max_epochs,alidation_data=(X_test, y_test))
+    score, acc = model.evaluate(X_test, y_test,batch_size=batch_size)
+    print('Test score:', score)
+    print('Test accuracy:', acc)
+    model.save(model_name) 
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,23 @@
+from keras.models import Sequential
+from keras.layers import Dense, Activation
+model = Sequential([ense(32, input_dim=784),Activation('relu'),Dense(10),Activation('softmax'),])
+model = Sequential()
+model.add(Dense(32, input_shape=(784,)))
+model = Sequential()
+model.add(Dense(32, batch_input_shape=(None, 784)))
+model = Sequential()
+model.add(Dense(32, input_dim=784))
+model = Sequential()
+model.add(LSTM(32, input_shape=(10, 64)))
+model = Sequential()
+model.add(LSTM(32, batch_input_shape=(None, 10, 64)))
+model = Sequential()
+model.add(LSTM(32, input_length=10, input_dim=64))
+from keras.layers import Merge
+left_branch = Sequential()
+left_branch.add(Dense(32, input_dim=784))
+right_branch = Sequential()
+right_branch.add(Dense(32, input_dim=784))
+final_model = Sequential()
+final_model.add(merged)
+final_model.add(Dense(10, activation='softmax'))

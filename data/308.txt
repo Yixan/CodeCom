@@ -1,0 +1,26 @@
+from keras.models import Sequential
+from keras.layers.core import Dense, Activation, Dropout
+from keras.layers.recurrent import LSTM
+from keras.optimizers import RMSprop
+def build(layers):
+    model = Sequential()
+    model.add(LSTM(layers[1],nput_shape=(None, layers[0]),return_sequences=True))
+    model.add(Dropout(0.2))
+    model.add(LSTM(layers[2], return_sequences=True))
+    model.add(Dropout(0.2))
+    model.add(LSTM(layers[3], return_sequences=False))
+    model.add(Dropout(0.2))
+    model.add(Dense(layers[4], activation="linear"))
+    model.compile(loss="mse", optimizer='rmsprop')
+    print(model.summary())
+    return model
+from keras.callbacks import TensorBoard, EarlyStopping, ReduceLROnPlateau
+def run_network(X_train, y_train, X_test, layers, epochs, batch_size=512):
+    model = build(layers)
+    history = None
+    try:
+        history = model.fit(train, y_train, atch_size=batch_size, pochs=epochs, validation_split=0.1,callbacks=[ensorBoard(log_dir='/tmp/tensorboard', write_graph=True),])
+    except KeyboardInterrupt:
+        print("\nTraining interrupted")
+    predicted = model.predict(X_test)
+    return model, predicted, history

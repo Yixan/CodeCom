@@ -1,0 +1,4 @@
+import tensorflow as tf
+import numpy as np
+def network_model(inputs, num_pitch, weights_file=None):
+    model = tf.keras.models.Sequential()

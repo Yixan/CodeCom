@@ -1,0 +1,278 @@
+import tensorflow as tf
+import numpy as np
+import os
+import re
+path_file = 'C:\\Users\\stecose\\Documents\\Documents\\AiHearingModel'
+save_path = 'C:\\Users\\stecose\\Documents\\Documents\\AiHearingModel/models/md0'
+names = set()
+for line in open(os.path.join(path_file, 'words.txt')):
+    if len(line.strip()) > 3 and len(line.strip()) < 15:
+        names.add(line.strip().lower())
+NAMES = names
+chars = list('abcdefghijklmnopqrstuvwxyz') + ['<END>', '<NULL>']
+indices_for_chars = {c: i for i, c in enumerate(chars)}
+NAME_MAX_LEN = 15
+
+
+def name_to_vec(name, maxlen=NAME_MAX_LEN):
+    v = np.zeros(maxlen, dtype=int)
+    null_idx = indices_for_chars['<NULL>']
+    v.fill(null_idx)
+    for i, c in enumerate(name):
+        if i >= maxlen:
+            break
+        n = indices_for_chars.get(c, null_idx)
+        v[i] = n
+    v[min(len(name), maxlen - 1)] = indices_for_chars['<END>']
+    return v
+
+
+def vec_to_name(vec):
+    name = ''
+    for x in vec:
+        char = chars[x]
+        if len(char) == 1:
+            name += char
+        elif char == '<END>':
+            return name
+    return name
+
+
+print('name_to_vec("nate") --> ', name_to_vec('nate'))
+name_vecs = np.array([name_to_vec(n) for n in names])
+
+
+def weight_var(shape, stddev=0.1, weight_decay=0.0, name=None):
+    initial = tf.truncated_normal(shape, stddev=stddev)
+    v = tf.Variable(initial, name=name)
+    if weight_decay > 0:
+        l2 = tf.nn.l2_loss(v) * weight_decay
+        tf.add_to_collection('losses', l2)
+    return v
+
+
+def leaky_relu(x, leak=0.2, name='lrelu'):
+    with tf.variable_scope(name):
+        f1 = 0.5 * (1 + leak)
+        f2 = 0.5 * (1 - leak)
+        return f1 * x + f2 * abs(x)
+
+
+def relu(x):
+    return leaky_relu(x)
+
+
+def create_conv(input, out_channels, patch_size=5, stride=1, batch_norm=False, dropout=False):
+    in_channels = input.get_shape()[-1].value
+    w = weight_var([patch_size, patch_size, in_channels, out_channels])
+    b = weight_var([out_channels], stddev=0)
+    conv = tf.nn.conv2d(input, w, strides=[1, stride, stride, 1], padding='SAME')
+    activation = relu(conv + b)
+    return activation
+
+
+def text_conv(input, out_channels, patch_size=5, stride=1, dropout=False, pool_size=1):
+    in_channels = input.get_shape()[-1].value
+    w = weight_var([patch_size, in_channels, out_channels])
+    b = weight_var([out_channels], stddev=0)
+    conv = tf.nn.conv1d(input, w, stride=stride, padding='SAME')
+    activation = relu(conv + b)
+    return activation
+
+
+def create_fc(input, out_size):
+    in_size = input.get_shape()[-1].value
+    w = weight_var([in_size, out_size], weight_decay=0.004)
+    b = weight_var([out_size], weight_decay=0.004)
+    x = tf.matmul(input, w)
+    return relu(x + b)
+
+
+name_placeholder = tf.placeholder(shape=[None, NAME_MAX_LEN], dtype=tf.int32, name='names')
+Z_SIZE = 64
+
+
+def encoder_lstm(names):
+    with tf.variable_scope('encoder'):
+        cells = [tf.nn.rnn_cell.LSTMCell(size, state_is_tuple=True) for size in [len(chars), Z_SIZE]]
+        lstm = tf.nn.rnn_cell.MultiRNNCell(cells, state_is_tuple=True)
+        one_hot = tf.one_hot(names, len(chars), dtype=tf.float32)
+        outputs, state = tf.nn.dynamic_rnn(lstm, one_hot, dtype=tf.float32)
+        outputs_flat = tf.reshape(outputs, [-1, Z_SIZE * NAME_MAX_LEN])
+        z_mean = create_fc(outputs_flat, Z_SIZE)
+        z_stddev = create_fc(outputs_flat, Z_SIZE)
+        return z_mean, z_stddev
+
+
+z_mean, z_stddev = encoder_lstm(name_placeholder)
+session = tf.Session()
+session.run(tf.group(tf.global_variables_initializer(), tf.local_variables_initializer()))
+
+
+def sample_z(z_mean, z_stddev):
+    samples = tf.random_normal(tf.shape(z_stddev), 0, 1, dtype=tf.float32)
+    return z_mean + samples * z_stddev
+
+
+z_vals = sample_z(z_mean, z_stddev)
+
+
+def decoder_lstm(z):
+    z_repeated_over_time = tf.tile(tf.reshape(z, [-1, 1, Z_SIZE]), [1, NAME_MAX_LEN, 1])
+    cells = [tf.nn.rnn_cell.LSTMCell(size, state_is_tuple=True) for size in [Z_SIZE, 2 * 2 * Z_SIZE, len(chars)]]
+    lstm = tf.nn.rnn_cell.MultiRNNCell(cells, state_is_tuple=True)
+    outputs, state = tf.nn.dynamic_rnn(lstm, z_repeated_over_time, dtype=tf.float32)
+    return outputs
+
+
+z_input = tf.placeholder(tf.float32, [None, Z_SIZE], name='z_input')
+use_z_input = tf.placeholder(tf.int32, shape=[], name='use_z_input_condition')
+decoder_input = tf.cond(use_z_input > 0, lambda : z_input, lambda : z_vals)
+decoded = decoder_lstm(decoder_input)
+diff_loss = tf.reduce_sum(tf.nn.sparse_softmax_cross_entropy_with_logits(decoded, name_placeholder))
+kl_divergence = tf.reduce_mean(0.5 * tf.reduce_sum(tf.square(z_mean) + tf.square(z_stddev) - tf.log(tf.square(z_stddev)) - 1, 1))
+loss = diff_loss + kl_divergence
+decoded_vecs = tf.argmax(decoded, axis=2)
+learn_rate = tf.placeholder(tf.float32, name='learning_rate')
+optimizer = tf.train.AdamOptimizer(learn_rate)
+global_step = tf.contrib.framework.get_or_create_global_step()
+train_step = optimizer.minimize(loss, global_step=global_step)
+session.run(tf.group(tf.global_variables_initializer(), tf.local_variables_initializer()))
+session = tf.Session()
+init_op = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
+session.run(init_op)
+saver = None
+if save_path:
+    if not os.path.exists(save_path):
+        os.mkdir(save_path)
+    saver = tf.train.Saver()
+    ckpt = tf.train.get_checkpoint_state(save_path)
+    if ckpt and ckpt.model_checkpoint_path:
+        saver.restore(session, ckpt.model_checkpoint_path)
+        print('Restored from checkpoint', ckpt.model_checkpoint_path)
+    else:
+        print('Did not restore from checkpoint')
+else:
+    print('Will not save progress')
+train = True
+while train:
+    nnames = name_vecs[(np.random.randint(name_vecs.shape[0], size=64)), :]
+    feed_dict = {name_placeholder: nnames, z_input: np.zeros((64, Z_SIZE)), use_z_input: 0, learn_rate: 0.001}
+    _, loss_, step_ = session.run([train_step, loss, global_step], feed_dict=feed_dict)
+    if step_ % 200 == 0:
+        output_ = session.run(decoded_vecs, feed_dict=feed_dict)
+        print('Step: {0}; loss: {1}'.format(step_, loss_))
+        print(' example encoding: {} -> {}'.format(vec_to_name(nnames[0]), vec_to_name(output_[0])))
+        if step_ % 600 == 0:
+            saver.save(session, save_path + '/model.ckpt', global_step=step_)
+            print('Saved')
+    if step_ > 1000000:
+        train = False
+
+
+def reconstruct(name):
+    feed_dict = {name_placeholder: np.array([name_to_vec(name)]), z_input: np.zeros((64, Z_SIZE)), use_z_input: 0, learn_rate: 0.01}
+    output_ = session.run(decoded_vecs, feed_dict=feed_dict)
+    return vec_to_name(output_[0])
+
+
+import itertools
+top5 = itertools.islice(names, 5)
+for name in list(names)[:10]:
+    print(name, '->', reconstruct(name))
+for name in ['word', 'happy', 'winter', 'candle', 'cherish']:
+    print(name, '->', reconstruct(name))
+for name in ['embedding', 'automobile', 'air', 'larynx']:
+    print(name, '->', reconstruct(name))
+for name in ['ufhoe', 'xyzy', 'ihwrfoecoei']:
+    print(name, '->', reconstruct(name))
+
+
+def nameliness(word):
+    r = reconstruct(word)
+    return sum([(1 if a == b else 0) for a, b in zip(word, r)]) / float(len(word))
+
+
+for name in ['nate', 'july', 'fridge', 'gienigoe', 'chzsiucf', 'xyxyzzy']:
+    print(name, ':', nameliness(name))
+
+
+def make_batches(list, size=128):
+    batches = []
+    while len(list):
+        batches.append(list[:min(len(list), size)])
+        list = list[len(batches[-1]):]
+    return batches
+
+
+embeddings = {}
+for batch in make_batches(list(names)):
+    feed_dict = {name_placeholder: np.array([name_to_vec(name) for name in batch]), z_input: np.zeros((len(batch), Z_SIZE)), use_z_input: 0}
+    output_ = session.run(z_mean, feed_dict=feed_dict)
+    for name, vec in list(zip(batch, output_)):
+        embeddings[tuple(name)] = vec
+
+
+def embed(name):
+    feed_dict = {name_placeholder: np.array([name_to_vec(name)]), z_input: np.zeros((1, Z_SIZE)), use_z_input: 0}
+    output_ = session.run(z_mean, feed_dict=feed_dict)
+    return output_[0]
+
+
+def nearest(embedding):
+
+    def distance(name):
+        return np.linalg.norm(embedding - embeddings[name])
+    return ''.join(min(embeddings.keys(), key=distance))
+
+
+def unembed(embedding):
+    feed_dict = {name_placeholder: np.zeros((1, NAME_MAX_LEN)), z_input: np.array([embedding]), use_z_input: 1}
+    output_ = session.run(decoded_vecs, feed_dict=feed_dict)
+    return vec_to_name(output_[0])
+
+
+print(unembed(embed('nate')) == 'nate')
+for name in ['nate', 'yikes', 'panda', 'ixzhxzi', 'justxn']:
+    print(name, 'is closest to', nearest(embed(name)))
+
+
+def blend_names(name1, name2):
+    e1 = embed(name1)
+    e2 = embed(name2)
+    for i in range(11):
+        blend = i / 10.0
+        print(unembed(e1 * (1 - blend) + e2 * blend))
+
+
+blend_names('amy', 'francisco')
+blend_names('nathaniel', 'chen')
+blend_names('will', 'william')
+print(nearest(np.zeros(Z_SIZE)))
+print(unembed(np.zeros(Z_SIZE)))
+for name in ['nate', 'willy', 'sam', 'polly', 'jacob']:
+    print(name, '* 2 =', unembed(embed(name) * 2))
+for name in ['nancy', 'barry', 'chance', 'rachel', 'gloria']:
+    print('-' + name, '=', unembed(-embed(name)))
+print(unembed(embed('alberta') - embed('albert') + embed('robert')))
+print(unembed(embed('alberta') - embed('albert') + embed('justin')))
+print(unembed(embed('alberta') - embed('albert') + embed('joseph')))
+print(unembed(embed('alberta') - embed('albert') + embed('nate')))
+
+
+def generate():
+    return unembed(np.random.normal(size=Z_SIZE))
+
+
+for _ in range(10):
+    print(generate())
+
+
+def variations_on(name):
+    z = embed(name)
+    for i in range(10):
+        noise = np.random.normal(z.shape)
+        print(unembed(z + noise * i * 0.01))
+
+
+variations_on('nate')

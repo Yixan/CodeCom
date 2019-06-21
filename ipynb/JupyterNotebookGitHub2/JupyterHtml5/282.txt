@@ -1,0 +1,626 @@
+
+In [1]:
+
+    
+from __future__ import print_function
+import tensorflow as tf
+from six.moves import cPickle as pickle
+from six.moves import range
+import numpy as np
+
+
+    
+
+
+
+In [2]:
+
+    
+pickle_file = 'fer2013.pickle'
+
+with open(pickle_file, 'rb') as f:
+    save = pickle.load(f)
+    train_dataset = save['train_dataset']
+    train_labels = save['train_labels']
+    print(train_labels[1002])
+    valid_dataset = save['valid_dataset']
+    valid_labels = save['valid_labels']
+    test_dataset = save['test_dataset']
+    test_labels = save['test_labels']
+    del save
+    
+    print('Training set', train_dataset.shape, train_labels.shape)
+    print('Valid set', valid_dataset.shape, valid_labels.shape)
+    print('Test set', test_dataset.shape, test_labels.shape)
+
+
+    
+
+
+
+In [3]:
+
+    
+image_size = 48
+num_labels = 7
+num_channels = 1
+
+def reformat(dataset, labels):
+    dataset = dataset.reshape((-1, image_size, image_size, num_channels)).astype(np.float32)
+    labels = (np.arange(num_labels) == labels[:, None]).astype(np.float32)
+    return dataset, labels
+
+train_dataset, train_labels = reformat(train_dataset, train_labels)
+valid_dataset, valid_labels = reformat(valid_dataset, valid_labels)
+test_dataset, test_labels = reformat(test_dataset, test_labels)
+print(train_labels[1002])
+print('Training set', train_dataset.shape, train_labels.shape)
+print('Validation set', valid_dataset.shape, valid_labels.shape)
+print('Test set', test_dataset.shape, test_labels.shape)
+
+
+    
+
+
+
+In [4]:
+
+    
+def accuracy(predictions, labels):
+  return (100.0 * np.sum(np.argmax(predictions, 1) == np.argmax(labels, 1))
+          / predictions.shape[0])
+
+
+    
+
+
+
+In [5]:
+
+    
+batch_size = 48
+kernel_size = 5
+c1_depth = 7
+c2_depth = 16
+fc1_nodes = 120
+num_hidden = 84
+
+graph = tf.Graph()
+with graph.as_default():
+    #Input data
+    
+    tf_train_dataset = tf.placeholder(dtype=tf.float32, 
+        shape=(batch_size, image_size, image_size, num_channels))
+    tf_train_labels = tf.placeholder(dtype=tf.float32,
+        shape=(batch_size, num_labels))
+    
+    tf_valid_dataset = tf.constant(valid_dataset)
+    tf_test_dataset = tf.constant(test_dataset)
+    
+      # Variables.
+    c1_weights = tf.Variable(tf.truncated_normal(
+      [kernel_size, kernel_size, num_channels, c1_depth], stddev=0.1))
+    c1_bias = tf.Variable(tf.zeros([c1_depth]))
+
+    c2_weights = tf.Variable(tf.truncated_normal(
+        [kernel_size, kernel_size, c1_depth, c2_depth], stddev=0.1))
+    c2_bias = tf.Variable(tf.ones([c2_depth]))
+    
+    fc1_weights = tf.Variable(tf.truncated_normal(
+                [image_size //4 * image_size //4 * c2_depth, fc1_nodes], stddev=0.1))
+    fc1_bias = tf.Variable(tf.ones([fc1_nodes]))
+                          
+    hidden_weight = tf.Variable(tf.truncated_normal(
+            [fc1_nodes, num_hidden], stddev=0.1))
+    hidden_bias = tf.Variable(tf.ones([num_hidden]))
+                    
+    final_weight = tf.Variable(tf.truncated_normal(
+            [num_hidden, num_labels], stddev=0.1))
+    final_bias = tf.Variable(tf.ones([num_labels]))
+    
+    keep_prob = tf.placeholder(tf.float32)
+                          
+    def model(data):
+        conv = tf.nn.conv2d(data, c1_weights, [1,1,1,1], padding='SAME')
+        hidden = tf.nn.relu(conv + c1_bias)
+        pooled = tf.nn.max_pool(hidden, ksize=[1,2,2,1],
+                                strides=[1,2,2,1], padding='SAME')
+                          
+        conv = tf.nn.conv2d(pooled, c2_weights, [1,1,1,1], padding='SAME')
+        hidden = tf.nn.relu(conv + c2_bias)
+        pooled = tf.nn.max_pool(hidden, ksize=[1,2,2,1],
+                                strides=[1,2,2,1], padding='SAME')
+        shape = pooled.get_shape().as_list()
+                          
+        reshape = tf.reshape(pooled, [shape[0], shape[1] * shape[2] * shape[3]])
+        fc1 = tf.nn.relu(tf.matmul(reshape, fc1_weights) + fc1_bias)
+
+        fc2 = tf.nn.relu(tf.matmul(fc1, hidden_weight) + hidden_bias)
+
+        return tf.matmul(fc2, final_weight) + final_bias
+            
+    
+    logits = model(tf_train_dataset)
+    loss = tf.reduce_mean(
+        tf.nn.softmax_cross_entropy_with_logits(logits, tf_train_labels))
+        
+    optimizer = tf.train.GradientDescentOptimizer(0.05).minimize(loss)
+                          
+    train_prediction = tf.nn.softmax(logits)
+    valid_prediction = tf.nn.softmax(model(tf_valid_dataset))
+    test_prediction = tf.nn.softmax(model(tf_test_dataset))
+
+
+    
+
+
+
+In [24]:
+
+    
+graph_with_drop = tf.Graph()
+with graph_with_drop.as_default():
+    #Input data
+    
+    tf_train_dataset = tf.placeholder(dtype=tf.float32, 
+        shape=(batch_size, image_size, image_size, num_channels))
+    tf_train_labels = tf.placeholder(dtype=tf.float32,
+        shape=(batch_size, num_labels))
+    
+    tf_valid_dataset = tf.constant(valid_dataset)
+    tf_test_dataset = tf.constant(test_dataset)
+    
+      # Variables.
+    c1_weights = tf.Variable(tf.truncated_normal(
+      [kernel_size, kernel_size, num_channels, c1_depth], stddev=0.1))
+    c1_bias = tf.Variable(tf.zeros([c1_depth]))
+
+    c2_weights = tf.Variable(tf.truncated_normal(
+        [kernel_size, kernel_size, c1_depth, c2_depth], stddev=0.1))
+    c2_bias = tf.Variable(tf.ones([c2_depth]))
+    
+    fc1_weights = tf.Variable(tf.truncated_normal(
+                [image_size //4 * image_size //4 * c2_depth, fc1_nodes], stddev=0.1))
+    fc1_bias = tf.Variable(tf.ones([fc1_nodes]))
+                          
+    hidden_weight = tf.Variable(tf.truncated_normal(
+            [fc1_nodes, num_hidden], stddev=0.1))
+    hidden_bias = tf.Variable(tf.ones([num_hidden]))
+                    
+    final_weight = tf.Variable(tf.truncated_normal(
+            [num_hidden, num_labels], stddev=0.1))
+    final_bias = tf.Variable(tf.ones([num_labels]))
+    
+    keep_prob = tf.placeholder(tf.float32)
+                          
+    def model(data, drop = False):
+        conv = tf.nn.conv2d(data, c1_weights, [1,1,1,1], padding='SAME')
+        hidden = tf.nn.relu(conv + c1_bias)
+        pooled = tf.nn.max_pool(hidden, ksize=[1,2,2,1],
+                                strides=[1,2,2,1], padding='SAME')
+                          
+        conv = tf.nn.conv2d(pooled, c2_weights, [1,1,1,1], padding='SAME')
+        hidden = tf.nn.relu(conv + c2_bias)
+        pooled = tf.nn.max_pool(hidden, ksize=[1,2,2,1],
+                                strides=[1,2,2,1], padding='SAME')
+        shape = pooled.get_shape().as_list()
+                          
+        reshape = tf.reshape(pooled, [shape[0], shape[1] * shape[2] * shape[3]])
+        fc1 = tf.nn.relu(tf.matmul(reshape, fc1_weights) + fc1_bias)
+        if drop:
+            fc1_drop = tf.nn.dropout(fc1, keep_prob)
+            fc2 = tf.nn.relu(tf.matmul(fc1_drop, hidden_weight) + hidden_bias)
+            fc2_drop = tf.nn.dropout(fc2, keep_prob)
+        
+            return tf.matmul(fc2_drop, final_weight) + final_bias
+        else:
+            fc2 = tf.nn.relu(tf.matmul(fc1, hidden_weight) + hidden_bias)
+        
+            return tf.matmul(fc2, final_weight) + final_bias
+            
+    
+    logits = model(tf_train_dataset, True)
+    loss = tf.reduce_mean(
+        tf.nn.softmax_cross_entropy_with_logits(logits, tf_train_labels))
+        
+    optimizer = tf.train.GradientDescentOptimizer(0.05).minimize(loss)
+                          
+    train_prediction = tf.nn.softmax(logits)
+    valid_prediction = tf.nn.softmax(model(tf_valid_dataset))
+    test_prediction = tf.nn.softmax(model(tf_test_dataset))
+
+
+    
+
+
+
+In [7]:
+
+    
+num_steps = 10001
+
+with tf.Session(graph=graph) as session:
+  tf.global_variables_initializer().run()
+  print('Initialized')
+  for step in range(num_steps):
+    offset = (step * batch_size) % (train_labels.shape[0] - batch_size)
+    batch_data = train_dataset[offset:(offset + batch_size), :, :, :]
+    batch_labels = train_labels[offset:(offset + batch_size), :]
+    feed_dict = {tf_train_dataset : batch_data, tf_train_labels : batch_labels}
+    _, l, predictions = session.run([optimizer, loss, train_prediction], feed_dict=feed_dict)
+    if (step % 1000 == 0):
+      print('Minibatch loss at step %d: %f' % (step, l))
+      print('Minibatch accuracy: %.1f%%' % accuracy(predictions, batch_labels))
+      print('Validation accuracy: %.1f%%' % accuracy(
+        valid_prediction.eval(), valid_labels))
+  print('Test accuracy: %.1f%%' % accuracy(test_prediction.eval(), test_labels))
+
+
+    
+
+
+
+In [ ]:
+
+    
+num_steps = 10001
+
+with tf.Session(graph=graph_with_drop) as session:
+  tf.initialize_all_variables().run()
+  print('Initialized')
+  for step in range(num_steps):
+    offset = (step * batch_size) % (train_labels.shape[0] - batch_size)
+    batch_data = train_dataset[offset:(offset + batch_size), :, :, :]
+    batch_labels = train_labels[offset:(offset + batch_size), :]
+    feed_dict = {tf_train_dataset : batch_data, tf_train_labels : batch_labels, keep_prob: 0.5}
+    _, l, predictions = session.run(
+      [optimizer, loss, train_prediction], feed_dict=feed_dict)
+    if (step % 1000 == 0):
+      print('Minibatch loss at step %d: %f' % (step, l))
+      print('Minibatch accuracy: %.1f%%' % accuracy(predictions, batch_labels))
+      print('Validation accuracy: %.1f%%' % accuracy(
+        valid_prediction.eval(), valid_labels))
+  print('Test accuracy: %.1f%%' % accuracy(test_prediction.eval(), test_labels))
+
+
+    
+
+
+
+In [14]:
+
+    
+beta = 0.001
+graph_with_l2 = tf.Graph()
+with graph_with_l2.as_default():
+    #Input data
+    
+    tf_train_dataset = tf.placeholder(dtype=tf.float32, 
+        shape=(batch_size, image_size, image_size, num_channels))
+    tf_train_labels = tf.placeholder(dtype=tf.float32,
+        shape=(batch_size, num_labels))
+    
+    tf_valid_dataset = tf.constant(valid_dataset)
+    tf_test_dataset = tf.constant(test_dataset)
+    
+      # Variables.
+    c1_weights = tf.Variable(tf.truncated_normal(
+      [kernel_size, kernel_size, num_channels, c1_depth], stddev=0.1))
+    c1_bias = tf.Variable(tf.zeros([c1_depth]))
+
+    c2_weights = tf.Variable(tf.truncated_normal(
+        [kernel_size, kernel_size, c1_depth, c2_depth], stddev=0.1))
+    c2_bias = tf.Variable(tf.ones([c2_depth]))
+    
+    fc1_weights = tf.Variable(tf.truncated_normal(
+                [image_size //4 * image_size //4 * c2_depth, fc1_nodes], stddev=0.1))
+    fc1_bias = tf.Variable(tf.ones([fc1_nodes]))
+                          
+    hidden_weight = tf.Variable(tf.truncated_normal(
+            [fc1_nodes, num_hidden], stddev=0.1))
+    hidden_bias = tf.Variable(tf.ones([num_hidden]))
+                    
+    final_weight = tf.Variable(tf.truncated_normal(
+            [num_hidden, num_labels], stddev=0.1))
+    final_bias = tf.Variable(tf.ones([num_labels]))
+    
+    keep_prob = tf.placeholder(tf.float32)
+                          
+    def model(data):
+        conv = tf.nn.conv2d(data, c1_weights, [1,1,1,1], padding='SAME')
+        hidden = tf.nn.relu(conv + c1_bias)
+        pooled = tf.nn.max_pool(hidden, ksize=[1,2,2,1],
+                                strides=[1,2,2,1], padding='SAME')
+                          
+        conv = tf.nn.conv2d(pooled, c2_weights, [1,1,1,1], padding='SAME')
+        hidden = tf.nn.relu(conv + c2_bias)
+        pooled = tf.nn.max_pool(hidden, ksize=[1,2,2,1],
+                                strides=[1,2,2,1], padding='SAME')
+        shape = pooled.get_shape().as_list()
+                          
+        reshape = tf.reshape(pooled, [shape[0], shape[1] * shape[2] * shape[3]])
+        fc1 = tf.nn.relu(tf.matmul(reshape, fc1_weights) + fc1_bias)
+
+        fc2 = tf.nn.relu(tf.matmul(fc1, hidden_weight) + hidden_bias)
+
+        return tf.matmul(fc2, final_weight) + final_bias
+            
+    
+    logits = model(tf_train_dataset)
+    l2_loss = beta * ( tf.nn.l2_loss(c1_weights) + tf.nn.l2_loss(c1_bias) +
+                       tf.nn.l2_loss(c2_weights) + tf.nn.l2_loss(c2_bias) +
+                       tf.nn.l2_loss(fc1_weights) + tf.nn.l2_loss(fc1_bias) +
+                       tf.nn.l2_loss(hidden_weight) + tf.nn.l2_loss(hidden_bias) +
+                       tf.nn.l2_loss(final_weight) + tf.nn.l2_loss(final_bias)            
+                     )
+    loss = tf.reduce_mean(
+        tf.nn.softmax_cross_entropy_with_logits(logits, tf_train_labels))
+        
+    optimizer = tf.train.GradientDescentOptimizer(0.05).minimize(loss + l2_loss)
+                          
+    train_prediction = tf.nn.softmax(logits)
+    valid_prediction = tf.nn.softmax(model(tf_valid_dataset))
+    test_prediction = tf.nn.softmax(model(tf_test_dataset))
+
+
+    
+
+
+
+In [15]:
+
+    
+num_steps = 10001
+
+with tf.Session(graph=graph_with_l2) as session:
+  tf.initialize_all_variables().run()
+  print('Initialized')
+  for step in range(num_steps):
+    offset = (step * batch_size) % (train_labels.shape[0] - batch_size)
+    batch_data = train_dataset[offset:(offset + batch_size), :, :, :]
+    batch_labels = train_labels[offset:(offset + batch_size), :]
+    feed_dict = {tf_train_dataset : batch_data, tf_train_labels : batch_labels}
+    _, l, predictions = session.run(
+      [optimizer, loss, train_prediction], feed_dict=feed_dict)
+    if (step % 1000 == 0):
+      print('Minibatch loss at step %d: %f' % (step, l))
+      print('Minibatch accuracy: %.1f%%' % accuracy(predictions, batch_labels))
+      print('Validation accuracy: %.1f%%' % accuracy(
+        valid_prediction.eval(), valid_labels))
+  print('Test accuracy: %.1f%%' % accuracy(test_prediction.eval(), test_labels))
+
+
+    
+
+
+
+In [19]:
+
+    
+graph_with_exponential_decay = tf.Graph()
+with graph_with_exponential_decay.as_default():
+    #Input data
+    
+    tf_train_dataset = tf.placeholder(dtype=tf.float32, 
+        shape=(batch_size, image_size, image_size, num_channels))
+    tf_train_labels = tf.placeholder(dtype=tf.float32,
+        shape=(batch_size, num_labels))
+    
+    tf_valid_dataset = tf.constant(valid_dataset)
+    tf_test_dataset = tf.constant(test_dataset)
+    
+      # Variables.
+    c1_weights = tf.Variable(tf.truncated_normal(
+      [kernel_size, kernel_size, num_channels, c1_depth], stddev=0.1))
+    c1_bias = tf.Variable(tf.zeros([c1_depth]))
+
+    c2_weights = tf.Variable(tf.truncated_normal(
+        [kernel_size, kernel_size, c1_depth, c2_depth], stddev=0.1))
+    c2_bias = tf.Variable(tf.ones([c2_depth]))
+    
+    fc1_weights = tf.Variable(tf.truncated_normal(
+                [image_size //4 * image_size //4 * c2_depth, fc1_nodes], stddev=0.1))
+    fc1_bias = tf.Variable(tf.ones([fc1_nodes]))
+                          
+    hidden_weight = tf.Variable(tf.truncated_normal(
+            [fc1_nodes, num_hidden], stddev=0.1))
+    hidden_bias = tf.Variable(tf.ones([num_hidden]))
+                    
+    final_weight = tf.Variable(tf.truncated_normal(
+            [num_hidden, num_labels], stddev=0.1))
+    final_bias = tf.Variable(tf.ones([num_labels]))
+                          
+    def model(data):
+        conv = tf.nn.conv2d(data, c1_weights, [1,1,1,1], padding='SAME')
+        hidden = tf.nn.relu(conv + c1_bias)
+        pooled = tf.nn.max_pool(hidden, ksize=[1,2,2,1],
+                                strides=[1,2,2,1], padding='SAME')
+                          
+        conv = tf.nn.conv2d(pooled, c2_weights, [1,1,1,1], padding='SAME')
+        hidden = tf.nn.relu(conv + c2_bias)
+        pooled = tf.nn.max_pool(hidden, ksize=[1,2,2,1],
+                                strides=[1,2,2,1], padding='SAME')
+        shape = pooled.get_shape().as_list()
+                          
+        reshape = tf.reshape(pooled, [shape[0], shape[1] * shape[2] * shape[3]])
+        fc1 = tf.nn.relu(tf.matmul(reshape, fc1_weights) + fc1_bias)
+
+        fc2 = tf.nn.relu(tf.matmul(fc1, hidden_weight) + hidden_bias)
+
+        return tf.matmul(fc2, final_weight) + final_bias
+            
+    
+    logits = model(tf_train_dataset)
+    loss = tf.reduce_mean(
+        tf.nn.softmax_cross_entropy_with_logits(logits, tf_train_labels))
+        
+    # Decaying learning rate
+    global_step = tf.Variable(0)  # count the number of steps taken.
+    start_learning_rate = 0.1
+    learning_rate = tf.train.exponential_decay(start_learning_rate, global_step, 1000, 0.96, staircase=True)
+    
+    optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(loss, global_step=global_step)
+                          
+    train_prediction = tf.nn.softmax(logits)
+    valid_prediction = tf.nn.softmax(model(tf_valid_dataset))
+    test_prediction = tf.nn.softmax(model(tf_test_dataset))
+
+
+    
+
+
+
+In [20]:
+
+    
+num_steps = 100001
+
+with tf.Session(graph=graph_with_exponential_decay) as session:
+  tf.initialize_all_variables().run()
+  print('Initialized')
+  for step in range(num_steps):
+    offset = (step * batch_size) % (train_labels.shape[0] - batch_size)
+    batch_data = train_dataset[offset:(offset + batch_size), :, :, :]
+    batch_labels = train_labels[offset:(offset + batch_size), :]
+    feed_dict = {tf_train_dataset : batch_data, tf_train_labels : batch_labels}
+    _, l, predictions = session.run(
+      [optimizer, loss, train_prediction], feed_dict=feed_dict)
+    if (step % 10000 == 0):
+      print('Minibatch loss at step %d: %f' % (step, l))
+      print('Minibatch accuracy: %.1f%%' % accuracy(predictions, batch_labels))
+      print('Validation accuracy: %.1f%%' % accuracy(
+        valid_prediction.eval(), valid_labels))
+  print('Test accuracy: %.1f%%' % accuracy(test_prediction.eval(), test_labels))
+
+
+    
+
+
+
+In [23]:
+
+    
+beta = 0.01
+graph_all_in = tf.Graph()
+with graph_all_in.as_default():
+    #Input data
+    
+    tf_train_dataset = tf.placeholder(dtype=tf.float32, 
+        shape=(batch_size, image_size, image_size, num_channels))
+    tf_train_labels = tf.placeholder(dtype=tf.float32,
+        shape=(batch_size, num_labels))
+    
+    tf_valid_dataset = tf.constant(valid_dataset)
+    tf_test_dataset = tf.constant(test_dataset)
+    
+      # Variables.
+    c1_weights = tf.Variable(tf.truncated_normal(
+      [kernel_size, kernel_size, num_channels, c1_depth], stddev=0.1))
+    c1_bias = tf.Variable(tf.zeros([c1_depth]))
+
+    c2_weights = tf.Variable(tf.truncated_normal(
+        [kernel_size, kernel_size, c1_depth, c2_depth], stddev=0.1))
+    c2_bias = tf.Variable(tf.ones([c2_depth]))
+    
+    fc1_weights = tf.Variable(tf.truncated_normal(
+                [image_size //4 * image_size //4 * c2_depth, fc1_nodes], stddev=0.1))
+    fc1_bias = tf.Variable(tf.ones([fc1_nodes]))
+                          
+    hidden_weight = tf.Variable(tf.truncated_normal(
+            [fc1_nodes, num_hidden], stddev=0.1))
+    hidden_bias = tf.Variable(tf.ones([num_hidden]))
+                    
+    final_weight = tf.Variable(tf.truncated_normal(
+            [num_hidden, num_labels], stddev=0.1))
+    final_bias = tf.Variable(tf.ones([num_labels]))
+    
+    keep_prob = tf.placeholder(tf.float32)
+                          
+    def model(data, drop = False):
+        conv = tf.nn.conv2d(data, c1_weights, [1,1,1,1], padding='SAME')
+        hidden = tf.nn.relu(conv + c1_bias)
+        pooled = tf.nn.max_pool(hidden, ksize=[1,2,2,1],
+                                strides=[1,2,2,1], padding='SAME')
+                          
+        conv = tf.nn.conv2d(pooled, c2_weights, [1,1,1,1], padding='SAME')
+        hidden = tf.nn.relu(conv + c2_bias)
+        pooled = tf.nn.max_pool(hidden, ksize=[1,2,2,1],
+                                strides=[1,2,2,1], padding='SAME')
+        shape = pooled.get_shape().as_list()
+                          
+        reshape = tf.reshape(pooled, [shape[0], shape[1] * shape[2] * shape[3]])
+        fc1 = tf.nn.relu(tf.matmul(reshape, fc1_weights) + fc1_bias)
+        if drop:
+            fc1_drop = tf.nn.dropout(fc1, keep_prob)
+            fc2 = tf.nn.relu(tf.matmul(fc1_drop, hidden_weight) + hidden_bias)
+            fc2_drop = tf.nn.dropout(fc2, keep_prob)
+        
+            return tf.matmul(fc2_drop, final_weight) + final_bias
+        else:
+            fc2 = tf.nn.relu(tf.matmul(fc1, hidden_weight) + hidden_bias)
+        
+            return tf.matmul(fc2, final_weight) + final_bias
+            
+    
+    logits = model(tf_train_dataset, True)
+    loss = tf.reduce_mean(
+        tf.nn.softmax_cross_entropy_with_logits(logits, tf_train_labels))
+    
+    l2_loss = beta * ( tf.nn.l2_loss(c1_weights) + tf.nn.l2_loss(c1_bias) +
+                   tf.nn.l2_loss(c2_weights) + tf.nn.l2_loss(c2_bias) +
+                   tf.nn.l2_loss(fc1_weights) + tf.nn.l2_loss(fc1_bias) +
+                   tf.nn.l2_loss(hidden_weight) + tf.nn.l2_loss(hidden_bias) +
+                   tf.nn.l2_loss(final_weight) + tf.nn.l2_loss(final_bias)            
+                 )
+        
+    # Decaying learning rate
+    global_step = tf.Variable(0)  # count the number of steps taken.
+    start_learning_rate = 0.1
+    learning_rate = tf.train.exponential_decay(start_learning_rate, global_step, 1000, 0.96, staircase=True)
+    
+    optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(loss + l2_loss, global_step=global_step)
+                          
+    train_prediction = tf.nn.softmax(logits)
+    valid_prediction = tf.nn.softmax(model(tf_valid_dataset))
+    test_prediction = tf.nn.softmax(model(tf_test_dataset))
+
+
+    
+
+
+
+In [24]:
+
+    
+num_steps = 100001
+
+with tf.Session(graph=graph_all_in) as session:
+  tf.initialize_all_variables().run()
+  print('Initialized')
+  for step in range(num_steps):
+    offset = (step * batch_size) % (train_labels.shape[0] - batch_size)
+    batch_data = train_dataset[offset:(offset + batch_size), :, :, :]
+    batch_labels = train_labels[offset:(offset + batch_size), :]
+    feed_dict = {tf_train_dataset : batch_data, tf_train_labels : batch_labels, keep_prob: 0.5}
+    _, l, predictions = session.run(
+      [optimizer, loss, train_prediction], feed_dict=feed_dict)
+    if (step % 10000 == 0):
+      print('Minibatch loss at step %d: %f' % (step, l))
+      print('Minibatch accuracy: %.1f%%' % accuracy(predictions, batch_labels))
+      print('Validation accuracy: %.1f%%' % accuracy(
+        valid_prediction.eval(), valid_labels))
+  print('Test accuracy: %.1f%%' % accuracy(test_prediction.eval(), test_labels))
+
+
+    
+
+
+
+In [ ]:
+
+    
+ 
+
+
+    
+

@@ -1,0 +1,23 @@
+from __future__ import division
+from __future__ import absolute_import
+from __future__ import print_function
+import pandas as pd
+import numpy as np
+from tensorflow.contrib.keras.api.keras.models import Sequential
+from tensorflow.contrib.keras.api.keras.layers import LSTM as _LSTM
+from tensorflow.contrib.keras.api.keras.layers import Dropout
+from tensorflow.contrib.keras.api.keras.layers import Dense
+class LSTM(object):
+    def __init__(self, layers, pct_dropout=0.2):
+            raise TypeError('layers was expected to be of type %s, received %s' % (type([]), type(layers)))
+        if len(layers) != 4:
+            raise ValueError('4 layer dimentions required, received only %d' % len(layers))
+        self.model = Sequential()
+        self.model.add(_LSTM(layers[1],nput_shape=(layers[1], layers[0]),return_sequences=True,pct_dropout))        
+        self.model.add(_LSTM(layers[2],return_sequences=False,dropout=pct_dropout))
+        self.model.add(Dense(layers[3],activation='linear'))
+        self.model.compile(loss="mse", optimizer="rmsprop")
+    def fit(self, X, y, **kwargs):
+        self.model.fit(X, y, **kwargs)
+    def predict(self, series):
+        return self.model.predict(series)

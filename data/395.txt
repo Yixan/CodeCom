@@ -1,0 +1,30 @@
+import numpy as np
+import pandas as pd
+from process import get_price_inputs, Trainer
+from lambo.transformations import range_deviation_ema
+from lstm_categorical_rgd import LSTMTrainer, INPUT_DIM
+from common import training_files, test_files
+import copy
+import keras
+from keras.models import Sequential
+from keras.layers import LSTM, Dense
+from keras.models import load_model
+labels = ["t","open","low","high","close"]
+EPOCHS_ARR = range(1,512)
+BATCH_SIZE = 128
+ofile = open("out_lstm_optimize_epochs.csv", "w")
+for EPOCHS in EPOCHS_ARR:
+    model = Sequential()
+    model.add(LSTM(32, return_sequences=True,nput_shape=(INPUT_DIM, 1)))
+    model.add(LSTM(32, return_sequences=True))
+    model.add(LSTM(32))
+    model.add(Dense(3, activation='softmax'))
+    model.compile(loss='categorical_crossentropy',optimizer='rmsprop',metrics=['accuracy'])
+    trainer = LSTMTrainer(model)
+    trainer.train(training_files, epochs=EPOCHS, batch_size=BATCH_SIZE)
+    score, acc = trainer.evaluate(test_files)
+    print("Test score:", score)
+    print("Test accuracy:", acc)
+    print()
+    ofile.write("%d %f %f\n"%(EPOCHS, score, acc))
+    ofile.flush()

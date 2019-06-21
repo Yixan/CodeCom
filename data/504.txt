@@ -1,0 +1,62 @@
+from keras.callbacks import EarlyStopping
+from keras.layers import Dense
+from keras.layers import Dropout
+from keras.layers import LSTM
+from keras.models import Sequential
+from keras.models import load_model
+from LSTM_for_Stock.unit import get_param_default_value as def_val
+import os
+from keras.backend import clear_session
+from keras.layers import CuDNNLSTM
+class Model(object):
+    pass
+class SequentialModel(Model):
+    def __init__(self):
+        self.__model = Sequential()
+        self.__history = None
+    @property
+    def model(self):
+        return self.__model
+    @property
+    def history(self):
+        return self.__history
+    def build_model(self, layers, compile={}):
+            t = layer.pop('type')
+            if t == 'dense':
+                self.__model.add(Dense.from_config(layer))
+            elif t == 'lstm':
+                self.__model.add(LSTM.from_config(layer))
+            elif t == 'dropout':
+                self.__model.add(Dropout.from_config(layer))
+            elif t == 'cudnnlstm':
+                self.__model.add(CuDNNLSTM.from_config(layer))
+        self.__model.compile(**compile)
+    def train(self,X,Y,train={},callbacks=[EarlyStopping(itor="loss", patience=10, verbose=1, mode="auto")]):
+        batch_size = train.pop('batch_size',ef_val(self.__model.fit, 'batch_size'))
+        verbose = train.pop('verbose', def_val(self.__model.fit, 'verbose'))
+        validation_split = train.pop(alidation_split', def_val(self.__model.fit, 'validation_split'))
+        validation_data = train.pop(alidation_data', def_val(self.__model.fit, 'validation_data'))
+        shuffle = train.pop('shuffle', def_val(self.__model.fit, 'shuffle'))
+        class_weight = train.pop('class_weight',ef_val(self.__model.fit, 'class_weight'))
+        sample_weight = train.pop('sample_weight',ef_val(self.__model.fit, 'sample_weight'))
+        initial_epoch = train.pop('initial_epoch',ef_val(self.__model.fit, 'initial_epoch'))
+        steps_per_epoch = train.pop(teps_per_epoch', def_val(self.__model.fit, 'steps_per_epoch'))
+        validation_steps = train.pop(alidation_steps', def_val(self.__model.fit, 'validation_steps'))
+        self.__history = self.__model.fit(X,Y,epochs=epochs,callbacks=callbacks,batch_size=batch_size,verbose=verbose,validation_data=validation_data,validation_split=validation_split,shuffle=shuffle,class_weight=class_weight,sample_weight=sample_weight,initial_epoch=initial_epoch,steps_per_epoch=steps_per_epoch,validation_steps=validation_steps)
+        return self.__history
+    def predict(self, X, predict={}):
+        batch_size = predict.pop('batch_size',ef_val(self.__model.predict, 'batch_size'))
+        verbose = predict.pop('verbose',ef_val(self.__model.predict, 'verbose'))
+        return self.__model.predict(batch_size=batch_size, verbose=verbose, steps=steps)
+    def evaluate(self, X, Y, evaluate={}):
+        sample_weight = evaluate.pop(ample_weight', def_val(self.__model.evaluate, 'sample_weight'))
+        batch_size = evaluate.pop('batch_size',ef_val(self.__model.evaluate, 'batch_size'))
+        verbose = evaluate.pop('verbose',ef_val(self.__model.evaluate, 'verbose'))
+        return self.__model.evaluate(X,Y,batch_size=batch_size,verbose=verbose,steps=steps,sample_weight=sample_weight)
+    def save(self, filepath):
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        self.model.save(filepath)
+    def load(self, filepath, clear=True):
+        if clear:
+            clear_session()
+        self.__model = load_model(filepath)

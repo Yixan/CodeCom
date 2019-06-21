@@ -1,0 +1,487 @@
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+import time
+import logging
+import random
+import math
+import numpy as np
+from six.moves import xrange
+import tensorflow as tf
+from tensorflow.python.ops import variable_scope as vs
+from tensorflow.python.ops import rnn_cell
+from tensorflow.python.ops.nn import bidirectional_dynamic_rnn
+from tensorflow.python.ops.nn import dynamic_rnn
+from tensorflow.python.ops.nn import sparse_softmax_cross_entropy_with_logits
+from tensorflow.python.ops.gen_math_ops import _batch_mat_mul as batch_matmul
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import time
+import datetime
+from tensorflow.python.ops import math_ops
+from tensorflow.python.util import nest
+from tensorflow.python.ops import init_ops
+from evaluate import exact_match_score, f1_score
+logging.basicConfig(level=logging.INFO)
+
+
+def batch_linear(args, output_size, bias, bias_start=0.0, scope=None, name=None):
+    if args is None or nest.is_sequence(args) and not args:
+        raise ValueError('`args` must be specified')
+    if args.get_shape().ndims != 3:
+        raise ValueError('`args` must be a 3D Tensor')
+    shape = args.get_shape()
+    m = shape[1].value
+    n = shape[2].value
+    dtype = args.dtype
+    scope = vs.get_variable_scope()
+    with vs.variable_scope(scope) as outer_scope:
+        w_name = 'weights_'
+        if name is not None:
+            w_name += name
+        weights = vs.get_variable(w_name, [output_size, m], dtype=dtype)
+        res = tf.map_fn(lambda x: math_ops.matmul(weights, x), args)
+        if not bias:
+            return res
+        with vs.variable_scope(outer_scope) as inner_scope:
+            b_name = 'biases_'
+            if name is not None:
+                b_name += name
+            inner_scope.set_partitioner(None)
+            biases = vs.get_variable(b_name, [output_size, n], dtype=dtype, initializer=init_ops.constant_initializer(bias_start, dtype=dtype))
+    return tf.map_fn(lambda x: math_ops.add(x, biases), res)
+
+
+def get_optimizer(opt):
+    if opt == 'adam':
+        optfn = tf.train.AdamOptimizer
+    elif opt == 'sgd':
+        optfn = tf.train.GradientDescentOptimizer
+    else:
+        assert False
+    return optfn
+
+
+def plot_losses(losses):
+    plt.plot(losses)
+    ts = time.time()
+    st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+    plt.title('Loss')
+    plt.savefig('loss/Losses_' + st)
+    plt.clf()
+
+
+def plot_metrics(metrics_dict):
+    train_f1, = plt.plot(metrics_dict['train']['f1'], label='train')
+    val_f1, = plt.plot(metrics_dict['val']['f1'], label='val')
+    plt.title('F1 Score')
+    plt.legend(handles=[train_f1, val_f1])
+    ts = time.time()
+    st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d_%H-%M-%S')
+    plt.savefig('metric_plots/f1_' + st)
+    plt.clf()
+    train_em, = plt.plot(metrics_dict['train']['em'], label='train')
+    val_em, = plt.plot(metrics_dict['val']['em'], label='val')
+    plt.legend(handles=[train_em, val_em])
+    plt.title('Exact Match')
+    ts = time.time()
+    st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d_%H-%M-%S')
+    plt.savefig('metric_plots/em_' + st)
+
+
+class GRUAttnCell(rnn_cell.GRUCell):
+
+    def __init__(self, num_units, encoder_output, scope=None):
+        self.hs = encoder_output
+        super(GRUAttnCell, self).__init__(num_units)
+
+    def __call__(self, inputs, state, scope=None):
+        gru_out, gru_state = super(GRUAttnCell, self).__call__(inputs, state, scope)
+        with vs.variable_scope(scope or type(self).__name__):
+            with vs.variable_scope('Attn'):
+                ht = rnn_cell._linear(gru_out, self._num_units, True, 1.0)
+                ht = tf.expand_dims(ht, axis=1)
+            scores = tf.reduce_sum(self.hs * ht, reduction_indices=2, keep_dims=True)
+            scores = tf.exp(scores - tf.reduce_max(scores, reduction_indices=1, keep_dims=True))
+            scores = scores / (1e-06 + tf.reduce_sum(scores, reduction_indices=1, keep_dims=True))
+            context = tf.reduce_sum(self.hs * scores, reduction_indices=1)
+            with vs.variable_scope('AttnConcat'):
+                out = tf.nn.relu(rnn_cell._linear([context, gru_out], self._num_units, True, 1.0))
+        return out, out
+
+
+def matrix_multiply_with_batch(matrix=None, batch=None, matrixByBatch=True):
+    ret = None
+    if matrixByBatch:
+        ret = tf.scan(lambda a, x: tf.matmul(matrix, x), batch)
+    else:
+        n = batch.get_shape().as_list()[1]
+        m = batch.get_shape().as_list()[2]
+        c = matrix.get_shape().as_list()[1]
+        batch = tf.reshape(batch, [-1, m])
+        ret = tf.matmul(batch, matrix)
+        ret = tf.reshape(ret, [-1, n, c])
+    return ret
+
+
+class Encoder(object):
+
+    def __init__(self, state_size, embedding_size, output_size):
+        self.state_size = state_size
+        self.embedding_size = embedding_size
+        self.output_size = output_size
+        self.h_q = None
+        self.h_p = None
+        self.H_q = None
+        self.H_p = None
+
+    def encode_v2(self, question_embeddings, document_embeddings, question_mask, context_mask, encoderb_state_input, dropout_keep_prob, max_question_len):
+        lstm_cell = tf.nn.rnn_cell.LSTMCell(self.state_size)
+        lstm_cell = tf.nn.rnn_cell.DropoutWrapper(lstm_cell, input_keep_prob=dropout_keep_prob)
+        with tf.variable_scope('question_embedding'):
+            question_length = tf.reduce_sum(tf.cast(question_mask, tf.int32), reduction_indices=1)
+            Q_prime, _ = dynamic_rnn(lstm_cell, question_embeddings, sequence_length=question_length, dtype=tf.float32)
+            print('Q_prime: ', Q_prime)
+            Q = tf.tanh(batch_linear(Q_prime, max_question_len, True))
+            Q = tf.transpose(Q, [0, 2, 1])
+            print('Q: ', Q)
+        with tf.variable_scope('context_embedding'):
+            context_length = tf.reduce_sum(tf.cast(context_mask, tf.int32), reduction_indices=1)
+            D, _ = dynamic_rnn(lstm_cell, document_embeddings, sequence_length=context_length, dtype=tf.float32)
+            D = tf.transpose(D, [0, 2, 1])
+            print('D: ', D)
+        with tf.variable_scope('coattention'):
+            L = tf.batch_matmul(tf.transpose(D, [0, 2, 1]), Q)
+            print('L: ', L)
+            A_Q = tf.map_fn(lambda x: tf.nn.softmax(x), L, dtype=tf.float32)
+            A_D = tf.map_fn(lambda x: tf.nn.softmax(x), tf.transpose(L, [0, 2, 1]), dtype=tf.float32)
+            print('A_Q: ', A_Q)
+            print('A_D: ', A_D)
+            C_Q = batch_matmul(D, A_Q)
+            print('C_Q: ', C_Q)
+            concat = tf.concat(1, [Q, C_Q])
+            print('concat: ', concat)
+            C_D = batch_matmul(tf.concat(1, [Q, C_Q]), A_D)
+            print('C_D: ', C_D)
+            co_att = tf.concat(1, [D, C_D])
+            co_att = tf.transpose(co_att, [0, 2, 1])
+            print('co_att: ', co_att)
+        with tf.variable_scope('encoder'):
+            cell_fw = tf.nn.rnn_cell.LSTMCell(self.state_size)
+            cell_bw = tf.nn.rnn_cell.LSTMCell(self.state_size)
+            cell_fw = tf.nn.rnn_cell.DropoutWrapper(cell_fw, input_keep_prob=dropout_keep_prob)
+            cell_bw = tf.nn.rnn_cell.DropoutWrapper(cell_bw, input_keep_prob=dropout_keep_prob)
+            (fw_out, bw_out), _ = tf.nn.bidirectional_dynamic_rnn(cell_fw, cell_bw, co_att, sequence_length=context_length, dtype=tf.float32)
+            print('fw out: ', fw_out)
+            print('bw out: ', bw_out)
+            U = tf.concat(2, [fw_out, bw_out])
+            print('U: ', U)
+            return U
+
+    def encode(self, question_embeddings, context_embeddings, question_mask, context_mask, encoder_state_input, dropout_keep_prob, batch_size):
+        with vs.variable_scope('encoder', True):
+            with vs.variable_scope('question', True):
+                lstm_cell = tf.nn.rnn_cell.LSTMCell(self.state_size)
+                lstm_cell = tf.nn.rnn_cell.DropoutWrapper(lstm_cell, output_keep_prob=dropout_keep_prob)
+                question_length = tf.reduce_sum(tf.cast(question_mask, tf.int32), reduction_indices=1)
+                print('Question length: ', question_length)
+                self.H_q, _ = dynamic_rnn(lstm_cell, question_embeddings, sequence_length=question_length, time_major=False, dtype=tf.float64, swap_memory=True)
+                self.h_q = self.H_q[:, (1), :]
+                print('H_q: ', self.H_q)
+                print('h_q: ', self.h_q)
+            with vs.variable_scope('context', True):
+                context_length = tf.reduce_sum(tf.cast(context_mask, tf.int32), reduction_indices=1)
+                print('Context length: ', context_length)
+                context_lstm_cell = tf.nn.rnn_cell.LSTMCell(self.state_size)
+                context_lstm_cell = tf.nn.rnn_cell.DropoutWrapper(context_lstm_cell, output_keep_prob=dropout_keep_prob)
+                self.H_p, _ = dynamic_rnn(context_lstm_cell, context_embeddings, sequence_length=context_length, time_major=False, dtype=tf.float64, swap_memory=True)
+                self.h_p = self.H_p[:, (1), :]
+                print('H_p: ', self.H_p)
+                print('h_p: ', self.h_p)
+            return self.h_q, self.h_p
+
+
+class Decoder(object):
+
+    def __init__(self, output_size, state_size):
+        self.state_size = state_size
+        self.output_size = output_size
+
+    def decode_v2(self, U, W, W_prime):
+        with vs.variable_scope('answer_start'):
+            a_s = tf.squeeze(matrix_multiply_with_batch(matrix=W, batch=U, matrixByBatch=False))
+            print('a_s: ', a_s)
+        with vs.variable_scope('answer_end'):
+            a_e = tf.squeeze(matrix_multiply_with_batch(matrix=W_prime, batch=U, matrixByBatch=False))
+            print('a_e: ', a_e)
+        return a_s, a_e
+
+    def decode(self, h_q, h_p):
+        with vs.variable_scope('answer_start'):
+            a_s = rnn_cell._linear([h_q, h_p], self.output_size, True, 1.0)
+        with vs.variable_scope('answer_end'):
+            a_e = rnn_cell._linear([h_q, h_p], self.output_size, True, 1.0)
+        return a_s, a_e
+
+
+class QASystem(object):
+
+    def __init__(self, encoder, decoder, **kwargs):
+        self.max_question_len = 60
+        self.max_context_len = 301
+        self.max_answer_len = 46
+        self.n_classes = 2
+        self.saver = None
+        self.encoder = encoder
+        self.decoder = decoder
+        self.question_embeddings = None
+        self.context_embeddings = None
+        self.a_s_probs = None
+        self.a_e_probs = None
+        self.loss = None
+        self.train_op = None
+        self.grad_norm = None
+        self.gradients = None
+        self.clipped_gradients = None
+        self.state_size = kwargs['state_size']
+        self.embed_path = kwargs['embed_path']
+        self.embedding_size = kwargs['embedding_size']
+        self.output_size = kwargs['output_size']
+        self.optimizer = kwargs['optimizer']
+        self.initial_learning_rate = kwargs['learning_rate']
+        self.global_step = tf.Variable(0, trainable=False)
+        self.epochs = kwargs['epochs']
+        self.batch_size = kwargs['batch_size']
+        self.max_gradient_norm = kwargs['max_gradient_norm']
+        self.dropout_keep_prob = kwargs['dropout_keep_prob']
+        self.train_dir = kwargs['train_dir']
+        self.question_input_placeholder = tf.placeholder(tf.int32, (None, self.max_question_len))
+        self.context_input_placeholder = tf.placeholder(tf.int32, (None, self.max_context_len))
+        self.question_mask_placeholder = tf.placeholder(tf.bool, (None, self.max_question_len))
+        self.context_mask_placeholder = tf.placeholder(tf.bool, (None, self.max_context_len))
+        self.start_answer_placeholder = tf.placeholder(tf.int32, (None, self.max_context_len))
+        self.end_answer_placeholder = tf.placeholder(tf.int32, (None, self.max_context_len))
+        self.dropout_placeholder = tf.placeholder(tf.float32, ())
+        self.batch_size_placeholder = tf.placeholder(tf.int32, ())
+        with tf.variable_scope('qa', initializer=tf.uniform_unit_scaling_initializer(1.0)):
+            self.setup_embeddings()
+            self.setup_system()
+            self.setup_loss()
+        self.setup_training_op()
+
+    def setup_system(self):
+        W = tf.get_variable('W', (2 * self.state_size, 1))
+        W_prime = tf.get_variable('W_prime', (2 * self.state_size, 1))
+        U = self.encoder.encode_v2(self.question_embeddings, self.context_embeddings, self.question_mask_placeholder, self.context_mask_placeholder, None, self.dropout_placeholder, self.max_question_len)
+        self.a_s_probs, self.a_e_probs = self.decoder.decode_v2(U, W, W_prime)
+
+    def setup_loss(self):
+        with vs.variable_scope('loss'):
+            l1 = tf.nn.softmax_cross_entropy_with_logits(logits=self.a_s_probs, labels=self.start_answer_placeholder)
+            l2 = tf.nn.softmax_cross_entropy_with_logits(logits=self.a_e_probs, labels=self.end_answer_placeholder)
+            self.loss = tf.reduce_mean(l1 + l2)
+
+    def setup_training_op(self):
+        lr = tf.train.exponential_decay(self.initial_learning_rate, self.global_step, 1000, 0.96)
+        opt = get_optimizer(self.optimizer)(learning_rate=lr)
+        self.gradients, params = zip(*opt.compute_gradients(self.loss))
+        for param in params:
+            print('Param: ', param)
+        self.clipped_gradients, _ = tf.clip_by_global_norm(self.gradients, self.max_gradient_norm)
+        grads_and_params = zip(self.clipped_gradients, params)
+        self.grad_norm = tf.global_norm(self.clipped_gradients)
+        self.train_op = opt.apply_gradients(grads_and_params, global_step=self.global_step)
+
+    def setup_embeddings(self):
+        with vs.variable_scope('embeddings'):
+            pretrained_embeddings = np.load(self.embed_path)['glove']
+            self.question_embeddings = tf.constant(pretrained_embeddings, name='question_embeddings', dtype=tf.float32)
+            self.question_embeddings = tf.nn.embedding_lookup(self.question_embeddings, self.question_input_placeholder)
+            self.question_embeddings = tf.reshape(self.question_embeddings, [-1, self.max_question_len, self.embedding_size])
+            print('Question embeddings: ', self.question_embeddings)
+            self.context_embeddings = tf.constant(pretrained_embeddings, name='context_embeddings', dtype=tf.float32)
+            self.context_embeddings = tf.nn.embedding_lookup(self.context_embeddings, self.context_input_placeholder)
+            self.context_embeddings = tf.reshape(self.context_embeddings, [-1, self.max_context_len, self.embedding_size])
+            print('Context embeddings: ', self.context_embeddings)
+
+    def optimize(self, session, train_batch):
+        question_batch, context_batch, question_mask_batch, context_mask_batch, start_answer_batch, end_answer_batch = zip(*train_batch)
+        feed = {}
+        feed[self.question_input_placeholder] = question_batch
+        feed[self.context_input_placeholder] = context_batch
+        feed[self.question_mask_placeholder] = question_mask_batch
+        feed[self.context_mask_placeholder] = context_mask_batch
+        feed[self.start_answer_placeholder] = start_answer_batch
+        feed[self.end_answer_placeholder] = end_answer_batch
+        feed[self.dropout_placeholder] = self.dropout_keep_prob
+        self.batch_size = len(question_batch)
+        feed[self.batch_size_placeholder] = self.batch_size
+        _, loss, grad_norm = session.run([self.train_op, self.loss, self.grad_norm], feed_dict=feed)
+        return loss, grad_norm
+
+    def test(self, session, valid_x, valid_y):
+        input_feed = {}
+        input_feed['valid_x'] = valid_x
+        if valid_y is not None:
+            input_feed['valid_y'] = valid_y
+        output_feed = []
+        outputs = session.run(output_feed, input_feed)
+        return outputs
+
+    def decode(self, session, test_x):
+        question_batch, context_batch, question_mask_batch, context_mask_batch, start_answer_batch, end_answer_batch = zip(*test_x)
+        input_feed = {}
+        input_feed[self.question_input_placeholder] = question_batch
+        input_feed[self.context_input_placeholder] = context_batch
+        input_feed[self.question_mask_placeholder] = question_mask_batch
+        input_feed[self.context_mask_placeholder] = context_mask_batch
+        input_feed[self.start_answer_placeholder] = start_answer_batch
+        input_feed[self.end_answer_placeholder] = end_answer_batch
+        input_feed[self.dropout_placeholder] = 1.0
+        self.batch_size = len(question_batch)
+        input_feed[self.batch_size_placeholder] = self.batch_size
+        _, loss, grad_norm = session.run([self.train_op, self.loss, self.grad_norm], feed_dict=input_feed)
+        a_s = self.a_s_probs.eval(feed_dict=input_feed, session=session)
+        a_e = self.a_e_probs.eval(feed_dict=input_feed, session=session)
+        return a_s, a_e
+
+    def answer(self, session, test_x):
+        yp, yp2 = self.decode(session, test_x)
+        a_s = np.argmax(yp, axis=1)
+        a_e = np.argmax(yp2, axis=1)
+        return a_s, a_e
+
+    def validate(self, session, dataset, model_path, model_name):
+        new_saver = tf.train.import_meta_graph(model_path + model_name)
+        new_saver.restore(session, tf.train.latest_checkpoint(model_path))
+        f1s = []
+        ems = []
+        step = 500
+        for start_idx in range(0, len(dataset), step):
+            end_idx = min(start_idx + step, len(dataset))
+            f1s_one_batch, ems_one_batch = self.evaluate_answer(session, dataset[start_idx:end_idx], sample=None, log=True)
+            f1s += f1s_one_batch
+            ems += ems_one_batch
+        f1_total = sum(f1s) / float(len(f1s))
+        em_total = sum(ems) / float(len(ems))
+        print('Total f1: ', f1_total)
+        print('Total em: ', em_total)
+
+    def evaluate_answer(self, session, dataset, sample=100, log=False, shuffle=True):
+        if sample is None:
+            sample = len(dataset)
+        print('Sample: ', sample)
+        if shuffle:
+            random.shuffle(dataset)
+        batch = dataset[0:sample]
+        question_batch, context_batch, question_mask_batch, context_mask_batch, start_answer_batch, end_answer_batch = zip(*batch)
+        a_s, a_e = self.answer(session, batch)
+        true_a_s = np.argmax(start_answer_batch, axis=1)
+        true_a_e = np.argmax(end_answer_batch, axis=1)
+        print('predicted a_s: ', a_s)
+        print('predicted a_e: ', a_e)
+        print('true start answer: ', true_a_s)
+        print('true end answer: ', true_a_e)
+        answers = [context_batch[i][a_s[i]:a_e[i] + 1] for i in range(len(a_s))]
+        true_answers = [context_batch[i][true_a_s[i]:true_a_e[i] + 1] for i in range(len(true_a_s))]
+        f1s = []
+        ems = []
+        for i in range(len(true_answers)):
+            answer = answers[i]
+            true_answer = true_answers[i]
+            f1_one_example = f1_score(answer, true_answer)
+            f1s.append(f1_one_example)
+            em_one_example = exact_match_score(answer, true_answer)
+            ems.append(em_one_example)
+        f1 = np.sum(f1s) / float(sample)
+        em = np.sum(ems) / float(sample)
+        if log:
+            logging.info('F1: {}, EM: {}, for {} samples'.format(f1, em, sample))
+        return f1s, ems
+
+    def train(self, session, dataset, train_dir):
+        dataset = self.preprocess_dataset(dataset)
+        init = tf.global_variables_initializer()
+        session.run(init)
+        training_losses = []
+        training_metrics = {'train': {'f1': [], 'em': []}, 'val': {'f1': [], 'em': []}}
+        for epoch in range(100):
+            logging.info('Epoch %d out of %d', epoch + 1, self.epochs)
+            self.run_epoch(session, dataset['train'], dataset['val'], epoch, training_losses, training_metrics)
+            self.saver.save(session, self.train_dir + '/baselinev2_model_epoch_' + str(epoch))
+            tic = time.time()
+            params = tf.trainable_variables()
+            num_params = sum(map(lambda t: np.prod(tf.shape(t.value()).eval()), params))
+            toc = time.time()
+            logging.info('Number of params: %d (retreival took %f secs)' % (num_params, toc - tic))
+            plot_losses(training_losses)
+            plot_metrics(training_metrics)
+        plot_losses(training_losses)
+        self.evaluate_answer(session, dataset['val'], sample=None, log=True)
+
+    def preprocess_dataset(self, dataset):
+        for data_subset_name in ['train', 'val']:
+            for i in range(len(dataset[data_subset_name])):
+                question = dataset[data_subset_name][i][0]
+                context = dataset[data_subset_name][i][1]
+                answer = dataset[data_subset_name][i][2]
+                padded_question, question_mask = self.pad_sequence(question, self.max_question_len)
+                padded_context, context_mask = self.pad_sequence(context, self.max_context_len)
+                start_answer = [0] * self.max_context_len
+                if answer[0] < self.output_size:
+                    start_answer[answer[0]] = 1
+                end_answer = [0] * self.max_context_len
+                if answer[1] < self.output_size:
+                    end_answer[answer[1]] = 1
+                dataset[data_subset_name][i] = padded_question, padded_context, question_mask, context_mask, start_answer, end_answer
+        return dataset
+
+    def pad_sequence(self, sequence, max_length):
+        new_sequence = []
+        mask = []
+        if len(sequence) >= max_length:
+            new_sequence = sequence[0:max_length]
+            mask = [True] * max_length
+        elif len(sequence) < max_length:
+            delta = max_length - len(sequence)
+            new_sequence = sequence + [0] * delta
+            mask = [True] * len(sequence) + [False] * delta
+        return new_sequence, mask
+
+    def run_epoch(self, session, train_examples, val_examples, epoch_no, training_losses, training_metrics):
+        for i, batch in enumerate(self.minibatches(train_examples, self.batch_size, shuffle=True)):
+            print('Global step: ', self.global_step.eval())
+            loss, grad_norm = self.optimize(session, batch)
+            print('Loss: ', loss, ' , grad norm: ', grad_norm)
+            training_losses.append(loss)
+            if i % 100 == 0:
+                train_f1s, train_ems = self.evaluate_answer(session, train_examples, sample=100, log=True, shuffle=True)
+                val_f1s, val_ems = self.evaluate_answer(session, val_examples, sample=100, log=True, shuffle=True)
+                train_f1 = sum(train_f1s) / float(len(train_f1s))
+                val_f1 = sum(val_f1s) / float(len(val_f1s))
+                train_em = sum(train_ems) / float(len(train_ems))
+                val_em = sum(val_ems) / float(len(val_ems))
+                training_metrics['train']['f1'].append(train_f1)
+                training_metrics['val']['f1'].append(val_f1)
+                training_metrics['train']['em'].append(train_em)
+                training_metrics['val']['em'].append(val_em)
+                plot_losses(training_losses)
+                plot_metrics(training_metrics)
+            if i % 1000 == 0:
+                self.saver.save(session, self.train_dir + '/baselinev2_model_epoch_' + str(epoch_no) + '_iter_' + str(i))
+
+    def get_tiny_batches(self, data, sample=20):
+        ret = []
+        step = self.batch_size
+        for start_idx in range(0, sample, step):
+            ret.append(data[start_idx:start_idx + step])
+        return ret
+
+    def minibatches(self, data, batch_size, shuffle=True):
+        if shuffle:
+            random.shuffle(data)
+        num_batches = int(math.ceil(len(data) / batch_size))
+        q, r = divmod(len(data), num_batches)
+        indices = [(q * i + min(i, r)) for i in xrange(num_batches + 1)]
+        return [data[indices[i]:indices[i + 1]] for i in xrange(num_batches)]

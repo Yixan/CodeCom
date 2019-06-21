@@ -1,0 +1,210 @@
+
+In [ ]:
+
+    
+#  GRAPH CODE
+# ============
+
+# Import Tensorflow and Numpy
+import tensorflow as tf
+import numpy as np
+import random
+
+# ======================
+# Define the Graph
+# ======================
+
+# Create Placeholders For data And labels (for feeding in data)
+
+data = tf.placeholder("float", [10, 10], name="data") # Our input is 10x10
+Task_1_labels = tf.placeholder("float", [10, 20], name="Task_1_labels")# Our output is 10x20
+Task_2_labels = tf.placeholder("float", [10, 20], name="Task_2_labels")# Our output is 10x20
+Task_3_labels = tf.placeholder("float", [10, 20], name="Task_3_labels")# Our output is 10x20
+
+# Define the weights for the layers
+
+initial_shared_layer_1_weights = np.random.random((10, 20))
+initial_shared_layer_11_weights = np.random.random((20, 20))
+
+initial_Task_1_layer_weights = np.random.rand(20,20)
+initial_Task_2_layer_weights = np.random.rand(20,20)
+initial_Task_3_layer_weights = np.random.rand(20,20)
+
+
+shared_layer_1_weights  = tf.Variable(initial_shared_layer_1_weights, name="share_1_W", dtype="float32")
+shared_layer_11_weights = tf.Variable(initial_shared_layer_11_weights, name="share_11_W", dtype="float32")
+
+Task_1_layer_weights = tf.Variable(initial_Task_1_layer_weights, name="share_Task1", dtype="float32")
+Task_2_layer_weights = tf.Variable(initial_Task_2_layer_weights, name="share_Task2", dtype="float32")
+Task_3_layer_weights = tf.Variable(initial_Task_3_layer_weights, name="share_Task3", dtype="float32")
+
+# Construct the Layers with RELU Activations
+shared_1_layer = tf.nn.relu(tf.matmul(data,shared_layer_1_weights))
+shared_11_layer = tf.nn.relu(tf.matmul(shared_layer_1_weights,shared_layer_11_weights))
+
+Task_1_layer = tf.nn.relu(tf.matmul(shared_11_layer,Task_1_layer_weights))
+Task_2_layer = tf.nn.relu(tf.matmul(shared_11_layer,Task_2_layer_weights))
+Task_3_layer = tf.nn.relu(tf.matmul(shared_1_layer,Task_3_layer_weights))
+# Calculate Loss
+Task_1_Loss = tf.nn.l2_loss(Task_1_labels-Task_1_layer)
+Task_2_Loss = tf.nn.l2_loss(Task_2_labels-Task_2_layer)
+Task_3_Loss = tf.nn.l2_loss(Task_3_labels-Task_3_layer)
+# optimisers
+Task_1_op = tf.train.AdamOptimizer().minimize(Task_1_Loss)
+Task_2_op = tf.train.AdamOptimizer().minimize(Task_2_Loss)
+Task_3_op = tf.train.AdamOptimizer().minimize(Task_3_Loss)
+
+
+    
+
+
+
+In [ ]:
+
+    
+# Calculation (Session) Code
+# ==========================
+
+# open the session
+
+with tf.Session() as session:
+    session.run(tf.global_variables_initializer())
+    for iters in range(1000):
+        choice=random.choice(['Task_1','Task_2','Task_3'])
+        if choice=='Task_1':
+            _, Task_1_loss = session.run([Task_1_op, Task_1_Loss],
+                            {
+                              data: np.random.rand(10,10)*10,
+                              Task_1_labels: np.random.rand(10,20)*10,
+                              Task_2_labels: np.random.rand(10,20)*10,
+                              Task_3_labels: np.random.rand(10,20)*10
+
+                              })
+            print('Task_1_loss',Task_1_loss)
+        elif choice=='Task_2':
+            _, Task_2_loss = session.run([Task_2_op, Task_2_Loss],
+                            {
+                              data: np.random.rand(10,10)*10,
+                              Task_1_labels: np.random.rand(10,20)*10,
+                              Task_2_labels: np.random.rand(10,20)*10,
+                              Task_3_labels: np.random.rand(10,20)*10
+                              })
+            print('Task_2_loss',Task_2_loss)
+        else:
+            _, Task_3_loss = session.run([Task_3_op, Task_3_Loss],
+                {
+                  data: np.random.rand(10,10)*10,
+                  Task_1_labels: np.random.rand(10,20)*10,
+                  Task_2_labels: np.random.rand(10,20)*10,
+                  Task_3_labels: np.random.rand(10,20)*10
+                  })
+            print('Task_3_loss',Task_3_loss)
+    session.close()
+
+            
+            
+
+
+    
+
+
+
+In [ ]:
+
+    
+#  GRAPH CODE
+# ============
+
+# Import Tensorflow and Numpy
+import tensorflow as tf
+import numpy as np
+import random
+
+# ======================
+# Define the Graph
+# ======================
+
+# Define the Placeholders
+data = tf.placeholder("float", [10, 10], name="data")
+Task_1_labels = tf.placeholder("float", [10, 20], name="Task_1_labels")
+Task_2_labels = tf.placeholder("float", [10, 20], name="Task_2_labels")
+Task_3_labels = tf.placeholder("float", [10, 20], name="Task_3_labels")
+
+# Define the weights for the layers
+
+initial_shared_layer_1_weights = np.random.random((10, 20))
+initial_shared_layer_11_weights = np.random.random((20, 20))
+
+initial_Task_1_layer_weights = np.random.rand(20,20)
+initial_Task_2_layer_weights = np.random.rand(20,20)
+initial_Task_3_layer_weights = np.random.rand(20,20)
+
+
+shared_layer_1_weights  = tf.Variable(initial_shared_layer_1_weights, name="share_1_W", dtype="float32")
+shared_layer_11_weights = tf.Variable(initial_shared_layer_11_weights, name="share_11_W", dtype="float32")
+
+Task_1_layer_weights = tf.Variable(initial_Task_1_layer_weights, name="share_Task1", dtype="float32")
+Task_2_layer_weights = tf.Variable(initial_Task_2_layer_weights, name="share_Task2", dtype="float32")
+Task_3_layer_weights = tf.Variable(initial_Task_3_layer_weights, name="share_Task3", dtype="float32")
+
+# Construct the Layers with RELU Activations
+shared_1_layer = tf.nn.relu(tf.matmul(data,shared_layer_1_weights))
+shared_11_layer = tf.nn.relu(tf.matmul(shared_layer_1_weights,shared_layer_11_weights))
+
+Task_1_layer = tf.nn.relu(tf.matmul(shared_11_layer,Task_1_layer_weights))
+Task_2_layer = tf.nn.relu(tf.matmul(shared_11_layer,Task_2_layer_weights))
+Task_3_layer = tf.nn.relu(tf.matmul(shared_1_layer,Task_3_layer_weights))
+# Calculate Loss
+Task_1_Loss = tf.nn.l2_loss(Task_1_labels-Task_1_layer)
+Task_2_Loss = tf.nn.l2_loss(Task_2_labels-Task_2_layer)
+Task_3_Loss = tf.nn.l2_loss(Task_3_labels-Task_3_layer)
+
+Joint_Loss = Task_1_Loss + Task_2_Loss + Task_3_Loss
+
+# optimisers
+Optimiser = tf.train.AdamOptimizer().minimize(Joint_Loss)
+
+Task_1_op = tf.train.AdamOptimizer().minimize(Task_1_Loss)
+Task_2_op = tf.train.AdamOptimizer().minimize(Task_2_Loss)
+Task_3_op = tf.train.AdamOptimizer().minimize(Task_3_Loss)
+
+
+    
+
+
+
+In [ ]:
+
+    
+# Joint Training
+# Calculation (Session) Code
+# ==========================
+
+# open the session
+
+with tf.Session() as session:
+    session.run(tf.global_variables_initializer())
+    _, Joint_Loss = session.run([Optimiser, Joint_Loss],
+                    {
+                        data:   np.random.rand(10,10)*10,
+                        Task_1_labels: np.random.rand(10,20)*10,
+                        Task_2_labels: np.random.rand(10,20)*10,
+                        Task_3_labels: np.random.rand(10,20)*10
+                        
+                      })
+    print(Joint_Loss)
+    session.close()
+
+
+    
+
+
+
+In [ ]:
+
+    
+ 
+
+
+    
+

@@ -1,0 +1,77 @@
+import pandas as pd
+import numpy as np
+def preprocess_DATA(dataset, train_size, timestep, Output):
+    features = dataset.shape[1] 
+    dataset_train = dataset.iloc[0:train_size]
+    dataset_test = dataset.iloc[train_size:dataset.shape[0]]
+    training_set = dataset_train.iloc[:, 0:features].values
+    training_set_label = dataset_train.iloc[:, 0:1].values  
+    from sklearn.preprocessing import MinMaxScaler
+    scaler_features = MinMaxScaler(feature_range = (0,1))
+    scaler_label = MinMaxScaler(feature_range = (0,1))
+    training_set_scaled = scaler_features.fit_transform(training_set)
+    training_set_scaled_label = scaler_label.fit_transform(training_set_label)   
+    X_train = []
+    y_train = []
+    for i in range(timestep, train_size-Output):
+        X_train.append(training_set_scaled[i-timestep:i, 0:features+1])    
+    for i in range(timestep + Output, train_size):    
+        y_train.append(training_set_scaled_label[i - timestep + Output, 0])
+    X_train, y_train = np.array(X_train), np.array(y_train)
+    X_train = np.reshape(X_train, (X_train.shape[0], X_train.shape[1], features))  
+    ground_truth = dataset_test.iloc[:, 0:1].values
+    dataset_total = pd.concat((dataset_train, dataset_test), axis = 0)
+    dataset_total = dataset_total.iloc[:, 0:features]
+    inputs = dataset_total[len(dataset_total) - len(dataset_test) - timestep:].values
+    inputs = inputs.reshape(-1,features)
+    inputs = scaler_features.transform(inputs)
+    return X_train, y_train, inputs, ground_truth, scaler_features, scaler_label       
+def build_LSTM(layers, Output, X_train):
+    from keras.models import Sequential
+    from keras.layers import Dense
+    from keras.layers import LSTM
+    from keras.layers import Dropout
+    model = Sequential()
+    model.add(LSTM(units = layers[0], return_sequences = True, input_shape = (X_train.shape[1], X_train.shape[2])))
+    model.add(Dropout(0.2))
+    model.add(LSTM(units = layers[1], return_sequences = True))
+    model.add(Dropout(0.2))
+    model.add(LSTM(units = layers[2], return_sequences = True))
+    model.add(Dropout(0.2))
+    model.add(LSTM(units = layers[3]))
+    model.add(Dropout(0.2))
+    model.add(Dense(units = layers[4]))
+    model.compile(optimizer = 'adam', loss = 'mean_squared_error')
+    return model
+def build_GRU(layers, Output, X_train):
+    from keras.models import Sequential
+    from keras.layers import Dense
+    from keras.layers import GRU
+    from keras.layers import Dropout
+    model = Sequential()
+    model.add(GRU(units = layers[0], return_sequences = True, input_shape = (X_train.shape[1], X_train.shape[2])))
+    model.add(Dropout(0.2))
+    model.add(GRU(units = layers[1], return_sequences = True))
+    model.add(Dropout(0.2))
+    model.add(GRU(units = layers[2], return_sequences = True))
+    model.add(Dropout(0.2))
+    model.add(GRU(units = layers[3]))
+    model.add(Dropout(0.2))
+    model.add(Dense(units = layers[4]))
+    model.compile(optimizer = 'adam', loss = 'mean_squared_error')
+    return model
+def predict_MODEL(inputs, scaler_label, Output, timestep, model):
+    from math import sqrt
+    from sklearn.metrics import mean_squared_error
+    X_test = []
+    for i in range(timestep, int(len(inputs))-Output):
+        X_test.append(inputs[i-timestep:i, 0:inputs.shape[1]])
+    X_test = np.array(X_test) 
+    X_test = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], X_test.shape[2]))
+    Predicted = model.predict(X_test)
+    True_Output = inputs[timestep + Output:,0:1]
+    RMSE = sqrt(mean_squared_error(True_Output, Predicted))
+    print("The RMSE for Prediction is {:,.2f}".format(RMSE))
+    Predicted = scaler_label.inverse_transform(Predicted)  
+    True_Output = scaler_label.inverse_transform(True_Output) 
+    return Predicted, True_Output, RMSE

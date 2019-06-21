@@ -1,0 +1,137 @@
+import os
+import random
+import skimage.data
+import skimage.transform
+import matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
+import tensorflow as tf
+from tensorflow.contrib.layers import flatten
+import cv2
+import time
+ROOT = 'A:'
+training_imgs = os.path.join(ROOT, '/DataMining/training')
+test_imgs = os.path.join(ROOT, '/DataMining/testing')
+
+
+def data_load(dir_path):
+    dirs = [dir for dir in os.listdir(dir_path) if os.path.isdir(os.path.join(dir_path, dir))]
+    classes = []
+    img = []
+    for d in dirs:
+        label_dir = os.path.join(dir_path, d)
+        file_names = [os.path.join(label_dir, f) for f in os.listdir(label_dir) if f.endswith('.ppm')]
+        for f in file_names:
+            img.append(skimage.data.imread(f))
+            classes.append(int(d))
+    return img, classes
+
+
+images, classes = data_load(training_imgs)
+nclasses = len(set(classes))
+print("""The number of unique classes are: {0}
+Count of images in all classes: {1}""".format(nclasses, len(images)))
+
+
+def sample_from_class(images, classes):
+    tot_class = set(classes)
+    plt.figure(figsize=(20, 20))
+    i = 1
+    for label in tot_class:
+        img = images[classes.index(label)]
+        plt.subplot(10, 7, i)
+        plt.axis('off')
+        plt.title('class {0}, Num imgs {1}'.format(label, classes.count(label)))
+        i += 1
+        _ = plt.imshow(img)
+    plt.show()
+
+
+print("""
+
+Images from each class before preprocessing""")
+sample_from_class(images, classes)
+print("""
+Pre-processing the data""")
+print("""
+Images after resizing""")
+resized_imgs = [skimage.transform.resize(image, (32, 32), mode='constant') for image in images]
+sample_from_class(resized_imgs, classes)
+ready_classes = np.array(classes)
+ready_images = np.array(resized_imgs)
+
+
+def net_architecture(img_ph):
+    mymean = 0
+    mydev = 0.1
+    weights_conv1 = tf.Variable(tf.truncated_normal(shape=(5, 5, 3, 6), mean=mymean, stddev=mydev), name='weights_conv1')
+    bias_conv1 = tf.Variable(tf.zeros(6), name='bias_conv1')
+    layer1_out = tf.nn.conv2d(img_ph, weights_conv1, strides=[1, 1, 1, 1], padding='VALID') + bias_conv1
+    layer1_out = tf.nn.relu(layer1_out)
+    layer1_out = tf.nn.max_pool(layer1_out, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID')
+    weights_conv2 = tf.Variable(tf.truncated_normal(shape=(5, 5, 6, 16), mean=mymean, stddev=mydev), name='weights_conv2')
+    bias_conv2 = tf.Variable(tf.zeros(16), name='bias_conv2')
+    conv2_out = tf.nn.conv2d(layer1_out, weights_conv2, strides=[1, 1, 1, 1], padding='VALID') + bias_conv2
+    conv2_out = tf.nn.relu(conv2_out)
+    conv2_out = tf.nn.max_pool(conv2_out, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID')
+    fc0 = flatten(conv2_out)
+    weights_fullyconn = tf.Variable(tf.truncated_normal(shape=(400, 120), mean=mymean, stddev=mydev), name='weights_fullyconn')
+    bias_fullyconn = tf.Variable(tf.zeros(120), name='bias_fullyconn')
+    fullyconn_out = tf.matmul(fc0, weights_fullyconn) + bias_fullyconn
+    fullyconn_out = tf.nn.relu(fullyconn_out)
+    fullyconn2_weights = tf.Variable(tf.truncated_normal(shape=(120, 84), mean=mymean, stddev=mydev), name='fullyconn2_weights')
+    fullyconn2_bias = tf.Variable(tf.zeros(84), name='fullyconn2_bias')
+    fullyconn2_out = tf.matmul(fullyconn_out, fullyconn2_weights) + fullyconn2_bias
+    fullyconn2_out = tf.nn.relu(fullyconn2_out)
+    hidden_layer = tf.nn.dropout(fullyconn2_out, keep_prob)
+    fullyconn3_weights = tf.Variable(tf.truncated_normal(shape=(84, nclasses), mean=mymean, stddev=mydev), name='fullyconn3_weights')
+    fullyconn3_bias = tf.Variable(tf.zeros(nclasses), name='fullyconn3_bias')
+    logits = tf.matmul(fullyconn2_out, fullyconn3_weights) + fullyconn3_bias
+    return logits
+
+
+graph = tf.Graph()
+with graph.as_default():
+    placeholder_img = tf.placeholder(tf.float32, [None, 32, 32, 3])
+    placeholder_classes = tf.placeholder(tf.int32, [None])
+    keep_prob = tf.placeholder(tf.float32)
+    logits = net_architecture(placeholder_img)
+    classify_labels = tf.argmax(logits, 1)
+    err = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=placeholder_classes))
+    train = tf.train.AdamOptimizer(learning_rate=0.001).minimize(err)
+    init = tf.global_variables_initializer()
+session = tf.Session(graph=graph)
+_ = session.run([init])
+start = time.time()
+for i in range(201):
+    _, err_value = session.run([train, err], feed_dict={placeholder_img: ready_images, placeholder_classes: ready_classes})
+    if i % 10 == 0:
+        print('error: ', err_value)
+end = time.time()
+tot = end - start
+print("""
+Time taken for training the model is {0}
+""".format(tot))
+try_random_20 = random.sample(range(len(resized_imgs)), 20)
+img_to_be_classified = [resized_imgs[i] for i in try_random_20]
+sample_classes = [classes[i] for i in try_random_20]
+classify = session.run([classify_labels], feed_dict={placeholder_img: img_to_be_classified})[0]
+classiedfig = plt.figure(figsize=(20, 20))
+for img in range(len(img_to_be_classified)):
+    actual_class = sample_classes[img]
+    after_classification = classify[img]
+    plt.subplot(10, 2, 1 + img)
+    plt.axis('off')
+    val = 'true' if actual_class == after_classification else 'false'
+    plt.text(80, 20, 'actual:        {0}\nclassified: {1}\ntruth: {2}'.format(actual_class, after_classification, val), fontsize=12)
+    plt.imshow(img_to_be_classified[img])
+test_images, test_classes = data_load(test_imgs)
+resized_test = [skimage.transform.resize(image, (32, 32), mode='constant') for image in test_images]
+sample_from_class(resized_test, test_classes)
+classify = session.run([classify_labels], feed_dict={placeholder_img: resized_test})[0]
+correct_matches = sum([int(actual == classified) for actual, classified in zip(test_classes, classify)])
+print("""
+The correct matches were {0} out of a total of {1} test images.""".format(correct_matches, len(test_classes)))
+correctness = correct_matches / len(test_classes) * 100
+print('The accuracy of the system is: {0} percent'.format(correctness))
+session.close()

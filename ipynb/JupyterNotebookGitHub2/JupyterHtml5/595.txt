@@ -1,0 +1,477 @@
+
+In [1]:
+
+    
+import pickle
+import tensorflow as tf
+import numpy as np
+import pandas as pd
+from sklearn.metrics import roc_curve, auc
+from timeit import default_timer as timer
+# needed to see images
+from IPython.display import display, Image
+import pickle
+from sklearn.preprocessing import LabelBinarizer
+
+# needed for plotting
+import matplotlib.pyplot as plt
+%matplotlib inline
+import seaborn as sns
+current_palette = sns.color_palette()
+
+
+    
+
+
+
+In [2]:
+
+    
+def getkey(item):
+    fpr, tpr, _ = roc_curve(test_labels.ravel(), test_preds[item])
+    roc_auc = auc(fpr, tpr)
+    return roc_auc
+
+def plotROC(testlabels, test_preds):
+    classifiers = list(test_preds.keys())
+
+    # Plot all ROC curves
+    plt.figure(figsize=(15,9))
+    for i, clf in zip(range(len(classifiers)), sorted(classifiers, key=getkey, reverse=True)):
+        fpr, tpr, _ = roc_curve(testlabels.ravel(), test_preds[clf] )
+        roc_auc = auc(fpr, tpr)
+        plt.plot(fpr, tpr,
+                 label='ROC curve '+ clf +  ' (area = {0:0.4f})'
+                       ''.format(roc_auc), linestyle='-', linewidth=2)
+
+
+    plt.plot([0, 1], [0, 1], 'k--', lw=2)
+    plt.xlim([-0.1, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('Comparison of multiclass ROC curves')
+    plt.legend(loc="lower right", fontsize=14)
+    plt.show()
+
+
+    
+
+
+
+In [3]:
+
+    
+data = pickle.load(open('2dzeropadded_data.p', 'rb'))
+
+
+    
+
+
+
+In [4]:
+
+    
+print(data.columns)
+print(data.shape)
+
+
+    
+
+
+
+In [6]:
+
+    
+test_preds = {}
+train = data[0:6984]
+test = data[6984:8730]
+
+LB = LabelBinarizer().fit(train['label'])
+test_labels = LB.transform(test['label'])
+
+data_cols = list(train.columns)
+data_cols.pop(-1)
+data_cols.pop(-1)
+
+# print shapes
+print('train shape {}\ntest  shape {}\ncommon factors: 37 59 2183'.format(train.shape, test.shape))
+
+
+    
+
+
+
+In [7]:
+
+    
+del data
+
+
+    
+
+
+
+In [8]:
+
+    
+def accuracy(predictions, labels):
+    return (100.0 * np.sum(np.argmax(predictions, 1) == np.argmax(labels, 1))
+            / predictions.shape[0])
+
+def weight_variable(shape):
+    initial = tf.truncated_normal(shape, stddev=0.01)
+    return tf.Variable(initial)
+
+def bias_variable(shape):
+    initial = tf.constant(0.1, shape=shape)
+    return tf.Variable(initial)
+
+def test_accuracy(session, test_data=test, during = True):
+    """compute test accuracy in chunks so that we don't chash our RAM"""
+    test_data.reset_index(inplace=True, drop=True)
+    epoch_pred = session.run(prediction, feed_dict={tf_data : test_data.loc[0:check_size-1,data_cols], keep_prob : 1.0})
+    for i in range(check_size, test_data.shape[0], check_size):
+        epoch_pred = np.concatenate([epoch_pred, session.run(prediction, 
+                                    feed_dict={tf_data: test_data.loc[i:i+check_size-1,data_cols], keep_prob: 1.0})],axis=0)
+    if during:
+        return accuracy(epoch_pred, test_labels)
+    else:
+        return epoch_pred
+
+
+    
+
+
+
+In [9]:
+
+    
+num_labels = 10
+batch_size = 30
+acc_over_time = {}
+def Run_Session(num_epochs, name, k_prob=1.0, mute=False, record=False):
+    global train
+    start = timer()
+    with tf.Session(graph=graph) as session:
+        
+        if record:
+            merged = tf.merge_all_summaries()  
+            writer = tf.train.SummaryWriter("/tmp/tensorflowlogs", session.graph)
+        
+        #tf.initialize_all_variables().run()
+        tf.global_variables_initializer().run()
+
+        print("Initialized")
+        accu = []
+        
+        for epoch in range(num_epochs):
+            
+            # get batch
+            train_batch = train.sample(batch_size)
+            
+            t_d = train_batch[data_cols]
+            t_l = LB.transform(train_batch['label'])
+            
+            # make feed dict
+            feed_dict = { tf_data : t_d, train_labels : t_l, keep_prob : k_prob}
+            
+            # run model on batch
+            _, l, predictions = session.run([optimizer, loss, prediction], feed_dict=feed_dict)
+            
+            # mid model accuracy checks 
+            if (epoch % 1000 == 0) and not mute:
+                print("\tMinibatch loss at epoch {}: {}".format(epoch, l))
+                print("\tMinibatch accuracy: {:.1f}".format(accuracy(predictions, t_l)))
+            if (epoch % 5000 == 0) and not mute:
+                print("Test accuracy: {:.1f}".format(test_accuracy(session, during=True)))
+            if (epoch % 1000 == 0) and not mute:
+                accu.append(tuple([epoch, test_accuracy(session, during=True)]))
+                
+        # record accuracy and predictions
+        test_preds[name] = test_accuracy(session, during=False)
+        print("Final Test accuracy: {:.1f}".format(accuracy(test_preds[name], test_labels)))
+        end = timer()
+        test_preds[name] = test_preds[name].ravel()
+        acc_over_time[name] = accu
+        print("time taken: {0} minutes {1:.1f} seconds".format((end - start)//60, (end - start)%60))
+        #tf.train.export_meta_graph()
+
+
+    
+
+
+
+In [12]:
+
+    
+# constants
+num_labels = 10
+batch_size = 37
+check_size = 37
+feature_size = 27600
+n_hidden = 100
+
+graph = tf.Graph()
+with graph.as_default():
+    # placeholders
+    tf_data = tf.placeholder(tf.float32, shape=[None, feature_size, 1])
+    train_labels = tf.placeholder(tf.float32, shape=[None, num_labels])
+    
+    keep_prob = tf.placeholder(tf.float32)
+    
+    # weights and biases
+    layer1_weights = weight_variable([feature_size*n_hidden, n_hidden])
+    layer1_biases = bias_variable([n_hidden])
+    layer2_weights = weight_variable([n_hidden, num_labels])
+    layer2_biases = bias_variable([num_labels])
+
+    # cell type
+    ltsm = tf.nn.rnn_cell.BasicLSTMCell(n_hidden, state_is_tuple=True)
+
+    # model
+    def model(data, proba=1.0):
+        layer1, _istate = tf.nn.dynamic_rnn(ltsm, data, dtype=tf.float32)
+        layer1 = tf.reshape(layer1, shape=[batch_size, feature_size*n_hidden])
+        layer2 = tf.nn.relu(tf.matmul(layer1, layer1_weights) + layer1_biases)
+        layer2 = tf.nn.dropout(layer2, proba)
+        return tf.matmul(layer2, layer2_weights) + layer2_biases
+
+    # Training computation.
+    logits = model(tf.expand_dims(tf_data, -1), keep_prob)
+    loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits, train_labels))
+
+    # Optimizer.
+    optimizer = tf.train.AdamOptimizer(1e-4).minimize(loss)
+
+    # Predictions for the training, validation, and test data.
+    # !!!! as this model does not allow calling model more than once we will need to get test predictions
+    #      by running the test data through the same prediction op as the train data. !!!
+    # !!! make note to not run optimizer on same function call !!!
+    prediction = tf.nn.softmax(logits) 
+    print('Basic RNN model made')
+
+
+    
+
+
+
+In [1]:
+
+    
+# warning took over 14 hours to run
+Run_Session(20000, 'RNN', .5)
+
+
+    
+
+
+
+In [14]:
+
+    
+# constants
+num_labels = 10
+batch_size = 97
+check_size = 582
+feature_size = 27600
+
+n_hidden1 = 400
+n_hidden2 = 500
+n_hidden3 = 400
+
+beta = 0.01
+
+graph = tf.Graph()
+with graph.as_default():
+    # placeholders
+    tf_data = tf.placeholder(tf.float32, shape=[None, feature_size])
+    train_labels = tf.placeholder(tf.float32, shape=[None, num_labels])
+    keep_prob = tf.placeholder(tf.float32)
+    
+    # weights and biases
+    layer1_weights = weight_variable([feature_size, n_hidden1])
+    layer1_biases = bias_variable([n_hidden1])
+    layer2_weights = weight_variable([n_hidden1, n_hidden2])
+    layer2_biases = bias_variable([n_hidden2])
+    layer3_weights = weight_variable([n_hidden2, n_hidden3])
+    layer3_biases = bias_variable([n_hidden3])
+    layer4_weights = weight_variable([n_hidden3, num_labels])
+    layer4_biases = bias_variable([num_labels])
+
+    # model
+    def model(data, proba=1.0):
+        layer1 = tf.nn.relu(tf.matmul(data, layer1_weights) + layer1_biases)
+        layer1 = tf.nn.dropout(layer1, proba)
+        
+        layer2 = tf.nn.relu(tf.matmul(layer1, layer2_weights) + layer2_biases)
+        layer2 = tf.nn.dropout(layer2, proba)
+        
+        layer3 = tf.nn.relu(tf.matmul(layer2, layer3_weights) + layer3_biases)
+        layer3 = tf.nn.dropout(layer3, proba)
+        
+        return tf.matmul(layer3, layer4_weights) + layer4_biases
+
+    # Training computation.
+    logits = model(tf_data, keep_prob)
+    loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits, train_labels))
+
+    # Optimizer.
+    optimizer = tf.train.AdamOptimizer(1e-4).minimize(loss)
+
+    # Predictions for the training, validation, and test data.
+    # !!!! as this RNN model does not allow calling model more than once we will need to get test predictions
+    #      by running the test data through the same prediction op as the train data. !!!
+    # !!! make note to not run optimizer on same function call !!!
+    prediction = tf.nn.softmax(logits) 
+    print('Basic DeepNN model made')
+
+
+    
+
+
+
+In [10]:
+
+    
+Run_Session(20000, 'DeepNN', .5) #36.4%
+
+
+    
+
+
+
+In [12]:
+
+    
+# single layer CNN
+num_labels = 10
+
+batch_size = 97
+check_size = 582
+feature_size = 27600
+patch_size = 5
+num_channels = 1
+depth1 = 32
+
+num_hidden = 1050
+
+
+graph = tf.Graph()
+with graph.as_default():
+    
+    tf_data = tf.placeholder(tf.float32, shape=(None, feature_size))
+    train_labels = tf.placeholder(tf.float32, shape=(None, num_labels))
+    #tf_test_dataset = tf.placeholder(tf.float32, shape=(check_size, image_size, image_size, num_channels))
+
+    # Variables.
+    layer1_weights = weight_variable([1, patch_size, 1, depth1])
+    layer1_biases = bias_variable([depth1])
+    #layer2_weights = weight_variable([(feature_size//2)* depth1, num_hidden])
+    #layer2_biases = bias_variable([num_hidden])
+    layer3_weights = weight_variable([(feature_size//2)* depth1, num_labels])
+    layer3_biases = bias_variable([num_labels])
+
+    keep_prob = tf.placeholder(tf.float32)
+    # Model with dropout
+    def model(data, proba=keep_prob):
+        # Convolution
+        conv1 = tf.nn.conv2d(data, layer1_weights, [1, 1, 2, 1] , padding='SAME') + layer1_biases
+        pooled1 = tf.nn.max_pool(tf.nn.relu(conv1), ksize=[1, 1, 2, 1],strides=[1, 1, 1, 1], padding='SAME')
+
+        # Fully Connected Layer
+        shape = pooled1.get_shape().as_list()
+        reshape = tf.reshape(pooled1, [-1, shape[1] * shape[2] * shape[3]])
+        #full2 = tf.nn.relu(tf.matmul(reshape, layer2_weights) + layer2_biases)
+
+        # Dropout
+        reshape = tf.nn.dropout(reshape, proba)
+        
+        return tf.matmul(reshape, layer3_weights) + layer3_biases
+
+    # Training computation.
+    logits = model(tf.expand_dims(tf.expand_dims(tf_data, [-1]), 1), keep_prob)
+    loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits, train_labels))
+
+    # Optimizer.
+    optimizer = tf.train.AdamOptimizer(1e-4).minimize(loss)
+
+    # Predictions for the training, validation, and test data.
+    prediction = tf.nn.softmax(logits)
+    #test_prediction = tf.nn.softmax(model(tf_test_dataset,1.0))  
+    print('Basic CNN model made')
+
+
+    
+
+
+
+In [ ]:
+
+    
+# !!! warning results in computer freezes on laptops
+#Run_Session(20000, 'CNN', .5)
+
+
+    
+
+
+
+In [ ]:
+
+    
+# accuracy plot
+plt.plot(np.array(acc_over_time['RNN'])[:,0], np.array(acc_over_time['RNN'])[:,1])
+plt.plot(np.array(acc_over_time['DeepNN'])[:,0], np.array(acc_over_time['DeepNN'])[:,1])
+plt.plot(np.array(acc_over_time['CNN'])[:,0], np.array(acc_over_time['CNN'])[:,1])
+plt.title('Accuracy')
+plt.show()
+
+
+    
+
+
+
+In [2]:
+
+    
+# record measurements
+dataset_acc = pickle.load(open('dataset_acc.p','rb'))
+dataset_acc['flat0pad'] = {'DeepNN': np.array(acc_over_time['DeepNN'])[-1,1],
+                            'RNN': np.array(acc_over_time['RNN'])[-1,1],
+                          'CNN': 0.0}
+pickle.dump(dataset_acc, open('dataset_acc.p','wb'))
+
+
+    
+
+
+
+In [3]:
+
+    
+dataset_acc
+
+
+    
+
+
+
+In [ ]:
+
+    
+plotROC(test_labels, test_preds)
+
+
+    
+
+
+
+In [ ]:
+
+    
+ 
+
+
+    
+

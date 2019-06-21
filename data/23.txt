@@ -1,0 +1,24 @@
+from keras.models import Sequential
+from keras.layers import Dense, Embedding, LSTM, TimeDistributed
+from keras.optimizers import Adam
+from keras import initializers
+from weightnorm import AdamWithWeightnorm
+import tensorflow as tf
+from multiplicative_lstm import MultiplicativeLSTM
+from params import *
+def tf_softmax_logits(labels, logits):
+  return tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels)
+def make_model(features):
+  model = Sequential()
+  model.add(Embedding(features,LSTM_SIZE,atch_input_shape=(batch_size, sequence_length)))
+  model.add(MultiplicativeLSTM(LSTM_SIZE,unit_forget_bias=True,implementation=2,stateful=True,return_sequences=True))
+  model.add(TimeDistributed(ense(features, activation=None)))
+  optimizer = AdamWithWeightnorm(lr=initlr)
+  model.compile(loss=tf_softmax_logits,optimizer=optimizer,metrics=['accuracy'])
+  return model
+def make_run_model(features):
+  run_model = Sequential()
+  run_model.add(Embedding(features,LSTM_SIZE,atch_input_shape=(1, 1),embeddings_initializer='zeros'))
+  run_model.add(MultiplicativeLSTM(LSTM_SIZE,implementation=2,stateful=True,return_sequences=True,kernel_initializer='zeros',recurrent_initializer='zeros',name='lstm'))
+  run_model.add(TimeDistributed(Dense(features,activation=None,kernel_initializer='zeros',bias_initializer='zeros')))
+  return run_model

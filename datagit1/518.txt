@@ -1,0 +1,64 @@
+import tensorflow as tf
+import numpy as np
+from data_exploration import batch_generator
+import time
+n_input = 4735
+n_hidden_1 = 900
+n_hidden_2 = 900
+n_hidden_3 = 90
+n_hidden_4 = 9
+n_classes = 1
+BATCHSIZE = 100
+batch_handle = batch_generator(BATCHSIZE)
+
+
+def gen():
+    while True:
+        print(batch_handle)
+        yield next(batch_handle)
+
+
+def mlp():
+    sequence1 = tf.placeholder(shape=(None, 4735), dtype=tf.float32)
+    sequence2 = tf.placeholder(shape=(None, 4735), dtype=tf.float32)
+    distance = tf.placeholder(shape=(None, 1), dtype=tf.float32)
+    layer11 = tf.nn.dropout(tf.nn.tanh(tf.add(tf.matmul(sequence1, weights['h1']), biases['b1'])), 1)
+    layer12 = tf.nn.dropout(tf.nn.tanh(tf.add(tf.matmul(sequence2, weights['h1']), biases['b1'])), 1)
+    layer21 = tf.nn.dropout(tf.nn.tanh(tf.add(tf.matmul(layer11, weights['h2']), biases['b2'])), 1)
+    layer22 = tf.nn.dropout(tf.nn.tanh(tf.add(tf.matmul(layer12, weights['h2']), biases['b2'])), 1)
+    layer31 = tf.nn.dropout(tf.nn.tanh(tf.add(tf.matmul(layer21, weights['h3']), biases['b3'])), 1)
+    layer32 = tf.nn.dropout(tf.nn.tanh(tf.add(tf.matmul(layer22, weights['h3']), biases['b3'])), 1)
+    layer41 = tf.nn.dropout(tf.nn.tanh(tf.add(tf.matmul(layer31, weights['h4']), biases['b4'])), 1)
+    layer42 = tf.nn.dropout(tf.nn.tanh(tf.add(tf.matmul(layer32, weights['h4']), biases['b4'])), 1)
+    layer5 = tf.nn.tanh(tf.add(layer41, layer42))
+    predict = tf.reduce_sum(layer5, 1, keepdims=True)
+    error = tf.reduce_mean(tf.square(tf.subtract(predict, distance)))
+    optimizer = tf.train.GradientDescentOptimizer(0.01).minimize(error)
+    init = tf.global_variables_initializer()
+    return sequence1, sequence2, init, distance, error, optimizer
+
+
+weights = {'h1': tf.Variable(tf.random_normal([n_input, n_hidden_1], stddev=1)), 'h2': tf.Variable(tf.random_normal([n_hidden_1, n_hidden_2], stddev=1)), 'h3': tf.Variable(tf.random_normal([n_hidden_2, n_hidden_3], stddev=1)), 'h4': tf.Variable(tf.random_normal([n_hidden_3, n_hidden_4], stddev=1)), 'out': tf.Variable(tf.random_normal([n_hidden_4, n_classes], stddev=1))}
+biases = {'b1': tf.Variable(tf.random_normal([n_hidden_1])), 'b2': tf.Variable(tf.random_normal([n_hidden_2])), 'b3': tf.Variable(tf.random_normal([n_hidden_3])), 'b4': tf.Variable(tf.random_normal([n_hidden_4])), 'out': tf.Variable(tf.random_normal([n_classes]))}
+
+
+def data_convert():
+    a, b = next(batch_handle)
+    x = np.array(a)
+    y = np.array(b)
+    s1 = x[:, 0:4735]
+    s2 = x[:, 4735:]
+    d = y
+    return s1, s2, d
+
+
+if __name__ == '__main__':
+    start = time.time()
+    s1, s2, init, distance, out, opt = mlp()
+    with tf.Session() as session:
+        session.run(init)
+        for i in range(0, 100):
+            seq1, seq2, dis = data_convert()
+            print(session.run([out], feed_dict={s1: seq1, s2: seq2, distance: dis}))
+            print(session.run([opt], feed_dict={s1: seq1, s2: seq2, distance: dis}))
+            print('elapsed time is equal:{}'.format(time.time() - start))

@@ -1,0 +1,236 @@
+
+In [4]:
+
+    
+import tensorflow as tf
+from tensorflow.examples.tutorials.mnist import input_data
+mnist = input_data.read_data_sets(".",one_hot=True,reshape=False)
+
+
+    
+
+
+
+In [6]:
+
+    
+# Basic CNN
+
+# 1. Output Depth
+k_output = 64
+
+# 2. Input Image Properties
+image_width = 10
+image_height = 10
+color_channels = 3
+
+# 3. Filter Size Properties
+filter_width = 5
+filter_height = 5
+
+# 4. Input Image
+input = tf.placeholder(tf.float32,shape=[None,image_height,image_width,color_channels])
+
+# 5. Weight and Bias
+weight = tf.Variable(tf.truncated_normal([filter_height,filter_width,color_channels,k_output]))
+
+#bias = tf.Variable(tf.truncated_normal([k_output]))
+bias = tf.Variable(tf.zeros([k_output]))
+
+# 6. Convolution Layer
+
+#Apply convolution
+conv_layer = tf.nn.conv2d(input,weight,strides=[1,2,2,1],padding='SAME')
+
+# Add Bias
+conv_layer = tf.nn.bias_add(conv_layer,bias)
+
+# Apply activation function
+conv_layer = tf.nn.relu(conv_layer)
+
+
+    
+
+
+
+In [7]:
+
+    
+# 7. Apply Max Pooling on this conv layer
+conv_layer = tf.nn.max_pool(conv_layer,ksize=[1,2,2,1],strides=[1,2,2,1],padding='SAME')
+
+
+    
+
+
+
+In [ ]:
+
+    
+# CNN in TENSOR FLOW - EXAMPLE
+
+
+    
+
+
+
+In [8]:
+
+    
+import tensorflow as tf
+from tensorflow.examples.tutorials.mnist import input_data
+mnist = input_data.read_data_sets(".",one_hot=True,reshape=False)
+
+
+    
+
+
+
+In [9]:
+
+    
+# HYPER PARAMETERS
+learning_rate = 0.0001
+epochs = 10
+batch_size = 128
+
+#Number of samples to calculate validation and accuracy
+test_valid_size = 256
+
+#network parameters
+n_out_classes = 10 # MNIST total classes (0 - 9)
+dropout = 0.75 # Dropout, Probability to keep units
+
+
+    
+
+
+
+In [11]:
+
+    
+weights = {
+    'wcnn1':tf.Variable(tf.truncated_normal([5,5,1,32])),
+    'wcnn2':tf.Variable(tf.truncated_normal([5,5,32,64])),
+    'wd1':tf.Variable(tf.truncated_normal([7*7*64,1024])),
+    'out':tf.Variable(tf.truncated_normal([1024,n_out_classes]))
+}
+
+bias = {
+    'bnn1': tf.Variable(tf.truncated_normal([32])),
+    'bnn2': tf.Variable(tf.truncated_normal([64])),
+    'bd1' : tf.Variable(tf.truncated_normal([1024])),
+    'out' : tf.Variable(tf.truncated_normal([n_out_classes]))
+}
+
+
+    
+
+
+
+In [12]:
+
+    
+def conv2d(inputs,weights,bias,strides=1):
+    nw = tf.nn.conv2d(inputs,weights,strides=[1,strides,strides,1],padding='SAME')
+    nw = tf.nn.bias_add(nw,bias)
+    return tf.nn.relu(nw)
+
+def maxpool2d(conv_nw,k=2):
+    return tf.nn.max_pool(conv_nw,ksize=[1,k,k,1],strides=[1,k,k,1],padding='SAME')
+
+def conv_net(inputs,weights,biases,dropout):
+    # conv layer 1 - 28*28*1 -> 14*14*32
+    nw = conv2d(inputs,weights['wcnn1'],bias['bnn1'])
+    nw = maxpool2d(nw)
+    
+    # conv layer 2 - 14*14*32 -> 7*7*64
+    nw = conv2d(nw,weights['wcnn2'],bias['bnn2'])
+    nw = maxpool2d(nw)
+    
+    # Fully connected layer - 7*7*64 -> 1*1024
+    fc1 = tf.reshape(nw,[-1,weights['wd1'].get_shape().as_list()[0]])
+    fc1 = tf.add(tf.matmul(fc1,weights['wd1']),bias['bd1'])
+    fc1 = tf.nn.relu(fc1)
+    fc1 = tf.nn.dropout(fc1,dropout)
+    
+    #Output Layer
+    out = tf.add(tf.matmul(fc1,weights['out']),bias['out'])
+    return out
+
+
+    
+
+
+
+In [13]:
+
+    
+# tf graph input
+x = tf.placeholder(tf.float32,[None,28,28,1])
+y = tf.placeholder(tf.float32,[None,n_out_classes])
+keep_prob = tf.placeholder(tf.float32)
+
+# model
+logits = conv_net(x,weights,bias,keep_prob)
+
+#cost - defining loss
+cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits,labels=y))
+
+# optimizer
+optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(cost)
+
+# accuracy
+correct_pred = tf.equal(tf.argmax(logits,1),tf.argmax(y,1))
+accuracy = tf.reduce_mean(tf.cast(correct_pred,tf.float32))
+
+#initialize variable
+init = tf.global_variables_initializer()
+
+
+    
+
+
+
+In [ ]:
+
+    
+with tf.Session() as session:
+    session.run(init)
+    
+    for epoch in range(epochs):
+        for batch in range(mnist.train.num_examples//batch_size):
+            batch_x,batch_y = mnist.train.next_batch(batch_size)
+            session.run(optimizer,feed_dict={x:batch_x,y:batch_y,keep_prob:dropout})
+            
+            # calculate batch loss and accuracy
+            loss = session.run(cost,feed_dict={x:batch_x,y:batch_y,keep_prob:1.})
+            valid_acc = session.run(accuracy,feed_dict={
+                x:mnist.validation.images[:test_valid_size],
+                y:mnist.validation.labels[:test_valid_size],
+                keep_prob : 1.
+            })
+            
+            print("Epoch {:>2}, Loss {:>10.4f} Validation Accuracy {:.6f}".format(epoch+1,loss,valid_acc))
+            
+    test_acc = session.run(accuracy,feed_dict={
+        x: mnist.test.images[:test_valid_size],
+        y: mnist.test.labels[:test_valid_size],
+        keep_prob : 1.
+    })
+    
+    print('Testing Accuracy:',test_acc)
+
+
+    
+
+
+
+In [ ]:
+
+    
+ 
+
+
+    
+

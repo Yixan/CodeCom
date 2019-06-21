@@ -1,0 +1,457 @@
+
+In [ ]:
+
+    
+%matplotlib inline
+## Run this cell once before the lab to download
+## the mnist dataset and the pre-trained ResNet50 model. 
+
+## Mnist
+from tensorflow.examples.tutorials.mnist import input_data
+mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
+
+## Keras pre-trained weights
+from keras.utils.data_utils import get_file
+get_file('resnet50_weights_tf_dim_ordering_tf_kernels.h5',
+         'https://github.com/fchollet/deep-learning-models/releases'+
+         '/download/v0.2/resnet50_weights_tf_dim_ordering_tf_kernels.h5',
+         cache_subdir='models',
+         md5_hash='a7b3fe01876f51b976af0dea6bc144eb')
+
+
+    
+
+
+
+In [ ]:
+
+    
+import tensorflow as tf
+
+a = tf.constant(3)
+b = tf.constant(2)
+c = a + b
+
+
+    
+
+
+
+In [ ]:
+
+    
+print(type(a))
+print(a)
+
+
+    
+
+
+
+In [ ]:
+
+    
+print(type(c))
+print(c)
+
+
+    
+
+
+
+In [ ]:
+
+    
+with tf.Session() as sess:
+    c_value = sess.run(c)
+    
+print(type(c_value))
+print(c_value)
+
+
+    
+
+
+
+In [ ]:
+
+    
+d = tf.Variable(0)
+
+with tf.Session() as sess:
+    sess.run(tf.global_variables_initializer())
+    print(sess.run(d))
+
+    sess.run(d.assign_add(c))
+    print(sess.run(d))
+
+    sess.run(d.assign_add(c))
+    print(sess.run(d))
+
+
+    
+
+
+
+In [ ]:
+
+    
+x = tf.placeholder("float32", name="input")
+y = x + tf.constant(3.0)
+
+with tf.Session() as sess:
+    print(sess.run(y, feed_dict={x: 2}))
+
+
+    
+
+
+
+In [ ]:
+
+    
+import numpy as np
+
+img = tf.placeholder("float32", shape=(1, 2, 3), name="input")
+inverted_image = 255. - img
+
+with tf.Session() as sess:
+    fake_img = np.zeros(shape=(1, 2, 3))
+    print(sess.run(inverted_image, feed_dict={img:fake_img}))
+
+
+    
+
+
+
+In [ ]:
+
+    
+img = tf.placeholder("float32", shape= [None, None, 3], name="input")
+inverted_image = 255. - img
+with tf.Session() as sess:
+    fake_img = np.zeros(shape=(3, 2, 3))
+    print(sess.run(inverted_image, feed_dict={img:fake_img}))
+
+
+    
+
+
+
+In [ ]:
+
+    
+import tensorflow as tf
+import numpy as np
+from scipy.misc import imread, imresize
+import matplotlib.pyplot as plt
+
+
+    
+
+
+
+In [ ]:
+
+    
+sample_image = imread("bumblebee.png")
+sample_image= sample_image.astype(float)
+
+size = sample_image.shape
+print("sample image shape: "+ str(sample_image.shape))
+
+def show(image):
+    image = np.squeeze(image.astype("uint8"))
+    plt.imshow(image, cmap="gray")
+
+show(sample_image)
+
+
+    
+
+
+
+In [ ]:
+
+    
+image = tf.placeholder(tf.float32, shape=(None, None, None, 3))
+kernel = tf.placeholder(tf.float32, shape=(5, 5, 3))
+
+def conv(x, k):
+    k = tf.reshape(k, shape=(5, 5, 3, 1))
+    return tf.nn.depthwise_conv2d(x, k, strides=(1, 1, 1, 1),
+                                  padding='SAME')
+    
+output_image = conv(image, kernel)
+kernel_data = np.zeros(shape=(5, 5, 3)).astype(np.float32)
+kernel_data[:, :, :] = 1 / 25
+
+# move the channel dimension to the first dimension to
+# make it easy to see the spacial organization of the kernel
+# on the last 2 dimensions with print:
+print(np.transpose(kernel_data, (2, 0, 1))) 
+
+
+    
+
+
+
+In [ ]:
+
+    
+with tf.Session() as sess:
+    feed_dict = {image: [sample_image], kernel: kernel_data}
+    conv_img = sess.run(output_image, feed_dict=feed_dict)
+    print(conv_img.shape)
+    show(conv_img[0])
+
+
+    
+
+
+
+In [ ]:
+
+    
+# %load solutions/strides_padding.py
+
+
+    
+
+
+
+In [ ]:
+
+    
+# convert image to greyscale
+grey_sample_image = sample_image.sum(axis=2) / 3.
+
+# add the channel dimension even if it's only one channel
+grey_sample_image = grey_sample_image[:, :, np.newaxis]
+
+show(grey_sample_image)
+
+
+    
+
+
+
+In [ ]:
+
+    
+# %load solutions/edge_detection
+
+
+    
+
+
+
+In [ ]:
+
+    
+# %load solutions/pooling.py
+
+
+    
+
+
+
+In [ ]:
+
+    
+# %load solutions/average_as_conv.py
+
+
+    
+
+
+
+In [ ]:
+
+    
+# MNIST is 28x28 = 784 dimensions
+x = tf.placeholder(tf.float32, shape=[None, 784])
+y_true = tf.placeholder(tf.float32, shape=[None, 10])
+
+W = tf.Variable(tf.zeros([784,10]))
+b = tf.Variable(tf.zeros([10]))
+
+y_pred = tf.matmul(x,W) + b
+
+# We don't have to do the softmax ourselves, TensorFlow can use
+# logits directly to compute the loss
+cross_entropy = tf.nn.softmax_cross_entropy_with_logits(y_pred, y_true)
+loss = tf.reduce_mean(cross_entropy)
+train_step = tf.train.GradientDescentOptimizer(0.5).minimize(loss)
+
+correct_prediction = tf.equal(tf.argmax(y_pred,1), tf.argmax(y_true,1))
+accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+
+
+    
+
+
+
+In [ ]:
+
+    
+with tf.Session() as sess:
+    # Initialize weights
+    sess.run(tf.global_variables_initializer())
+
+    # Train loop
+    for i in range(1000):
+        # mnist.train helper function builds a batch of N elements
+        batch = mnist.train.next_batch(100)
+        train_step.run(feed_dict={x: batch[0], y_true: batch[1]})
+        
+    feed_dict={x: mnist.test.images, 
+               y_true: mnist.test.labels}
+    print(accuracy.eval(feed_dict=feed_dict))
+
+
+    
+
+
+
+In [ ]:
+
+    
+# Helper functions
+
+def weight_variable(shape):
+    initial = tf.truncated_normal(shape, stddev=0.1)
+    return tf.Variable(initial)
+
+def bias_variable(shape):
+    initial = tf.constant(0.1, shape=shape)
+    return tf.Variable(initial)
+
+def conv2d(x, W):
+    return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
+
+def max_pool_2x2(x):
+    return tf.nn.max_pool(x, ksize=[1, 2, 2, 1],
+                          strides=[1, 2, 2, 1], padding='SAME')
+
+
+    
+
+
+
+In [ ]:
+
+    
+x = tf.placeholder(tf.float32, shape=[None, 784])
+y_true = tf.placeholder(tf.float32, shape=[None, 10])
+
+# only 1 channel (grey image) and the batch size is -1 because
+# we don't know its size beforehand
+x_image = tf.reshape(x, (-1, 28, 28, 1))
+print(x_image.get_shape())
+
+
+    
+
+
+
+In [ ]:
+
+    
+with tf.Session() as sess:
+    batch = mnist.train.next_batch(10)
+    x_value, x_image_value = sess.run(
+        [x, x_image], feed_dict={x: batch[0]})
+    
+    print(x_value.shape, x_image_value.shape)
+
+
+    
+
+
+
+In [ ]:
+
+    
+# Convolution layer example in TensorFlow
+W_conv1 = weight_variable([5, 5, 1, 32])
+h_conv1 = conv2d(x_image, W_conv1)
+h_pool1 = max_pool_2x2(h_conv1)
+
+with tf.Session() as sess:
+    sess.run(tf.global_variables_initializer())
+    batch = mnist.train.next_batch(10)
+    output_conv, output_pool = sess.run(
+        [h_conv1, h_pool1], feed_dict={x: batch[0]})
+    
+    print("conv activation shape:", output_conv.shape)
+    print("pool activation shape:", output_pool.shape)
+
+
+    
+
+
+
+In [ ]:
+
+    
+ 
+
+
+    
+
+
+
+In [ ]:
+
+    
+# %load solutions/mnist_conv.py
+
+
+    
+
+
+
+In [ ]:
+
+    
+# softmax and loss
+cross_entropy = tf.nn.softmax_cross_entropy_with_logits(y_conv, y_true)
+loss = tf.reduce_mean(cross_entropy)
+
+# optimizer
+train_step = tf.train.AdamOptimizer(1e-4).minimize(loss)
+
+# accuracy
+correct_prediction = tf.equal(tf.argmax(y_conv,1), tf.argmax(y_true,1))
+accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+
+with tf.Session() as sess:
+    sess.run(tf.global_variables_initializer())
+    for i in range(500):
+        batch = mnist.train.next_batch(50)
+        if i%100 == 0:
+            feed_dict = {x:batch[0], y_true: batch[1]}
+            train_accuracy = accuracy.eval(feed_dict=feed_dict)
+            print("step %d, training accuracy %g"
+                  % (i, train_accuracy))
+        feed_dict = {x: batch[0], y_true: batch[1]}
+        train_step.run(feed_dict = feed_dict)
+        
+    feed_dict = {x: mnist.test.images[:1000],
+                 y_true: mnist.test.labels[:1000]}
+    print("test accuracy %g" % accuracy.eval(feed_dict=feed_dict))
+
+
+    
+
+
+
+In [ ]:
+
+    
+# %load solutions/mnist_conv_dropout.py
+
+
+    
+

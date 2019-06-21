@@ -1,0 +1,363 @@
+
+In [1]:
+
+    
+import tensorflow as tf
+import numpy as np
+import cv2
+import os
+import copy
+
+
+    
+
+
+
+In [ ]:
+
+    
+#create pic_folder_name
+img_cols=32
+img_rows=32
+img_channel=1
+classification_num=10
+
+
+pic_total_num=0
+total_pic_folder="D:/code/train_picture/"
+#files=os.listdir(pic_folder)
+########################################
+pic_folder_list=[]
+for num in range(10):
+    signal_pic_folder=total_pic_folder+str(num)+'/'
+    files=os.listdir(signal_pic_folder)
+    for file in files:
+        if files.index(file)<1200:
+            pic_total_num=pic_total_num+1
+            pic_folder_buffer=signal_pic_folder+file
+            pic_folder_list.append(pic_folder_buffer)
+np.random.shuffle(pic_folder_list)    
+np.random.shuffle(pic_folder_list)
+train_data=np.zeros([pic_total_num,img_rows*img_cols],np.uint8)
+train_label=np.zeros([pic_total_num,classification_num])
+print("create pic list ok")
+#read picture 
+pic_read_num=0
+
+for picture_name in pic_folder_list:
+    img_src=cv2.imread(picture_name)
+    img_src=cv2.cvtColor(img_src,cv2.COLOR_BGR2GRAY)
+    img_resize=cv2.resize(img_src,(img_cols,img_rows))
+#     cv2.namedWindow('1', cv2.WINDOW_NORMAL)
+#     cv2.imshow("1",img_resize)
+#     cv2.waitKey(1)
+    img_reshape=img_resize.reshape(1,img_cols*img_rows)
+    train_data[pic_read_num]=img_reshape.astype(np.uint8)
+    train_label[pic_read_num][int(pic_folder_list[pic_read_num][len(total_pic_folder)])]=1  
+    pic_read_num=pic_read_num+1
+
+np.save("train_data.npy",train_data.astype(np.float32))
+np.save("train_label.npy",train_label)
+print('create binary ok')
+
+
+    
+
+
+
+In [ ]:
+
+    
+int(pic_folder_list[2][len(total_pic_folder)])
+
+
+    
+
+
+
+In [ ]:
+
+    
+train_label
+
+
+    
+
+
+
+In [ ]:
+
+    
+train_data=np.load("train_data.npy")
+label_data=np.load("train_label.npy") 
+
+
+    
+
+
+
+In [ ]:
+
+    
+cv2.imshow("1",np.reshape(train_data[0],(img_rows,img_cols)))
+cv2.waitKey(0)
+
+
+    
+
+
+
+In [42]:
+
+    
+#train data 
+
+img_cols=32
+img_rows=32
+img_channel=1
+classification_num=10
+batch_size=32
+img_channel=1
+acc_max=0
+conv_kernel_1=32
+conv_kernel_2=64
+conv_kernel_3=128
+kernel_size_1=3
+kernel_size_2=3
+kernel_size_3=3
+keep_prob_use=1
+length_of_fc1=(img_rows//4)*(img_cols//4)*conv_kernel_3
+fc1_num=1024
+model_path="ckpt/num_char.ckpt"
+num_batch=label_data.shape[0]//batch_size
+#
+x=tf.placeholder(tf.float32,[None,img_rows*img_cols])
+#x=tf.placeholder(tf.float32,[img_rows*batch_size,img_cols,img_channel])
+y=tf.placeholder(tf.float32,[None,classification_num])
+keep_prob=tf.placeholder(tf.float32)
+#w=tf.Variable(tf.zeros([img_size,img_size,3,100]))
+#b=tf.Variable(tf.zeros([100]))
+
+def weight_variable(shape):
+    initial=tf.truncated_normal(shape,stddev=0.01)
+    return tf.Variable(initial)
+def biase_variable(shape):
+    init=tf.constant(0.1)
+    return tf.Variable(init)
+
+def conv_2d(x,W):
+    return tf.nn.conv2d(x,W,strides=[1,1,1,1],padding='SAME')
+def max_pool(x):
+    return tf.nn.max_pool(x,ksize=[1,2,2,1],strides=[1,2,2,1],padding='SAME')
+
+#输入层
+x_image=tf.reshape(x,[-1,img_rows,img_cols,img_channel])
+#
+w_conv1=weight_variable([kernel_size_1,kernel_size_1,img_channel,conv_kernel_1])  # 32 kernels extract feature from 3 plane
+b_conv1=biase_variable([conv_kernel_1])
+h_conv1=tf.nn.relu(conv_2d(x_image,w_conv1)+b_conv1)
+h_pool1=max_pool(h_conv1)
+
+
+w_conv2=weight_variable([kernel_size_2,kernel_size_2,conv_kernel_1,conv_kernel_2])
+b_conv2=biase_variable([conv_kernel_2])
+h_conv2=tf.nn.relu(conv_2d(h_pool1,w_conv2)+b_conv2)
+h_pool2=max_pool(h_conv2)
+
+w_conv3=weight_variable([kernel_size_3,kernel_size_3,conv_kernel_2,conv_kernel_3])
+b_conv3=biase_variable([conv_kernel_3])
+h_conv3=tf.nn.relu(conv_2d(h_pool2,w_conv3)+b_conv3)
+
+
+w_fc1_buff=weight_variable([length_of_fc1,fc1_num])
+b_fc1=biase_variable([fc1_num])
+w_fc1 = tf.nn.dropout(w_fc1_buff, keep_prob) 
+
+h_pool2_flat=tf.reshape(h_conv3,[-1,length_of_fc1])
+h_fc1=tf.nn.leaky_relu(tf.matmul(h_pool2_flat,w_fc1)+b_fc1)
+
+w_fc2_buff=weight_variable([fc1_num,10])
+b_fc2=biase_variable([10])
+w_fc2 = tf.nn.dropout(w_fc2_buff, keep_prob) 
+##
+saver=tf.train.Saver()
+prediction=tf.nn.softmax(tf.matmul(h_fc1,w_fc2)+b_fc2)
+cross_entropy=tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=y,logits=prediction))
+#tf.nn.sparse_softmax_cross_entropy_with_logits
+train_step=tf.train.AdamOptimizer((1e-4)).minimize(cross_entropy)
+#train_step=tf.train.AdadeltaOptimizer(0.005).minimize(cross_entropy)
+#结果存放在布尔变量中
+correct_prediction=tf.equal(tf.argmax(prediction,1),tf.argmax(y,1))
+accuracy=tf.reduce_mean(tf.cast(correct_prediction,tf.float32))
+##
+with tf.Session() as sess:
+    sess.run(tf.global_variables_initializer())
+    saver=tf.train.Saver()
+    for epoth in range(11):
+        for batch in range(num_batch):
+            if batch<(num_batch-1):
+                batch_x=train_data[(batch*batch_size):((batch+1)*batch_size)]
+                batch_y=label_data[(batch*batch_size):((batch+1)*batch_size)]
+                sess.run(train_step,feed_dict={x:batch_x,y:batch_y,keep_prob:keep_prob_use})
+        acc=sess.run(accuracy,feed_dict={x:train_data,y:label_data,keep_prob:keep_prob_use})
+        #print(sess.run(prediction,feed_dict={x:x_test,keep_prob:keep_prob_use}))
+        #acc_data=sess.run(accuracy,feed_dict={x:train_data[0:10000],y:train_label[0:10000],keep_prob:keep_prob_use})
+        print("iter: "+str(epoth)+" acc  "+str(acc))  
+        if acc>acc_max:
+            acc_max=acc
+            saver_path=saver.save(sess,model_path)
+print("ok")
+
+
+    
+
+
+
+In [41]:
+
+    
+img_cols=32
+img_rows=32
+img_channel=1
+classification_num=10
+img_channel=1
+conv_kernel_1=32
+conv_kernel_2=64
+conv_kernel_3=128
+kernel_size_1=3
+kernel_size_2=3
+kernel_size_3=3
+keep_prob_use=1
+model_path="ckpt/num_char.ckpt"
+################################
+from tensorflow.python.framework import ops
+ops.reset_default_graph()
+sess = tf.InteractiveSession()
+##################################
+length_of_fc1=(img_rows//4)*(img_cols//4)*conv_kernel_3
+fc1_num=1024
+x=tf.placeholder(tf.float32,[None,img_rows*img_cols])
+
+keep_prob=tf.placeholder(tf.float32)
+def weight_variable(shape):
+    initial=tf.truncated_normal(shape,stddev=0.01)
+    return tf.Variable(initial)
+def biase_variable(shape):
+    init=tf.constant(0.1)
+    return tf.Variable(init)
+
+def conv_2d(x,W):
+    return tf.nn.conv2d(x,W,strides=[1,1,1,1],padding='SAME')
+def max_pool(x):
+    return tf.nn.max_pool(x,ksize=[1,2,2,1],strides=[1,2,2,1],padding='SAME')
+
+#输入层
+x_image=tf.reshape(x,[-1,img_rows,img_cols,img_channel])
+#
+w_conv1=weight_variable([kernel_size_1,kernel_size_1,img_channel,conv_kernel_1])  # 32 kernels extract feature from 3 plane
+b_conv1=biase_variable([conv_kernel_1])
+h_conv1=tf.nn.relu(conv_2d(x_image,w_conv1)+b_conv1)
+h_pool1=max_pool(h_conv1)
+
+
+w_conv2=weight_variable([kernel_size_2,kernel_size_2,conv_kernel_1,conv_kernel_2])
+b_conv2=biase_variable([conv_kernel_2])
+h_conv2=tf.nn.relu(conv_2d(h_pool1,w_conv2)+b_conv2)
+h_pool2=max_pool(h_conv2)
+
+w_conv3=weight_variable([kernel_size_3,kernel_size_3,conv_kernel_2,conv_kernel_3])
+b_conv3=biase_variable([conv_kernel_3])
+h_conv3=tf.nn.relu(conv_2d(h_pool2,w_conv3)+b_conv3)
+
+
+w_fc1_buff=weight_variable([length_of_fc1,fc1_num])
+b_fc1=biase_variable([fc1_num])
+w_fc1 = tf.nn.dropout(w_fc1_buff, keep_prob) 
+
+h_pool2_flat=tf.reshape(h_conv3,[-1,length_of_fc1])
+h_fc1=tf.nn.leaky_relu(tf.matmul(h_pool2_flat,w_fc1)+b_fc1)
+
+w_fc2_buff=weight_variable([fc1_num,10])
+b_fc2=biase_variable([10])
+w_fc2 = tf.nn.dropout(w_fc2_buff, keep_prob) 
+prediction=tf.nn.softmax(tf.matmul(h_fc1,w_fc2)+b_fc2)
+
+with tf.Session() as sess:
+    saver=tf.train.Saver()
+    save_path=saver.restore(sess,model_path)
+    acc=sess.run(prediction,feed_dict={x:test_pic,keep_prob:keep_prob_use})
+    #category=sess.run(tf.argmax(acc,1))
+    print("output  "+str(acc))
+    #print("this picture is "+str(category))
+
+
+    
+
+
+
+In [44]:
+
+    
+with tf.Session() as sess:
+    save_path=saver.restore(sess,model_path)
+    
+    acc=sess.run(prediction,feed_dict={x:test_pic,keep_prob:keep_prob_use})
+    print(acc)
+
+
+    
+
+
+
+In [7]:
+
+    
+ 
+
+
+    
+
+
+
+In [10]:
+
+    
+train_data=np.load("train_data.npy")
+label_data=np.load("train_label.npy") 
+test_pic=train_data[0]
+
+test_pic=test_pic.reshape(1,img_cols*img_rows)
+
+
+    
+
+
+
+In [19]:
+
+    
+acc
+
+
+    
+
+
+
+In [8]:
+
+    
+train_data[0]
+
+
+    
+
+
+
+In [ ]:
+
+    
+ 
+
+
+    
+

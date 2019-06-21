@@ -1,0 +1,18 @@
+from keras.layers import Dense, Activation, Conv1D, MaxPooling1D, GlobalAveragePooling1D, Dropout
+from keras.layers.recurrent import LSTM, SimpleRNN
+from keras.utils.np_utils import to_categorical
+class ANNModels:
+    def __init__(self, num_samples, num_features):
+        self.num_features = num_features
+        self.num_samples = num_samples
+        print("")
+    def create_mlp_model(self):
+        mlp_model = Sequential()
+        mlp_model.add(Dense(units=220, input_dim=self.num_features))
+        mlp_model.add(Activation('relu'))
+        mlp_model.add(Dense(units=2))
+        mlp_model.add(Activation('softmax'))
+        mlp_model.compile(loss='binary_crossentropy',optimizer='sgd',metrics=['accuracy'])
+        return mlp_model
+    def create_simple_rnn_model(self):
+        simple_rnn_model = Sequential()

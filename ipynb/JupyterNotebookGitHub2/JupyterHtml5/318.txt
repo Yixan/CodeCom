@@ -1,0 +1,475 @@
+
+In [1]:
+
+    
+import tensorflow as tf
+import numpy as np
+import os
+
+
+    
+
+
+
+In [2]:
+
+    
+AFile = open("./Transform Data/A.csv", "r", encoding="utf-8")
+BFile = open("./Transform Data/B.csv", "r", encoding="utf-8")
+CFile = open("./Transform Data/C.csv", "r", encoding="utf-8")
+TestFile = open("./Transform Data/Test.csv", "r", encoding="utf-8")
+
+AFileData = AFile.read().split("\n")
+BFileData = BFile.read().split("\n")
+CFileData = CFile.read().split("\n")
+TestFileData = TestFile.read().split("\n")
+
+# 濾掉第一欄
+AFileData = AFileData[1:]
+BFileData = BFileData[1:]
+CFileData = CFileData[1:]
+TestFileData = TestFileData[1:]
+
+# 關閉檔案
+AFile.close()
+BFile.close()
+CFile.close()
+TestFile.close()
+
+
+    
+
+
+
+In [3]:
+
+    
+AData = []
+ATime = []
+for i in range(0, len(AFileData)):
+    tempData = AFileData[i].split(",")
+    
+    # 判斷是不是讀到沒東西
+    if(len(tempData) <= 1):
+        break
+    
+    tempList = []
+    tempList.append(tempData[0])
+    tempList.append(tempData[1])
+    tempList.append(tempData[2])
+    tempList.append(tempData[3])
+    
+    AData.append(tempList)
+    ATime.append([tempData[4]])
+
+AData = np.asarray(AData)
+ATime = np.asarray(ATime)
+print(len(AData))
+
+
+    
+
+
+
+In [4]:
+
+    
+BData = []
+BTime = []
+for i in range(0, len(BFileData)):
+    tempData = BFileData[i].split(",")
+    
+    # 判斷是不是讀到沒東西
+    if(len(tempData) <= 1):
+        break
+    
+    tempList = []
+    tempList.append(tempData[0])
+    tempList.append(tempData[1])
+    tempList.append(tempData[2])
+    tempList.append(tempData[3])
+    
+    BData.append(tempList)
+    BTime.append([tempData[4]])
+
+BData = np.asarray(BData)
+BTime = np.asarray(BTime)
+print(len(BData))
+
+
+    
+
+
+
+In [5]:
+
+    
+CData = []
+CTime = []
+for i in range(0, len(CFileData)):
+    tempData = CFileData[i].split(",")
+    
+    # 判斷是不是讀到沒東西
+    if(len(tempData) <= 1):
+        break
+    
+    tempList = []
+    tempList.append(tempData[0])
+    tempList.append(tempData[1])
+    tempList.append(tempData[2])
+    tempList.append(tempData[3])
+    
+    CData.append(tempList)
+    CTime.append([tempData[4]])
+
+CData = np.asarray(CData)
+CTime = np.asarray(CTime)
+print(len(CData))
+
+
+    
+
+
+
+In [6]:
+
+    
+TestData = []
+TestNumber = []
+TestType = []
+for i in range(0, len(TestFileData)):
+    tempData = TestFileData[i].split(",")
+    
+    # 判斷是不是讀到沒東西
+    if(len(tempData) <= 1):
+        break
+    
+    TestNumber.append(tempData[0])
+    TestType.append(tempData[1])
+    
+    tempList = []
+    tempList.append(tempData[2])
+    tempList.append(tempData[3])
+    tempList.append(tempData[4])
+    tempList.append(tempData[5])
+    
+    TestData.append(tempList)
+print(len(TestData))
+
+
+    
+
+
+
+In [7]:
+
+    
+def batchData(data, ans, batchSize):
+    indexArray = np.arange(len(data))
+    np.random.shuffle(indexArray)
+    
+    return data[indexArray[0:batchSize]], ans[indexArray[0:batchSize]]
+
+
+    
+
+
+
+In [8]:
+
+    
+weightInit = tf.random_normal_initializer(mean=0,stddev=0.3)
+biasInit = tf.random_normal_initializer(mean=0,stddev=0.1)
+
+
+    
+
+
+
+In [9]:
+
+    
+AInput = tf.placeholder(tf.float32, [None, 4], name="AInput")
+ALabel = tf.placeholder(tf.float32, [None, 1], name="ALabel")
+
+with tf.name_scope("A_Model"):
+    ALayer1 = tf.layers.dense(
+        inputs = AInput,
+        units = 128,
+        activation = tf.nn.relu,
+        kernel_initializer = weightInit,
+        bias_initializer = biasInit,
+        name = "ALayer1"
+    )
+    ALayer2 = tf.layers.dense(
+        inputs = ALayer1,
+        units = 32,
+        activation = tf.nn.relu,
+        kernel_initializer = weightInit,
+        bias_initializer = biasInit,
+        name = "ALayer2"
+    )
+    APredTime = tf.layers.dense(
+        inputs = ALayer2,
+        units = 1,
+        kernel_initializer = weightInit,
+        bias_initializer = biasInit,
+        name = "APredTime"
+    )
+
+
+    
+
+
+
+In [10]:
+
+    
+Aloss = tf.losses.mean_squared_error(labels=ALabel, predictions=APredTime)
+Aoptimizer = tf.train.AdamOptimizer(1e-2).minimize(Aloss)
+
+
+    
+
+
+
+In [11]:
+
+    
+# 記錄看會不會收斂
+tf.summary.scalar("ALoss", Aloss)
+
+
+    
+
+
+
+In [12]:
+
+    
+BInput = tf.placeholder(tf.float32, [None, 4], name="BInput")
+BLabel = tf.placeholder(tf.float32, [None, 1], name="BLabel")
+
+with tf.name_scope("B_Model"):
+    BLayer1 = tf.layers.dense(
+        inputs = BInput,
+        units = 128,
+        activation = tf.nn.relu,
+        name = "BLayer1"
+    )
+    BLayer2 = tf.layers.dense(
+        inputs = BLayer1,
+        units = 32,
+        activation = tf.nn.relu,
+        name = "BLayer2"
+    )
+    BPredTime = tf.layers.dense(
+        inputs = BLayer2,
+        units = 1,
+        name = "BPredTime"
+    )
+
+
+    
+
+
+
+In [13]:
+
+    
+Bloss = tf.losses.mean_squared_error(labels=BLabel, predictions=BPredTime)
+Boptimizer = tf.train.AdamOptimizer(1e-2).minimize(Bloss)
+
+
+    
+
+
+
+In [14]:
+
+    
+# 記錄看會不會收斂
+tf.summary.scalar("BLoss", Bloss)
+
+
+    
+
+
+
+In [15]:
+
+    
+CInput = tf.placeholder(tf.float32, [None, 4], name="CInput")
+CLabel = tf.placeholder(tf.float32, [None, 1], name="CLabel")
+
+with tf.name_scope("C_Model"):
+    CLayer1 = tf.layers.dense(
+        inputs = CInput,
+        units = 128,
+        activation = tf.nn.relu,
+        name = "CLayer1"
+    )
+    CLayer2 = tf.layers.dense(
+        inputs = CLayer1,
+        units = 32,
+        activation = tf.nn.relu,
+        name = "CLayer2"
+    )
+    CPredTime = tf.layers.dense(
+        inputs = CLayer2,
+        units = 1,
+        name = "CPredTime"
+    )
+
+
+    
+
+
+
+In [16]:
+
+    
+Closs = tf.losses.mean_squared_error(labels=CLabel, predictions=CPredTime)
+Coptimizer = tf.train.AdamOptimizer(1e-2).minimize(Closs)
+
+
+    
+
+
+
+In [17]:
+
+    
+# 記錄看會不會收斂
+tf.summary.scalar("CLoss", Closs)
+
+
+    
+
+
+
+In [18]:
+
+    
+session = tf.Session()
+session.run(tf.global_variables_initializer())
+
+
+    
+
+
+
+In [19]:
+
+    
+logFile = tf.summary.FileWriter("./logs")
+# logFile.add_graph(session.graph)
+
+
+    
+
+
+
+In [20]:
+
+    
+def trainModel(epoch):
+    for i in range(0, epoch):
+        batchAData, batchALabel = batchData(AData, ATime, 256)
+        batchBData, batchBLabel = batchData(BData, BTime, 256)
+        batchCData, batchCLabel = batchData(CData, CTime, 256)
+        
+        # 跑最佳化
+        session.run(Aoptimizer, feed_dict={
+            AInput: batchAData,
+            ALabel: batchALabel
+        })
+        session.run(Boptimizer, feed_dict={
+            BInput: batchBData,
+            BLabel: batchBLabel
+        })
+        session.run(Coptimizer, feed_dict={
+            CInput: batchCData,
+            CLabel: batchCLabel
+        })
+        
+        # 跑圖表
+        if(epoch % 100 == 0):
+            merge = tf.summary.merge_all()
+            summary = session.run(merge, feed_dict={
+                AInput: batchAData,
+                ALabel: batchALabel,
+                BInput: batchBData,
+                BLabel: batchBLabel,
+                CInput: batchCData,
+                CLabel: batchCLabel
+            })
+            logFile.add_summary(summary, i)
+
+
+    
+
+
+
+In [21]:
+
+    
+ckpt = tf.train.get_checkpoint_state("./models/")
+
+# 沒有找到以前的 Weight 資訊
+if(ckpt == None):
+    trainModel(10000)
+    
+    saver = tf.train.Saver()
+
+    # 如果路徑不存在，就創建路徑
+    if (not os.path.exists("./models/")):
+        os.mkdir("./models/")
+
+    saver.save(session, "./models/NN")
+else:
+    saver = tf.train.Saver()
+    saver.restore(session, ckpt.model_checkpoint_path)
+
+
+    
+
+
+
+In [22]:
+
+    
+predResult = []
+for i in range(0, len(TestType)):
+    if(TestType[i] == "A"):
+        tempResult = session.run(APredTime, feed_dict={
+            AInput: [TestData[i]]
+        })
+    elif(TestType[i] == "B"):
+        tempResult = session.run(BPredTime, feed_dict={
+            BInput: [TestData[i]]
+        })
+    else:
+        tempResult = session.run(CPredTime, feed_dict={
+            CInput: [TestData[i]]
+        })
+    predResult.append(tempResult[0][0])
+
+
+    
+
+
+
+In [23]:
+
+    
+resultFile = open("./Data/Test Result.csv", "w")
+resultFile.write("\"TRIP_ID\",\"TRAVEL_TIME\"\n")
+
+for i in range(0, len(predResult)):
+    resultFile.write("\"" + TestNumber[i] + "\"," + format(predResult[i]) + "\n")
+resultFile.close()
+
+
+    
+

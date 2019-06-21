@@ -1,0 +1,32 @@
+from keras.layers import Dense, LSTM, Activation, BatchNormalization, Dropout, initializers, Input
+from keras.models import Sequential
+from keras.optimizers import SGD, RMSprop
+from keras.models import load_model
+from keras.initializers import Constant
+import keras.backend as K
+from keras.utils.generic_utils import get_custom_objects
+from keras.backend.tensorflow_backend import _to_tensor
+    return K.relu(x, alpha=alpha, max_value=max_value)
+get_custom_objects().update({'custom_activation': Activation(relu_limited)})
+    return -100. * K.mean((y_true - 0.0002) * y_pred)
+class WindPuller(object):
+        print("initializing..., learing rate %s, n_layers %s, n_hidden %s, dropout rate %s." %(lr, n_layers, n_hidden, rate_dropout))
+        self.model = Sequential()
+        self.model.add(Dropout(rate=rate_dropout, input_shape=(input_shape[0], input_shape[1])))
+        for i in range(0, n_layers - 1):
+            self.model.add(LSTM(n_hidden * 4, return_sequences=True, activation='tanh',ecurrent_activation='hard_sigmoid', kernel_initializer='glorot_uniform',ecurrent_initializer='orthogonal', bias_initializer='zeros',ropout=rate_dropout, recurrent_dropout=rate_dropout))
+        self.model.add(LSTM(n_hidden, return_sequences=False, activation='tanh',ecurrent_activation='hard_sigmoid', kernel_initializer='glorot_uniform',ecurrent_initializer='orthogonal', bias_initializer='zeros',ropout=rate_dropout, recurrent_dropout=rate_dropout))
+        self.model.add(Dense(1, kernel_initializer=initializers.glorot_uniform()))
+        opt = RMSprop(lr=lr)
+        self.model.compile(loss=loss,optimizer=opt,metrics=['accuracy'])
+    def fit(self, x, y, batch_size=32, nb_epoch=100, verbose=1, callbacks=None,lidation_split=0., validation_data=None, shuffle=True,ss_weight=None, sample_weight=None, initial_epoch=0, **kwargs):
+        self.model.fit(x, y, batch_size, nb_epoch, verbose, callbacks,dation_split, validation_data, shuffle, class_weight, sample_weight,nitial_epoch, **kwargs)
+    def save(self, path):
+        self.model.save(path)
+    def load_model(self, path):
+        self.model = load_model(path)
+        return self
+    def evaluate(self, x, y, batch_size=32, verbose=1,ample_weight=None, **kwargs):
+        return self.model.evaluate(x, y, batch_size, verbose,ample_weight, **kwargs)
+    def predict(self, x, batch_size=32, verbose=0):
+        return self.model.predict(x, batch_size, verbose)

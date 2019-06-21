@@ -1,0 +1,66 @@
+import tensorflow as tf
+from tensorflow import keras
+import numpy as np
+from keras import Sequential
+from keras.preprocessing import sequence
+from keras.models import Sequential
+from keras.layers import Dense, Embedding
+from keras.layers import LSTM
+from keras.layers import LSTM,Bidirectional,Embedding,Dropout
+from keras.layers.convolutional import Conv1D
+from keras.layers import GlobalMaxPooling1D,Concatenate
+import numpy as np
+import keras
+import tensorflow as tf
+from keras.layers import LSTM,Bidirectional,Embedding,Dropout,Dense
+from keras.models import Sequential
+from keras.layers.convolutional import Conv1D
+from keras.layers.convolutional import MaxPooling1D
+from keras.constraints import maxnorm
+from keras.engine import Input
+from keras.engine import Model
+from keras.layers import Dropout, Dense, Bidirectional, LSTM, \
+    Embedding, GaussianNoise, Activation, Flatten, \
+    RepeatVector, MaxoutDense, GlobalMaxPooling1D, \
+    Convolution1D, MaxPooling1D, concatenate, Conv1D,GaussianNoise
+from keras.regularizers import l2
+from keras import initializers
+from keras import backend as K, regularizers, constraints, initializers
+from keras.engine.topology import Layer
+class Attention(Layer):
+    def __init__(self, attention_size, **kwargs):
+        self.attention_size = attention_size
+        super(Attention, self).__init__(**kwargs)
+    def build(self, input_shape):
+        self.W = self.add_weight(name="W_{:s}".format(self.name),hape=(input_shape[-1], self.attention_size),initializer="glorot_normal",trainable=True)
+        self.b = self.add_weight(name="b_{:s}".format(self.name),hape=(input_shape[1], 1),initializer="zeros",trainable=True)
+        self.u = self.add_weight(name="u_{:s}".format(self.name),hape=(self.attention_size, 1),initializer="glorot_normal",trainable=True)
+        super(Attention, self).build(input_shape)
+    def call(self, x, mask=None):
+        et = K.tanh(K.dot(x, self.W) + self.b)
+        at = K.softmax(K.squeeze(K.dot(et, self.u), axis=-1))
+        if mask is not None:
+            at *= K.cast(mask, K.floatx())
+        atx = K.expand_dims(at, axis=-1)
+        ot = atx * x
+        output = K.sum(ot, axis=1)
+        return output
+    def compute_mask(self, input, input_mask=None):
+        return None
+    def compute_output_shape(self, input_shape):
+        return (input_shape[0], input_shape[-1])
+def simple_nn(vocab_size):
+    model = Sequential()
+    model.add(keras.layers.Embedding(vocab_size, 16))
+    model.add(keras.layers.GlobalAveragePooling1D())
+    model.add(keras.layers.Dense(16, activation=tf.nn.relu))
+    model.add(keras.layers.Dense(3, activation=tf.nn.softmax))
+    model.compile(optimizer=tf.train.AdamOptimizer(),loss='categorical_crossentropy',metrics=['accuracy'])
+    return model
+def simple_nn_l2(vocab_size):
+    model = Sequential()
+    model.add(keras.layers.Embedding(vocab_size, 16))
+    model.add(keras.layers.GlobalAveragePooling1D())
+    model.add(keras.layers.Dropout(0.5))
+    model.add(keras.layers.Dense(16, kernel_regularizer=keras.regularizers.l2(0.001), activation=tf.nn.relu))
+    model.add(keras.layers.Dropout(0.5))

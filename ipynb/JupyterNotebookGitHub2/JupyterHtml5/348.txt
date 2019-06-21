@@ -1,0 +1,408 @@
+
+In [ ]:
+
+    
+from six.moves import cPickle as pickle
+import numpy as np
+import tensorflow as tf
+from IPython.display import display, Image
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+from scipy import stats
+%matplotlib inline
+
+
+    
+
+
+
+In [ ]:
+
+    
+with open('SVHN_data.pickle', 'rb') as f:
+    tmp = pickle.load(f)
+    train_dataset = tmp['train_dataset']
+    train_labels = tmp['train_labels']
+    valid_dataset = tmp['valid_dataset']
+    valid_labels = tmp['valid_labels']
+    test_dataset = tmp['test_dataset']
+    test_labels = tmp['test_labels']
+    del tmp
+    
+print('Training set', train_dataset.shape, train_labels.shape)
+print('Validation set', valid_dataset.shape, valid_labels.shape)
+print('Test set', test_dataset.shape, test_labels.shape)
+
+
+    
+
+
+
+In [ ]:
+
+    
+image_size = 32
+num_labels = 11  # 0-9, + blank 
+num_channels = 1 # grayscale
+batch_size = 64
+patch_size = 5
+depthC1 = 16
+depthC2 = 32
+kp=0.9
+
+graph = tf.Graph()
+
+with graph.as_default():
+    # Input data.
+    tf_train_dataset = tf.placeholder(tf.float32, shape=(batch_size, image_size, image_size, num_channels))
+    tf_train_labels = tf.placeholder(tf.int32, shape=(batch_size, 5))
+    
+    tf_valid_dataset = tf.constant(valid_dataset)
+    tf_valid_labels = tf.constant(valid_labels)
+    tf_test_dataset = tf.constant(test_dataset)
+    tf_test_labels = tf.constant(test_labels)
+
+    # Variables.
+    W_conv1 = tf.Variable(tf.truncated_normal([patch_size, patch_size, num_channels, depthC1],stddev=0.1))
+    b_conv1 = tf.Variable(tf.ones([depthC1]))
+    
+    W_conv2 = tf.Variable(tf.truncated_normal([patch_size, patch_size, depthC1, depthC2],stddev=0.1))
+    b_conv2 = tf.Variable(tf.ones([depthC2]))
+    
+    W_o1 = tf.Variable(tf.truncated_normal([8*8*depthC2, num_labels],stddev=0.1))
+    b_o1 = tf.Variable(tf.ones([num_labels]))
+    
+    W_o2 = tf.Variable(tf.truncated_normal([8*8*depthC2, num_labels],stddev=0.1))
+    b_o2 = tf.Variable(tf.ones([num_labels]))
+    
+    W_o3 = tf.Variable(tf.truncated_normal([8*8*depthC2, num_labels],stddev=0.1))
+    b_o3 = tf.Variable(tf.ones([num_labels]))
+    
+    W_o4 = tf.Variable(tf.truncated_normal([8*8*depthC2, num_labels],stddev=0.1))
+    b_o4 = tf.Variable(tf.ones([num_labels]))
+    
+    W_o5 = tf.Variable(tf.truncated_normal([8*8*depthC2, num_labels],stddev=0.1))
+    b_o5 = tf.Variable(tf.ones([num_labels]))
+  
+    # CNN
+    def model(data, keep_prob=1, isTraining = False):    
+        #CONV
+        h_conv1 = tf.nn.conv2d(data,W_conv1, [1,1,1,1],padding='SAME', name='conv_layer1') + b_conv1
+        h_conv1 = tf.nn.relu(h_conv1)
+        h_conv1 = tf.nn.max_pool(h_conv1, [1,2,2,1], [1,2,2,1], 'SAME') 
+        
+        h_conv2 = tf.nn.conv2d(h_conv1, W_conv2, [1,1,1,1], padding='SAME', name='conv_layer2') + b_conv2
+        h_conv2 = tf.nn.relu(h_conv2)
+        h_conv2 = tf.nn.max_pool(h_conv2, [1,2,2,1], [1,2,2,1], 'SAME')
+        
+        h_conv2 = tf.nn.dropout(h_conv2, keep_prob)
+        
+        #Reshape
+        shape = h_conv2.get_shape().as_list()
+        h_conv2 = tf.reshape(h_conv2, [shape[0], shape[1] * shape[2] * shape[3]])
+
+        #OUTPUT
+        logits1 = tf.matmul(h_conv2, W_o1) + b_o1
+        logits2 = tf.matmul(h_conv2, W_o2) + b_o2
+        logits3 = tf.matmul(h_conv2, W_o3) + b_o3
+        logits4 = tf.matmul(h_conv2, W_o4) + b_o4
+        logits5 = tf.matmul(h_conv2, W_o5) + b_o5
+        return tf.pack([logits1, logits2, logits3, logits4, logits5])
+  
+    # Training computation.
+    logits = model(tf_train_dataset, kp) 
+    
+    # Define loss function.
+    with tf.name_scope("loss_function") as scope:
+        loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits[0], tf_train_labels[:,0])) +\
+               tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits[1], tf_train_labels[:,1])) +\
+               tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits[2], tf_train_labels[:,2])) +\
+               tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits[3], tf_train_labels[:,3])) +\
+               tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits[4], tf_train_labels[:,4]))
+        # Create a summary to monitor the cost function
+        tf.scalar_summary("loss_function", loss)
+    
+    train_step = tf.train.AdamOptimizer().minimize(loss)
+    
+    def eval_accuracy(predictions, labels):
+        return tf.reduce_mean( tf.reduce_min(tf.to_float(tf.equal(tf.to_int32(predictions), labels)), axis = 1))
+
+
+    # Predictions for the minibatch training, validation, and test data.
+    train_prediction = tf.transpose(tf.argmax(logits, axis = 2))
+    valid_prediction =  tf.transpose(tf.argmax(model(tf_valid_dataset), axis = 2))
+    test_prediction =  tf.transpose(tf.argmax(model(tf_test_dataset), axis = 2))
+
+    train_accuracy = eval_accuracy(train_prediction, tf_train_labels)
+    valid_accuracy = eval_accuracy(valid_prediction, tf_valid_labels)
+    test_accuracy = eval_accuracy(test_prediction, tf_test_labels)
+    
+     # Create summaries to monitor the accuracy
+    tf.scalar_summary("mini-batch accuracy", train_accuracy)
+    tf.scalar_summary("validation accuracy", valid_accuracy)
+        
+    # Merge all summaries into a single operator
+    merged_summary_op = tf.merge_all_summaries()
+    
+    saver = tf.train.Saver(max_to_keep = 2)
+
+
+    
+
+
+
+In [ ]:
+
+    
+num_steps = 15001
+#num_steps = 101
+
+with tf.Session(graph=graph) as session:
+    
+    tf.global_variables_initializer().run()
+    summary_writer = tf.train.SummaryWriter("./logs", session.graph)
+    
+    for step in range(num_steps):
+        offset = (step * batch_size) % (train_labels.shape[0] - batch_size)
+        batch_data = train_dataset[offset:(offset + batch_size), :, :, :]
+        batch_labels = train_labels[offset:(offset + batch_size),:]
+        
+        feed_dict = {tf_train_dataset : batch_data, tf_train_labels : batch_labels}
+        if (step % 500 ==0):
+            _, l, train_acc, summary_str = session.run([train_step, loss, train_accuracy, merged_summary_op], feed_dict=feed_dict)
+            summary_writer.add_summary(summary_str, step)
+        else:
+            _, l, train_acc = session.run([train_step, loss, train_accuracy], feed_dict=feed_dict)
+           
+        if (step % 500 == 0): 
+            print('Minibatch loss at step %d: %f' % (step, l))
+            print('Minibatch accuracy: %.1f%%' % (train_acc*100))
+            print('Validation accuracy: %.1f%%' % (valid_accuracy.eval()*100))
+            print('')
+            
+    print('Test accuracy: %.1f%%' % (test_accuracy.eval()*100))
+    save_path = saver.save(session, "./ckpt_folder/CNN_trained_initialModel.ckpt",global_step=step)
+    print("Model saved in file: %s" % save_path)
+
+
+    
+
+
+
+In [ ]:
+
+    
+image_size = 32
+num_labels = 11  # 0-9, + blank 
+num_channels = 1 # grayscale
+batch_size = 64
+patch_size = 5
+depthC1 = 16
+depthC2 = 32
+depthC3 = 64
+depthC4 = 96
+depthFC1 = 128
+kp=0.9
+#beta = 0.1
+
+graph = tf.Graph()
+
+with graph.as_default():
+    # Input data.
+    tf_train_dataset = tf.placeholder(tf.float32, shape=(batch_size, image_size, image_size, num_channels))
+    tf_train_labels = tf.placeholder(tf.int32, shape=(batch_size, 5))
+    
+    tf_valid_dataset = tf.constant(valid_dataset)
+    tf_valid_labels = tf.constant(valid_labels)
+    tf_test_dataset = tf.constant(test_dataset)
+    tf_test_labels = tf.constant(test_labels)
+    
+    tf_is_training = tf.placeholder(tf.bool, name='isTraining')
+
+    # Variables.
+    W_conv1 = tf.Variable(tf.truncated_normal([patch_size, patch_size, num_channels, depthC1],stddev=0.1))
+    b_conv1 = tf.Variable(tf.ones([depthC1]))
+    
+    W_conv2 = tf.Variable(tf.truncated_normal([patch_size, patch_size, depthC1, depthC2],stddev=0.1))
+    b_conv2 = tf.Variable(tf.ones([depthC2]))
+    
+    W_conv3 = tf.Variable(tf.truncated_normal([patch_size, patch_size,depthC2, depthC3],stddev=0.1))
+    b_conv3 = tf.Variable(tf.ones([depthC3]))
+    
+    W_conv4 = tf.Variable(tf.truncated_normal([patch_size, patch_size,depthC3, depthC4],stddev=0.1))
+    b_conv4 = tf.Variable(tf.ones([depthC4]))
+
+    W_fc1 = tf.Variable(tf.truncated_normal([2*2*depthC4, depthFC1],stddev=0.1))
+    b_fc1 = tf.Variable(tf.ones([depthFC1]))
+    
+    W_o1 = tf.Variable(tf.truncated_normal([depthFC1, num_labels],stddev=0.1))
+    b_o1 = tf.Variable(tf.ones([num_labels]))
+    
+    W_o2 = tf.Variable(tf.truncated_normal([depthFC1, num_labels],stddev=0.1))
+    b_o2 = tf.Variable(tf.ones([num_labels]))
+    
+    W_o3 = tf.Variable(tf.truncated_normal([depthFC1, num_labels],stddev=0.1))
+    b_o3 = tf.Variable(tf.ones([num_labels]))
+    
+    W_o4 = tf.Variable(tf.truncated_normal([depthFC1, num_labels],stddev=0.1))
+    b_o4 = tf.Variable(tf.ones([num_labels]))
+    
+    W_o5 = tf.Variable(tf.truncated_normal([depthFC1, num_labels],stddev=0.1))
+    b_o5 = tf.Variable(tf.ones([num_labels]))
+  
+    # CNN
+    def model(data, keep_prob=1, isTraining = False):    
+        #CONV
+        h_conv1 = tf.nn.conv2d(data,W_conv1, [1,1,1,1],padding='SAME', name='conv_layer1') + b_conv1
+        #h_conv1 = tf.contrib.layers.batch_norm(h_conv1, center=True, scale=True, is_training=isTraining)
+        h_conv1 = tf.nn.relu(h_conv1)
+        h_conv1 = tf.nn.lrn(h_conv1) 
+        h_conv1 = tf.nn.max_pool(h_conv1, [1,2,2,1], [1,2,2,1], 'SAME') 
+        
+        h_conv2 = tf.nn.conv2d(h_conv1, W_conv2, [1,1,1,1], padding='SAME', name='conv_layer2') + b_conv2 
+        #h_conv2 = tf.contrib.layers.batch_norm(h_conv2, center=True, scale=True, is_training=isTraining)
+        h_conv2 = tf.nn.relu(h_conv2)
+        h_conv2 = tf.nn.lrn(h_conv2) 
+        h_conv2 = tf.nn.max_pool(h_conv2, [1,2,2,1], [1,2,2,1], 'SAME')
+        
+        h_conv3 = tf.nn.conv2d(h_conv2, W_conv3, [1,1,1,1], padding='SAME', name='conv_layer3') + b_conv3
+        #h_conv3 = tf.contrib.layers.batch_norm(h_conv3, center=True, scale=True, is_training=isTraining)
+        h_conv3 = tf.nn.relu(h_conv3)
+        h_conv3 = tf.nn.lrn(h_conv3)
+        h_conv3 = tf.nn.max_pool(h_conv3, [1,2,2,1], [1,2,2,1], 'SAME')
+        
+        h_conv4 = tf.nn.conv2d(h_conv3, W_conv4, [1,1,1,1], padding='SAME', name='conv_layer4') + b_conv4
+        #h_conv4 = tf.contrib.layers.batch_norm(h_conv4, center=True, scale=True, is_training=isTraining)
+        h_conv4 = tf.nn.relu(h_conv4)
+        h_conv4 = tf.nn.lrn(h_conv4)
+        h_conv4 = tf.nn.max_pool(h_conv4, [1,2,2,1], [1,2,2,1], 'SAME')
+        
+        h_conv4 = tf.nn.dropout(h_conv4, keep_prob)
+        
+        #Reshape
+        shape = h_conv4.get_shape().as_list()
+        h_conv4 = tf.reshape(h_conv4, [shape[0], shape[1] * shape[2] * shape[3]])
+        
+        #FC
+        h_fc1 = tf.matmul(h_conv4, W_fc1) + b_fc1
+        h_fc1 = tf.nn.relu(h_fc1)
+        h_fc1 = tf.nn.dropout(h_fc1, keep_prob)
+
+        #OUTPUT
+        logits1 = tf.matmul(h_fc1, W_o1) + b_o1
+        logits2 = tf.matmul(h_fc1, W_o2) + b_o2
+        logits3 = tf.matmul(h_fc1, W_o3) + b_o3
+        logits4 = tf.matmul(h_fc1, W_o4) + b_o4
+        logits5 = tf.matmul(h_fc1, W_o5) + b_o5
+        return tf.pack([logits1, logits2, logits3, logits4, logits5])
+  
+    # Training computation.
+    logits = model(tf_train_dataset, kp, tf_is_training) 
+    
+    # Define loss function.
+    with tf.name_scope("loss_function") as scope:
+        loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits[0], tf_train_labels[:,0])) +\
+               tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits[1], tf_train_labels[:,1])) +\
+               tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits[2], tf_train_labels[:,2])) +\
+               tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits[3], tf_train_labels[:,3])) +\
+               tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits[4], tf_train_labels[:,4]))
+        # Create a summary to monitor the cost function
+        tf.scalar_summary("loss_function", loss)
+
+    #Loss function with L2 Regularization with beta=0.1
+    #with tf.name_scope("loss_regularized_function") as scope:
+    #    regularizers = tf.nn.l2_loss(W_conv1) + tf.nn.l2_loss(W_conv2) + \
+    #                    tf.nn.l2_loss(W_conv3) + tf.nn.l2_loss(W_conv4) + \
+    #                    tf.nn.l2_loss(W_fc1) + tf.nn.l2_loss(W_o1) + \
+    #                    tf.nn.l2_loss(W_o2) + tf.nn.l2_loss(W_o3) + \
+    #                    tf.nn.l2_loss(W_o4) + tf.nn.l2_loss(W_o5)
+                        
+        #loss_regularized = tf.reduce_mean(loss + beta * regularizers)
+        #Create a summary to monitor the cost function
+        #tf.scalar_summary("loss_regularized_function", loss_regularized)
+
+    
+    #update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+    #with tf.control_dependencies(update_ops):
+        #train_step = tf.train.AdagradOptimizer(0.05).minimize(loss)
+    train_step = tf.train.AdamOptimizer().minimize(loss)
+        #train_step = tf.train.AdamOptimizer().minimize(loss_regularized)
+    
+        ##global_step = tf.Variable(0)
+        ##learning_rate = tf.train.exponential_decay(0.05, global_step, 10000, 0.95)
+        ##train_step = tf.train.AdagradOptimizer(learning_rate).minimize(loss, global_step=global_step)
+    
+    def eval_accuracy(predictions, labels):
+        return tf.reduce_mean( tf.reduce_min(tf.to_float(tf.equal(tf.to_int32(predictions), labels)), axis = 1))
+
+
+    # Predictions for the mini training, validation, and test data.
+    train_prediction = tf.transpose(tf.argmax(logits, axis = 2))
+    valid_prediction =  tf.transpose(tf.argmax(model(tf_valid_dataset), axis = 2))
+    test_prediction =  tf.transpose(tf.argmax(model(tf_test_dataset), axis = 2))
+
+    train_accuracy = eval_accuracy(train_prediction, tf_train_labels)
+    valid_accuracy = eval_accuracy(valid_prediction, tf_valid_labels)
+    test_accuracy = eval_accuracy(test_prediction, tf_test_labels)
+    
+     # Create summaries to monitor the accuracy
+    tf.scalar_summary("mini-batch accuracy", train_accuracy)
+    tf.scalar_summary("validation accuracy", valid_accuracy)
+        
+    # Merge all summaries into a single operator
+    merged_summary_op = tf.merge_all_summaries()
+    
+    saver = tf.train.Saver(max_to_keep = 2)
+
+
+    
+
+
+
+In [ ]:
+
+    
+num_steps = 15001
+
+with tf.Session(graph=graph) as session:
+    
+    tf.global_variables_initializer().run()
+    summary_writer = tf.train.SummaryWriter("./logs", session.graph)
+    
+    for step in range(num_steps):
+        offset = (step * batch_size) % (train_labels.shape[0] - batch_size)
+        batch_data = train_dataset[offset:(offset + batch_size), :, :, :]
+        batch_labels = train_labels[offset:(offset + batch_size),:]
+        
+        feed_dict = {tf_train_dataset : batch_data, tf_train_labels : batch_labels, tf_is_training : True}
+        if (step % 500 ==0):
+            _, l, train_acc, summary_str = session.run([train_step, loss, train_accuracy, merged_summary_op], feed_dict=feed_dict)
+            summary_writer.add_summary(summary_str, step)
+        else:
+            _, l, train_acc = session.run([train_step, loss, train_accuracy], feed_dict=feed_dict)
+           
+        
+        #print('step: %d' % step),
+        if (step % 500 == 0):  #500
+            print('Minibatch loss at step %d: %f' % (step, l))
+            print('Minibatch accuracy: %.1f%%' % (train_acc*100))
+            print('Validation accuracy: %.1f%%' % (valid_accuracy.eval()*100))
+            print('')
+            
+    print('Test accuracy: %.1f%%' % (test_accuracy.eval()*100))
+    save_path = saver.save(session, "./ckpt_folder/CNN_trained_refinedModel.ckpt",global_step=step)
+    print("Model saved in file: %s" % save_path)
+
+
+    
+
+
+
+In [ ]:
+
+    
+ 
+
+
+    
+

@@ -1,0 +1,25 @@
+from keras.models import Sequential
+from keras.layers import Dense, Dropout, LSTM, Flatten, TimeDistributed
+from keras import optimizers
+import numpy as np
+import keras.backend as K
+import os
+    def __init__(self, input_length, input_dimension, output_dim):
+        model = Sequential()
+        model.add(LSTM(input_shape=(input_length, input_dimension), recurrent_activation='relu',activation='relu', return_sequences=True, units=(input_dimension)))
+        model.add(LSTM(int(input_dimension/2), use_bias=True, recurrent_activation='relu',activation='relu', return_sequences=True))
+        model.add(LSTM(int(input_dimension/4), use_bias=True, recurrent_activation='relu',activation='relu', return_sequences=False))
+        model.add(Dense(output_dim, activation='relu'))
+        opt = optimizers.RMSprop(lr=0.01, clipvalue=1.0)
+        model.compile(loss='mean_absolute_error', optimizer=opt, metrics=['accuracy'])
+        self.model = model
+class Brain2(object):
+    def __init__(self, input_length, input_dimension, output_dim):
+        model = Sequential()
+        model.add(LSTM(input_shape=(input_length, input_dimension), recurrent_activation='tanh', activation='tanh', use_bias=True, return_sequences=False, units=(input_dimension)))
+        model.add(Dense(output_dim, activation='tanh', use_bias=True))
+        opt = optimizers.RMSprop(lr=0.01, clipvalue=1.0)
+        model.compile(loss='mean_squared_error', optimizer=opt, metrics=['mae'])
+        self.model = model
+if __name__ == '__main__':
+    pass

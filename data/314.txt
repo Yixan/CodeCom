@@ -1,0 +1,73 @@
+from sentifmdetect import featurizer
+from sentifmdetect import util
+import os
+import keras
+from keras.optimizers import Adam
+from keras import backend
+from keras.layers import Dense, Input, Flatten, Dropout, Merge, BatchNormalization
+from keras.layers import Conv1D, MaxPooling1D, Embedding, LSTM, Bidirectional
+from keras.models import Model, Sequential
+from keras.wrappers.scikit_learn import KerasClassifier
+from sklearn.model_selection import train_test_split, RandomizedSearchCV
+from sklearn.metrics import precision_recall_fscore_support, classification_report, f1_score, precision_score,\
+    recall_score, roc_auc_score
+import numpy as np
+def create_emb_lstm(bidirectional=False,lstm_units=10,lstm_dropout=0.2,lstm_recurrent_dropout=0.2,ptimizer=(Adam, {}),metrics=["accuracy"]):
+    model = Sequential()
+        embeddings_index = featurizer.load_emb(wvec)
+        EMBEDDINGS_MATRIX = featurizer.make_embedding_matrix(settings.WORD_INDEX, embeddings_index)
+        EMB_DIM = EMBEDDINGS_MATRIX.shape[1]
+        model.add(edding(settings.EMB_INPUT_DIM, EMB_DIM, weights=[EMBEDDINGS_MATRIX], input_length=settings.MAX_SEQUENCE_LENGTH))
+    elif isinstance(wvec, int):
+        EMB_DIM = wvec
+        model.add(bedding(settings.EMB_INPUT_DIM, EMB_DIM, input_length=settings.MAX_SEQUENCE_LENGTH))
+    else:
+        logging.error("NO EMBEDDINGS ARE GIVEN.")
+    if bidirectional:
+        model.add(Bidirectional(LSTM(lstm_units, dropout=lstm_dropout, recurrent_dropout=lstm_recurrent_dropout)))
+    else:
+        model.add(LSTM(lstm_units, dropout=lstm_dropout, recurrent_dropout=lstm_recurrent_dropout))
+    model.add(Dense(settings.OUTPUT_UNITS, activation="sigmoid"))
+    model.compile(loss="binary_crossentropy", optimizer=optimizer[0](**optimizer[1]), metrics=metrics)
+    return model
+class KerasClassifierCustom(KerasClassifier):
+        return self.model.predict(x, **kwargs)
+class GlobalMetrics(keras.callbacks.Callback):
+        self.from_categorical = True
+        if isinstance(metrics, list):
+            self.global_metrics = metrics
+        else:
+            raise TypeError("The metrics argument should be a list of tuples (metric functions, kwargs).")
+        self.global_scores = {}
+    def on_epoch_end(self, batch, logs={}):
+        predict = np.asarray(self.model.predict(self.validation_data[0]))
+        targ = self.validation_data[1]
+        if self.from_categorical:
+            predict = predict.argmax(axis=-1)
+            targ = targ.argmax(axis=-1)
+        for metric, kwargs in self.global_metrics:
+            self.global_scores[metric.__name__] = metric(targ, predict, **kwargs)
+            print("\nval_{}: {}".format(metric.__name__, self.global_scores[metric.__name__]))
+        return
+class KerasRandomizedSearchCV(RandomizedSearchCV):
+        pred = super(KerasRandomizedSearchCV, self).predict(*args, **kwargs)
+        backend.clear_session()
+        return pred
+if __name__ == "__main__":
+    from sklearn.datasets import make_moons
+    from sklearn.model_selection import RandomizedSearchCV
+    from keras.regularizers import l2
+    dataset = make_moons(1000)
+    def build_fn(nr_of_layers=2,first_layer_size=10,layers_slope_coeff=0.8,dropout=0.5,activation="relu",weight_l2=0.01,act_l2=0.01,input_dim=2):
+        result_model = Sequential()
+        result_model.add(Dense(first_layer_size,input_dim=input_dim,activation=activation,W_regularizer=l2(weight_l2),activity_regularizer=l2(act_l2)))
+        current_layer_size = int(first_layer_size * layers_slope_coeff) + 1
+        for index_of_layer in range(nr_of_layers - 1):
+            result_model.add(BatchNormalization())
+            result_model.add(Dropout(dropout))
+            result_model.add(Dense(current_layer_size,W_regularizer=l2(weight_l2),activation=activation,activity_regularizer=l2(act_l2)))
+            current_layer_size = int(current_layer_size * layers_slope_coeff) + 1
+        result_model.add(Dense(1,activation="sigmoid",W_regularizer=l2(weight_l2)))
+        result_model.compile(optimizer="rmsprop", metrics=["accuracy"], loss="binary_crossentropy")
+        return result_model
+    NeuralNet = KerasClassifier(create_pretrained_emb_lstm)

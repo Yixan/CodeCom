@@ -1,0 +1,131 @@
+
+In [ ]:
+
+    
+import numpy as np
+from __future__ import print_function
+import tensorflow as tf
+from six.moves import cPickle as pickle
+from six.moves import range
+
+
+    
+
+
+
+In [ ]:
+
+    
+pickle_file = 'notMNIST.pickle'
+try:
+    f = open(pickle_file,'rb')
+    save = pickle.load(f)
+    train_dataset = save['train_dataset']
+    train_labels = save['train_labels']
+    valid_dataset = save['valid_dataset']
+    valid_labels = save['valid_labels']
+    test_dataset = save['test_dataset']
+    test_labels = save['test_labels']
+    
+except Exception as e:
+    print(e)
+    raise
+
+train_dataset.shape
+
+
+    
+
+
+
+In [ ]:
+
+    
+num_steps = 801
+
+def accuracy(predictions, labels):
+  return (100.0 * np.sum(np.argmax(predictions, 1) == np.argmax(labels, 1))
+          / predictions.shape[0])
+
+with tf.Session(graph=graph) as session:
+    tf.global_variables_initializer().run()
+    print("Initialized")
+    for step in range(num_steps):
+        _,l,predictions = session.run([optimize,loss,train_predictions])
+        if step%100 == 0:
+            print('Loss at step %d: %f' % (step, l))
+            print('Training accuracy: %.1f%%' % accuracy(predictions, train_labels[:train_subset, :]))
+            print('Validation accuracy: %.1f%%' % accuracy(validation_predictions.eval(), valid_labels))
+    print('Test accuracy: %.1f%%' % accuracy(testing_predictions.eval(), test_labels))
+
+
+    
+
+
+
+In [ ]:
+
+    
+image_size = 28
+num_hidden_units = 1024
+num_labels = 10
+batch_size = 128
+
+graph = tf.Graph()
+
+with graph.as_default():
+    tensor_training_data = tf.placeholder(np.float32,shape=(batch_size, (image_size*image_size)))
+    tensor_training_labels = tf.placeholder(np.float32,shape=(batch_size,num_labels))
+    tensor_validation_data = tf.constant(valid_dataset)
+    tensor_validation_labels = tf.constant(valid_labels)
+    tensor_testing_data = tf.constant(test_dataset)
+    tensor_testing_labels = tf.constant(test_labels)
+    
+    weights_10 = tf.Variable(tf.truncated_normal([(image_size*image_size),num_hidden_units]))
+    biases_0 = tf.Variable(tf.random_normal([num_hidden_units],seed=128))
+    
+    weights_21 = tf.Variable(tf.truncated_normal([num_hidden_units,num_labels]))
+    biases_1 = tf.Variable(tf.random_normal([num_labels],seed=128))
+    
+    hidden_layer = tf.nn.relu(tf.matmul(tensor_training_data, weights_10)+biases_0)
+    logits = tf.matmul(hidden_layer,weights_21) + biases_1
+    
+    loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(labels=tensor_training_labels, logits=logits))
+    l2_norm = tf.nn.l2_loss(weights_21) + tf.nn.l2_loss(weights_10)
+    optimizer = tf.train.GradientDescentOptimizer(0.1).minimize(loss)
+    
+    training_predictions = tf.nn.softmax(logits)
+    validation_predictions =tf.nn.softmax(tf.matmul(tf.nn.relu(tf.matmul(tensor_validation_data,weights_10)+biases_0),weights_21)+biases_1)
+    testing_predictions =tf.nn.softmax(tf.matmul(tf.nn.relu(tf.matmul(tensor_testing_data,weights_10)+biases_0),weights_21)+biases_1)
+    
+
+
+    
+
+
+
+In [ ]:
+
+    
+num_steps = 3001
+
+with tf.Session(graph=graph) as session:
+    tf.global_variables_initializer().run()
+    print("Initialized")
+    for step in range(num_steps):
+        offset = (step * batch_size) % (train_labels.shape[0] - batch_size)
+        batch_training_data = train_dataset[offset:(offset+batch_size),:]
+        batch_training_labels = train_labels[offset:(offset+batch_size),:]
+        feed_dict = {tensor_training_data : batch_training_data, tensor_training_labels : batch_training_labels}
+        
+        _,l,predictions = session.run([optimizer,loss,training_predictions], feed_dict=feed_dict)
+        
+        if step%500 == 0:
+            print("Loss at step %d: %f" % (step,l))
+            print("Training accuracy: %.1f%%" % accuracy(predictions,batch_labels))
+            print("Validation accuracy: %.1f%%" % accuracy(validation_predictions.eval(),valid_labels))
+    print("Testing accuracy: %.1f%%" % accuracy(testing_predictions.eval(),test_labels))
+
+
+    
+

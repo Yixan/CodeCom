@@ -1,0 +1,117 @@
+import datetime
+import os
+import keras
+import numpy as np
+import pandas as pd
+from base_model import BaseModel
+from multivariate_container import MultivariateContainer
+from typing import Union
+class MultivariateLSTM(BaseModel):
+    def __init__(self,ontainer: MultivariateContainer,onfig: bool=None,ate_empty: bool=False) -> None:
+        print(f"MultivariateLSTM Initialized: \\tTime Step: {self.time_steps}\n\tFeature: {self.num_fea}")
+        self.config = config
+        self.container = container
+        self.hist = None
+        if create_empty:
+            self.core = None
+        else:
+            self.core = self._construct_lstm_model(self.config)
+        self._gen_file_name()
+        print(tivariateLSTM: Current model will be save to ./saved_models/f{self.file_name}/")
+    def _construct_lstm_model(self,onfig: dict,erbose: bool=True-> keras.Model:
+        input_sequence = keras.layers.Input(hape=(self.time_steps, self.num_fea),dtype="float32",name="input_sequence")
+        normalization = keras.layers.BatchNormalization()(input_sequence)
+        lstm = keras.layers.LSTM(units=config["nn.lstm1"],return_sequences=False)(normalization)
+        dense1 = keras.layers.Dense(units=config["nn.dense1"],name="Dense1")(lstm)
+        predictions = keras.layers.Dense(1,name="Prediction")(dense1)
+        model = keras.Model(inputs=input_sequence, outputs=predictions)
+        model.compile(loss="mse", optimizer="adam")
+        if verbose:
+            print("\tMultivariateLSTM: LSTM model constructed with configuration: ")
+            keras.utils.print_summary(model)
+        return model
+    def _construct_lstm_sequential(self,onfig: dict,erbose: bool=True-> keras.Sequential:
+        model = keras.Sequential()
+        model.add(keras.layers.LSTM(units=config["nn.lstm1"],nput_shape=(self.time_steps, self.num_fea),return_sequences=True,name="LSTM1"))
+        model.add(keras.layers.LSTM(units=config["nn.lstm2"],name="LSTM2"))
+        model.add(keras.layers.Dense(units=config["nn.dense1"],name="Dense1"))
+        model.add(keras.layers.Dense(units=1,name="Dense_output"))
+        model.compile(loss="mse", optimizer="adam")
+        if verbose:
+            print("\tMultivariateLSTM: LSTM model constructed with configuration: ")
+            keras.utils.print_summary(model)
+        return model
+    def update_config(self,ew_config: dict-> None:
+        print("MultivariateLSTM: Updating neural network configuration...")
+        self.prev_config = self.config
+        self.config = new_config
+        self.core = self._construct_lstm_model(self.config, verbose=False)
+        print("\tDone.")
+    def fit_model(self,pochs: int=10-> None:
+        start_time = datetime.datetime.now()
+        print("MultivariateLSTM: Start fitting.")
+        self.hist = self.core.fit(self.container.train_X,self.container.train_y,epochs=epochs,size=32 if self.config is None else self.config["batch_size"],tion_split=0.1 if self.config is None else self.config["validation_split"])
+        finish_time = datetime.datetime.now()
+        time_taken = finish_time - start_time
+        print(f"\tFitting finished, {epochs} epochs for {str(time_taken)}")
+    def predict(self,_feed: np.ndarray-> np.ndarray:
+        y_hat = self.core.predict(X_feed, verbose=1)
+        return y_hat
+    def save_model(elf, ile_dir: str=None-> None:
+        if file_dir is None:
+            file_dir = self.file_name
+        try:
+            folder = f"./saved_models/{file_dir}/"
+            os.system(f"mkdir {folder}")
+            print(f"Experiment record directory created: {folder}")
+        except:
+            print("Current directory: ")
+            _ = os.system("pwd")
+            raise FileNotFoundError( to create directory, please create directory ./saved_models/")
+        print("Saving model structure...")
+        model_json = self.core.to_json()
+        with open(f"{folder}model_structure.json", "w") as json_file:
+            json_file.write(model_json)
+        print("Done.")
+        print("Saving model weights...")
+        self.core.save_weights(f"{folder}model_weights.h5")
+        print("Done")
+        print("Saving model visualization...")
+        try:
+            keras.utils.plot_model(self.core,to_file=f"{folder}model.png",show_shapes=True,show_layer_names=True)
+        except:
+            print("Model illustration cannot be saved.")
+        if self.hist is not None:
+            hist_loss = np.squeeze(np.array(self.hist.history["loss"]))
+            hist_val_loss = np.squeeze(np.array(self.hist.history["val_loss"]))
+            combined = np.stack([hist_loss, hist_val_loss])
+            combined = np.transpose(combined)
+            df = pd.DataFrame(combined, dtype=np.float32)
+            df.columns = ["loss", "val_loss"]
+            df.to_csv(f"{folder}hist.csv", sep=",")
+            print(f"Training history is saved to {folder}hist.csv...")
+        else:
+            print("No training history found.")
+        print("Done.")
+    def load_model(elf, older_dir: str-> None:
+            folder_dir += "/"
+        print(f"Load model from folder {folder_dir}")
+        print("Reconstruct model from Json file...")
+        try:
+            json_file = open(f"{folder_dir}model_structure.json", "r")
+        except FileNotFoundError:
+            raise Warning(n file not found. Expected: {folder_dir}model_structure.json")
+        model_file = json_file.read()
+        json_file.close()
+        self.core = keras.models.model_from_json(model_file)
+        print("Done.")
+        print("Loading model weights...")
+        try:
+            self.core.load_weights("{folder_dir}model_weights.h5", by_name=True)
+        except FileNotFoundError:
+            raise Warning(file not found. Expected: {folder_dir}model_weights.h5")
+        print("Done.")
+        self.core.compile(loss="mse", optimizer="adam")
+    def summarize_training(self):
+    def visualize_training(self):
+        raise NotImplementedError

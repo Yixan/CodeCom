@@ -1,0 +1,22 @@
+import keras
+from keras.layers import Dropout, LSTM, Dense, Activation
+from keras.models import Sequential
+from keras.regularizers import l2
+from commons import *
+__author__ = 'Sogo'
+__version__ = '0.5'
+if __name__ == "__main__":
+    print("Operating regression_test.py file.")
+    number_of_time_stamps = 50
+    data = get_data_list_on_folder(folder='./ips/sk-jung-gu', complete_set=False)
+    (X_train, y_train), (X_test, y_test) = train_test_split(data, fold_size=0.1, time_steps=number_of_time_stamps)
+    hidden_neurons = 64
+    batch_size = 32
+    model_lstm = Sequential()
+    model_lstm.add(LSTM(output_dim=hidden_neurons, batch_input_shape=in_shape, return_sequences=False))
+    model_lstm.add(Dropout(0.1))
+    model_lstm.add(Activation("softmax"))
+    model_lstm.fit(X_train, y_train, batch_size=batch_size, nb_epoch=3, validation_split=0.05)
+    predicted = model_lstm.predict(X_test)
+else:
+    print("Operaing 'main' from other file. (This is regression_test.py)")

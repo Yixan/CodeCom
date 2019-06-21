@@ -1,0 +1,91 @@
+from tensorflow.examples.tutorials.mnist import input_data
+import numpy as np
+import tensorflow as tf
+
+
+# Read MNIST Dataset from TF Helper
+mnist = input_data.read_data_sets("MNIST_data/", one_hot=True)
+
+
+# Setup Parameters
+input_size, num_classes = 784, 10
+num_train_steps = 2000
+learning_rate = 0.0001
+
+
+# Create Placeholders, Variables
+batch_size = tf.placeholder(dtype=tf.int32)
+img = tf.placeholder(tf.float32, [None, 784])# Placeholder for Input Image
+image = tf.reshape(img, [batch_size, 28, 28, 1])
+output = tf.placeholder(tf.float32, [None, 10])# Placeholder for Output Class
+
+
+W = tf.Variable(initial_value=tf.random_normal(shape=[256, 10], stddev=0.1))
+bw = tf.Variable(initial_value=tf.random_normal(shape=[10], stddev=0.1))
+V = tf.Variable(initial_value=tf.random_normal(shape=[256, 256], stddev=0.1))
+bv = tf.Variable(initial_value=tf.random_normal(shape=[256], stddev=0.1))
+
+
+first_filt = tf.Variable(tf.truncated_normal([5, 5, 1, 32],stddev=0.1))
+first_conv = tf.nn.conv2d(image, first_filt, [1, 2, 2, 1], "SAME")
+first_conv = tf.nn.relu(first_conv)
+first_conv = tf.nn.max_pool(first_conv, ksize=[1,4,4,1], strides=[1, 2, 2, 1], padding="SAME")
+first_conv = tf.reshape(first_conv, [batch_size, 7, 7, 32])
+
+
+third_filt = tf.Variable(tf.truncated_normal([5, 5, 32, 64], stddev=0.1))
+third_conv = tf.nn.conv2d(first_conv, third_filt, [1, 2, 2, 1], "SAME")
+third_conv = tf.nn.relu(third_conv)
+third_conv = tf.nn.max_pool(third_conv, ksize=[1, 4, 4, 1], strides=[1, 2, 2, 1], padding="SAME")
+third_conv = tf.reshape(third_conv, [batch_size, 256])
+
+
+# Use operations to generate final logits (no softmax)
+logits = (tf.matmul(third_conv, V) + bv)
+logits = tf.nn.relu(logits)
+logits = (tf.matmul(logits, W) + bw)
+
+
+# Get probabilities by using the softmax activation on the given logits
+probabilities = tf.nn.softmax(logits)
+
+
+# Compute Loss Value via TF Loss Helper
+loss = tf.losses.softmax_cross_entropy(onehot_labels=output, logits=logits)
+
+
+# Create Gradient Descent Optimizer, training operation for updating weights
+sgd = tf.train.AdamOptimizer(learning_rate)
+train_op = sgd.minimize(loss)
+
+
+# Create Session
+session = tf.Session()
+
+
+# Initialize all Variables
+session.run(tf.global_variables_initializer())
+
+
+# Training Loop!
+for i in range(num_train_steps):
+    # Get next element from the MNIST Training Data
+    next_x, next_y = mnist.train.next_batch(50)
+    
+    # Collect/Run Loss, Training Operation via single call to session.run (note multiple fetches!)
+    l, _ = session.run([loss, train_op], feed_dict={img: next_x, output: next_y, batch_size:50})
+    
+    # Print Loss every so often
+    if i % 1000 == 0:
+        print 'Iteration %d\tLoss Value: %.3f' % (i, l)
+        
+# Evaluate Accuracy on Test Data
+correct, test_x, test_y = 0.0, mnist.test.images, mnist.test.labels
+
+
+for i in range(10000):
+    next_x, next_y = test_x[i], test_y[i]
+    p = session.run([probabilities], feed_dict={img: [next_x], output: [next_y], batch_size:1})
+    if np.argmax(p[0]) == np.argmax(next_y):
+        correct += 1
+print 'Test Accuracy: %.3f' % (correct / 10000.0)

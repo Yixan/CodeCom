@@ -1,0 +1,178 @@
+import numpy as np
+import os
+import matplotlib.pyplot as plt
+import tqdm
+import tensorflow as tf
+from six.moves import cPickle as pickle
+import random
+import math
+pickle_dir = '.'
+with open(os.path.join(pickle_dir, 'notMNIST.pickle'), 'rb') as f:
+    letter_set = pickle.load(f)
+train_dataset = letter_set['train_dataset']
+train_labels = letter_set['train_labels']
+valid_dataset = letter_set['valid_dataset']
+valid_labels = letter_set['valid_labels']
+test_dataset = letter_set['test_dataset']
+test_labels = letter_set['test_labels']
+valid_dataset_sani = letter_set['valid_dataset_sani']
+valid_labels_sani = letter_set['valid_labels_sani']
+test_dataset_sani = letter_set['test_dataset_sani']
+test_labels_sani = letter_set['test_labels_sani']
+samples, width, height = train_dataset.shape
+num_labels = 10
+
+
+def reformat(dataset, labels):
+    dataset = dataset.reshape((-1, width * height)).astype(np.float32)
+    labels = (np.arange(num_labels) == labels[:, (None)]).astype(np.float32)
+    return dataset, labels
+
+
+train_dataset, train_labels = reformat(train_dataset, train_labels)
+valid_dataset, valid_labels = reformat(valid_dataset, valid_labels)
+test_dataset, test_labels = reformat(test_dataset, test_labels)
+print('Training set', train_dataset.shape, train_labels.shape)
+print('Validation set', valid_dataset.shape, valid_labels.shape)
+print('Test set', test_dataset.shape, test_labels.shape)
+
+
+def accuracy(predictions, labels):
+    return 100.0 * np.sum(np.argmax(predictions, 1) == np.argmax(labels, 1)) / predictions.shape[0]
+
+
+batch_size = 128
+n_hidden = 1024
+beta_values = [0.0005, 0.1, 1e-05, 1e-06, 0.01]
+num_steps = 3001
+graph = tf.Graph()
+with graph.as_default():
+    tf_train_dataset = tf.placeholder(tf.float32, shape=(batch_size, width * height))
+    tf_train_labels = tf.placeholder(tf.float32, shape=(batch_size, num_labels))
+    tf_valid_dataset = tf.constant(valid_dataset)
+    tf_test_dataset = tf.constant(test_dataset)
+    minibatch_dataset = tf.placeholder(tf.float32, shape=(batch_size, width * height))
+    minibatch_labels = tf.placeholder(tf.float32, shape=(batch_size, num_labels))
+    l2_regularization_beta = tf.placeholder(tf.float32)
+    weights = tf.Variable(tf.truncated_normal([n_hidden, num_labels], stddev=math.sqrt(2.0 / (width * height))))
+    biases = tf.Variable(tf.zeros([num_labels]))
+    weights_hidden = tf.Variable(tf.truncated_normal([width * height, n_hidden], stddev=math.sqrt(2.0 / n_hidden)))
+    biases_hidden = tf.Variable(tf.zeros([n_hidden]))
+    hidden = tf.nn.relu(tf.matmul(tf_train_dataset, weights_hidden) + biases_hidden)
+    logits = tf.matmul(hidden, weights) + biases
+    loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=tf_train_labels, logits=logits))
+    loss = loss + l2_regularization_beta * (tf.nn.l2_loss(weights) + tf.nn.l2_loss(weights_hidden))
+    optimizer = tf.train.GradientDescentOptimizer(0.5).minimize(loss)
+    train_prediction = tf.nn.softmax(logits)
+    hidden_valid = tf.nn.relu(tf.matmul(tf_valid_dataset, weights_hidden) + biases_hidden)
+    valid_prediction = tf.nn.softmax(tf.matmul(hidden_valid, weights) + biases)
+    hidden_test = tf.nn.relu(tf.matmul(tf_test_dataset, weights_hidden) + biases_hidden)
+    test_prediction = tf.nn.softmax(tf.matmul(hidden_test, weights) + biases)
+betaplot = []
+accuracyplot = []
+for beta in beta_values:
+    with tf.Session(graph=graph) as session:
+        tf.global_variables_initializer().run()
+        print('Initialized')
+        for step in tqdm.trange(num_steps):
+            offset = random.randint(0, int((train_labels.shape[0] - batch_size) / batch_size))
+            offset = offset * batch_size
+            batch_data = train_dataset[offset:offset + batch_size, :]
+            batch_labels = train_labels[offset:offset + batch_size, :]
+            feed_dict = {tf_train_dataset: batch_data, tf_train_labels: batch_labels, l2_regularization_beta: beta}
+            _, l, predictions = session.run([optimizer, loss, train_prediction], feed_dict=feed_dict)
+        betaplot.append(beta)
+        accuracyplot.append(accuracy(valid_prediction.eval(), valid_labels))
+        print('Beta: {}'.format(beta))
+        print('Validation accuracy: %.1f%%' % accuracy(valid_prediction.eval(), valid_labels))
+        print('Test accuracy: %.1f%%' % accuracy(test_prediction.eval(), test_labels))
+plt.figure(1)
+plt.semilogx(betaplot, accuracyplot, '+')
+plt.xlabel('Beta')
+plt.ylabel('Valid Accuracy')
+plt.show()
+num_steps = 300
+num_batches = 25
+fixed_offset = random.sample(range(int((train_labels.shape[0] - batch_size) / batch_size)), num_batches)
+fixed_offset = [(i * batch_size) for i in fixed_offset]
+with tf.Session(graph=graph) as session:
+    tf.global_variables_initializer().run()
+    print('Initialized')
+    for step in range(num_steps):
+        offset = random.choice(fixed_offset)
+        batch_data = train_dataset[offset:offset + batch_size, :]
+        batch_labels = train_labels[offset:offset + batch_size, :]
+        feed_dict = {tf_train_dataset: batch_data, tf_train_labels: batch_labels, l2_regularization_beta: 0}
+        _, l, predictions = session.run([optimizer, loss, train_prediction], feed_dict=feed_dict)
+        if step == num_steps - 1:
+            for idx, offset in enumerate(fixed_offset):
+                batch_data = train_dataset[offset:offset + batch_size, :]
+                batch_labels = train_labels[offset:offset + batch_size, :]
+                feed_dict = {tf_train_dataset: batch_data, tf_train_labels: batch_labels}
+                predictions = session.run([train_prediction], feed_dict=feed_dict)
+                print('Minibatch %i accuracy: %.1f%%' % (idx, accuracy(predictions[0], batch_labels)))
+            print('Validation accuracy: %.1f%%' % accuracy(valid_prediction.eval(), valid_labels))
+            print('Test accuracy: %.1f%%' % accuracy(test_prediction.eval(), test_labels))
+batch_size = 128 * 3
+n_hidden = 1024 * 2
+dropout_keep_probablity = 1
+l2_regularization_beta = 0.0005
+num_steps = 9001
+initial_learning_rate = 0.5
+decay_steps = 3500
+decay_size = 0.6
+graph = tf.Graph()
+with graph.as_default():
+    tf_train_dataset = tf.placeholder(tf.float32, shape=(batch_size, width * height))
+    tf_train_labels = tf.placeholder(tf.float32, shape=(batch_size, num_labels))
+    tf_valid_dataset = tf.constant(valid_dataset)
+    tf_test_dataset = tf.constant(test_dataset)
+    minibatch_dataset = tf.placeholder(tf.float32, shape=(batch_size, width * height))
+    minibatch_labels = tf.placeholder(tf.float32, shape=(batch_size, num_labels))
+    global_step = tf.Variable(0)
+    learning_rate = tf.train.exponential_decay(initial_learning_rate, global_step, decay_steps, decay_size, staircase=True)
+    weights = tf.Variable(tf.truncated_normal([n_hidden, num_labels], stddev=math.sqrt(2.0 / (width * height))))
+    biases = tf.Variable(tf.zeros([num_labels]))
+    weights_hidden = tf.Variable(tf.truncated_normal([width * height, n_hidden], stddev=math.sqrt(2.0 / n_hidden)))
+    biases_hidden = tf.Variable(tf.zeros([n_hidden]))
+    hidden = tf.nn.dropout(tf.nn.relu(tf.matmul(tf_train_dataset, weights_hidden) + biases_hidden), dropout_keep_probablity)
+    logits = tf.matmul(hidden, weights) + biases
+    loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=tf_train_labels, logits=logits))
+    loss = loss + l2_regularization_beta * (tf.nn.l2_loss(weights) + tf.nn.l2_loss(weights_hidden))
+    optimizer = tf.train.GradientDescentOptimizer(learning_rate).minimize(loss, global_step=global_step)
+    train_prediction = tf.nn.softmax(logits)
+    hidden_valid = tf.nn.relu(tf.matmul(tf_valid_dataset, weights_hidden) + biases_hidden)
+    valid_prediction = tf.nn.softmax(tf.matmul(hidden_valid, weights) + biases)
+    hidden_test = tf.nn.relu(tf.matmul(tf_test_dataset, weights_hidden) + biases_hidden)
+    test_prediction = tf.nn.softmax(tf.matmul(hidden_test, weights) + biases)
+losses = []
+plotsteps = []
+acc = []
+learning_rate_steps = []
+with tf.Session(graph=graph) as session:
+    tf.global_variables_initializer().run()
+    print('Initialized')
+    for step in tqdm.trange(num_steps):
+        offset = random.randint(0, int((train_labels.shape[0] - batch_size) / batch_size))
+        offset = offset * batch_size
+        batch_data = train_dataset[offset:offset + batch_size, :]
+        batch_labels = train_labels[offset:offset + batch_size, :]
+        feed_dict = {tf_train_dataset: batch_data, tf_train_labels: batch_labels}
+        _, l, predictions = session.run([optimizer, loss, train_prediction], feed_dict=feed_dict)
+        if step % 100 == 0:
+            acc.append(accuracy(valid_prediction.eval(), valid_labels))
+            losses.append(l)
+            plotsteps.append(step)
+            learning_rate_steps.append(session.run(learning_rate))
+    print('Minibatch accuracy: %.1f%%' % accuracy(predictions, batch_labels))
+    print('Validation accuracy: %.1f%%' % accuracy(valid_prediction.eval(), valid_labels))
+    print('Test accuracy: %.1f%%' % accuracy(test_prediction.eval(), test_labels))
+plotoffset = 10
+f, axarr = plt.subplots(3, sharex=True)
+axarr[0].plot(plotsteps[plotoffset:], acc[plotoffset:])
+axarr[0].set_title('Accuracy [%]')
+axarr[1].plot(plotsteps[plotoffset:], losses[plotoffset:])
+axarr[1].set_title('Loss')
+axarr[2].plot(plotsteps[plotoffset:], learning_rate_steps[plotoffset:])
+axarr[2].set_title('Learning Rate')
+plt.show()

@@ -1,0 +1,21 @@
+from keras.layers import Embedding, LSTM, TimeDistributed, Dense, Dropout
+from keras.layers.wrappers import Bidirectional
+from keras.optimizers import Adam
+import constant
+class Model(object):
+    def __init__(self, hyper_params):
+        model = Sequential()
+        model.add(Embedding(constant.NUM_CHARS, 5,input_length=hyper_params.num_step))
+        lstm = LSTM(256, return_sequences=True, unroll=True,ropout=0.1, recurrent_dropout=0.1)
+        model.add(Bidirectional(lstm))
+        model.add(Dropout(0.1))
+        lstm = LSTM(256, return_sequences=True, unroll=True,ropout=0.1, recurrent_dropout=0.1)
+        model.add(Bidirectional(lstm))
+        model.add(Dropout(0.1))
+        lstm = LSTM(128, return_sequences=True, unroll=True,ropout=0.25, recurrent_dropout=0.25)
+        model.add(Bidirectional(lstm))
+        model.add(Dropout(0.25))
+        model.add(TimeDistributed(Dense(constant.NUM_TAGS, activation="softmax"),nput_shape=(hyper_params.num_step, 128)))
+        optimizer = Adam(hyper_params.learning_rate)
+        model.compile(loss="categorical_crossentropy", optimizer=optimizer,metrics=["categorical_accuracy"])
+        self.model = model

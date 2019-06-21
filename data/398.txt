@@ -1,0 +1,40 @@
+from keras.models import Sequential
+from keras.layers import Dense
+from keras.layers import LSTM
+from keras.layers import Conv1D
+from keras.layers import MaxPooling1D
+from keras.layers import Flatten
+from keras.layers import Dropout
+from keras.models import load_model
+from keras.utils import plot_model
+from prepare_data import PrepareData as prep_data
+class Models:
+    def __init__(self, train_X, train_y, test_X, test_y, model=None):
+        if model == 'lstm':
+            self.lstm_model(train_X, train_y, test_X, test_y)
+        if model == 'cnn':
+            self.cnn_model(train_X, train_y, test_X, test_y)
+    def get_history(self):
+        return self.history
+    def lstm_model(self,train_X, train_y, test_X, test_y):
+        model = Sequential()
+        model.add(LSTM(100, nput_shape=(train_X.shape[1], train_X.shape[2]),ctivation='tanh', return_sequences=True))
+        model.add(Dropout(0.2))
+        model.add(LSTM(100, activation='tanh', return_sequences=True))
+        model.add(LSTM(100, activation='tanh'))
+        model.add(Dropout(0.2))
+        model.add(Dense(1))
+        model.compile(loss='mse', optimizer='adam', metrics=['mse'])
+        plot_model(model, to_file='../model.png', show_shapes=True)
+    def cnn_model(self, train_X, train_y, test_X, test_y):
+        model = Sequential()
+        model.add(Conv1D(32, kernel_size=2, strides=1, activation='relu',nput_shape=(train_X.shape[1], train_X.shape[2])))
+        model.add(MaxPooling1D(pool_size=2, strides=1))
+        model.add(Flatten())
+        model.add(Dense(1000, activation='relu'))
+        model.add(Dense(7, activation='softmax'))
+        model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+        history = model.fit(train_X, train_y, epochs=10,lidation_data=(test_X, test_y), batch_size=10,erbose=2, shuffle=False)
+        self.history = history
+        model.save('lstm_model.h5')
+        

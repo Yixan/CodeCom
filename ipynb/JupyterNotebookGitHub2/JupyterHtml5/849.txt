@@ -1,0 +1,128 @@
+
+In [8]:
+
+    
+import tensorflow as tf
+
+x = tf.placeholder(tf.float32)
+y = tf.placeholder(tf.float32)
+bias = tf.Variable(1.0)
+
+y_pred = x ** 2 + bias
+loss = (y - y_pred) ** 2
+
+with tf.Session() as session:
+    tf.global_variables_initializer().run()
+    print('Loss(x, y) = %.3f' %session.run(loss, feed_dict = {x: 3.0, y:9.0}))
+    print('pred_y(x)= %.3f' %session.run(y_pred, {x: 3.0}))
+    print('bias= %.3f' %session.run(bias))
+
+
+    
+
+
+
+In [9]:
+
+    
+def multilayer_perceptron(x):
+    fc1 = layers.fully_connected(x, 256, activation_fn = tf.nn.relu)
+    out = layers.fully_connected(fc1, 10, activation_fn = None)
+    out = tf.Print(out, [tf.argmax(out, 1)],
+                   'argmax(out)=', summarize=20, first_n=7)
+    return out
+
+
+    
+
+
+
+In [11]:
+
+    
+def multilayer_perceptron(x):
+    fc1 = layers.fully_connected(x, 256, activation_fn = tf.nn.relu)
+    out = layers.fully_connected(fc1, 10, activation_fn = None)
+    
+    assert_op = tf.Assert(tf.reduce_all(out > 0), [out], name = 'assert_out_positioin')
+    
+    with tf.control_dependencies([assert_op]):
+        out = tf.identity(out, name = 'out')
+    return out
+
+# or direct
+def multilayer_perceptron2(x):
+    fc1 = layers.fully_connected(x, 256, activation_fn = tf.nn.relu)
+    out = layers.fully_connected(fc1, 10, activation_fn = None)
+    
+    assert_op = tf.Assert(tf.reduce_all(out > 0), [out], name = 'assert_out_positioin')
+    
+    out = tf.with_dependencies([assert_op], out)
+    return out
+
+# 或者把所有Assert操作加入到collection中
+def multilayer_perceptron(x):
+    fc1 = layers.fully_connected(x, 256, activation_fn = tf.nn.relu)
+    out = layers.fully_connected(fc1, 10, activation_fn = None)
+    
+    tf.add_to_collect('Asserts', 
+                      tf.Assert(tf.reduce_all(out>0), [out], name = 'assert_out_gt_0'))
+    return out
+
+assert_op = tf.group(*tf.get_collection('Asserts'))
+
+# 然后运行
+def run():
+    a = sesson.run([train_op, assert_op], feed_dict = {...})
+
+
+    
+
+
+
+In [12]:
+
+    
+def my_func(x):
+    # x will be a numpy array with the contents of the placeholder below
+    return np.sinh(x)
+
+def run():
+    inp = tf.placeholder(tf.float32)
+    y = py_func(my_func, [inp], [tf.float32])
+
+
+    
+
+
+
+In [13]:
+
+    
+def multilayer_perceptron(x):
+    fc1 = layers.fully_connected(x, 256, activation_fn = tf.nn.relu)
+    out = layers.fully_connected(fc1, 10, activation_fn = None)
+    
+    def _debug_print_func(fc1_val):
+        print 'FC1: {}'.format(fc1_val.shape)
+        print 'min, max of FC1 = {}'.format(fc1_val.min(), fc1_val.max())
+        return False
+    
+    debug_print_op = tf.py_func(_debug_print_func, [fc1], [tf.bool])
+    with tf.control_dependencies(debug_print_op):
+        out = tf.identity(out, name = 'out')
+    return out
+
+
+    
+
+
+
+In [ ]:
+
+    
+ 
+
+
+    
+

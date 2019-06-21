@@ -1,0 +1,151 @@
+import tensorflow as tf
+hello_constant = tf.constant('Hello World!')
+with tf.Session() as sess:
+    output = sess.run(hello_constant)
+    print(output)
+A = tf.constant(1234)
+B = tf.constant([123, 456, 789])
+C = tf.constant([[123, 456, 789], [222, 333, 444]])
+with tf.Session() as sess2:
+    output1 = sess2.run(C)
+    print(output1)
+x = tf.placeholder(tf.string)
+y = tf.placeholder(tf.int32)
+z = tf.placeholder(tf.float32)
+
+
+def placeHolder(string):
+    output = None
+    x = tf.placeholder(tf.string)
+    with tf.Session() as sess:
+        output = sess.run(x, feed_dict={x: string})
+    return print(output)
+
+
+placeHolder('Good Morning World!')
+x = tf.add(5, 2)
+x = tf.subtract(10, 4)
+y = tf.multiply(2, 5)
+tf.subtract(tf.cast(tf.constant(2.0), tf.int32), tf.constant(1))
+x = tf.constant(10)
+y = tf.constant(2)
+z = tf.subtract(tf.divide(x, y), tf.cast(tf.constant(1), tf.float64))
+with tf.Session() as sess:
+    output = sess.run(z)
+    print(output)
+matW = tf.constant([[-0.5, 0.2, 0.1], [0.7, -0.8, 0.2]])
+matX = tf.constant([[0.2], [0.5], [0.6]])
+b = tf.constant([[0.1], [0.2]])
+prod = tf.matmul(matW, matX)
+sum1 = tf.add(prod, b)
+with tf.Session() as sess:
+    output = sess.run(sum1)
+    print(output)
+x = tf.Variable(5)
+init = tf.global_variables_initializer()
+with tf.Session() as sess:
+    sess.run(init)
+n_features = 120
+n_labels = 5
+weights = tf.Variable(tf.truncated_normal((n_features, n_labels)))
+n_labels = 5
+bias = tf.Variable(tf.zeros(n_labels))
+
+
+def get_weights(n_features, n_labels):
+    return tf.Variable(tf.truncated_normal((n_features, n_labels)))
+
+
+def get_biases(n_labels):
+    return tf.Variable(tf.zeros(n_labels))
+
+
+def linear(input, w, b):
+    return tf.add(tf.matmul(input, w), b)
+
+
+x = tf.nn.softmax([2.0, 1.0, 0.2])
+
+
+def run():
+    output = None
+    logit_data = [2.0, 1.0, 0.1]
+    logits = tf.placeholder(tf.float32)
+    softmax = tf.nn.softmax(logit_data)
+    with tf.Session() as sess:
+        output = sess.run(softmax, feed_dict={logits: logit_data})
+    return output
+
+
+softmax_data = [0.7, 0.2, 0.1]
+one_hot_data = [1.0, 0.0, 0.0]
+softmax = tf.placeholder(tf.float32)
+one_hot = tf.placeholder(tf.float32)
+cross_entropy = -tf.reduce_sum(tf.multiply(one_hot, tf.log(softmax)))
+with tf.Session() as sess:
+    print(sess.run(cross_entropy, feed_dict={softmax: softmax_data, one_hot: one_hot_data}))
+from tensorflow.examples.tutorials.mnist import input_data
+import tensorflow as tf
+n_input = 784
+n_classes = 10
+mnist = input_data.read_data_sets('/Users/ChrisErnst/anaconda/envs/py35/lib/python3.5/site-packages/tensorflow/include/unsupported/Eigen/CXX11/src/datasets/ud730/mnist', one_hot=True)
+train_features = mnist.train.images
+test_features = mnist.test.images
+train_labels = mnist.train.labels.astype(np.float32)
+test_labels = mnist.test.labels.astype(np.float32)
+weights = tf.Variable(tf.random_normal([n_input, n_classes]))
+bias = tf.Variable(tf.random_normal([n_classes]))
+features = tf.placeholder(tf.float32, [None, n_input])
+labels = tf.placeholder(tf.float32, [None, n_classes])
+example_features = [['F11', 'F12', 'F13', 'F14'], ['F21', 'F22', 'F23', 'F24'], ['F31', 'F32', 'F33', 'F34'], ['F41', 'F42', 'F43', 'F44']]
+example_labels = [['L11', 'L12'], ['L21', 'L22'], ['L31', 'L32'], ['L41', 'L42']]
+import math
+
+
+def batches(batch_size, features, labels):
+    assert len(features) == len(labels)
+    output_batches = []
+    sample_size = len(features)
+    for start_i in range(0, sample_size, batch_size):
+        end_i = start_i + batch_size
+        batch = [features[start_i:end_i], labels[start_i:end_i]]
+        output_batches.append(batch)
+    return output_batches
+
+
+example_batches = batches(batch_size, example_features, example_labels)
+hidden_layer = tf.add(tf.matmul(features, hidden_weights), hidden_biases)
+hidden_layer = tf.nn.relu(hidden_layer)
+output = tf.add(tf.matmul(hidden_layer, output_weights), output_biases)
+import tensorflow as tf
+output = None
+hidden_layer_weights = [[0.1, 0.2, 0.4], [0.4, 0.6, 0.6], [0.5, 0.9, 0.1], [0.8, 0.2, 0.8]]
+out_weights = [[0.1, 0.6], [0.2, 0.1], [0.7, 0.9]]
+weights = [tf.Variable(hidden_layer_weights), tf.Variable(out_weights)]
+biases = [tf.Variable(tf.zeros(3)), tf.Variable(tf.zeros(2))]
+features = tf.Variable([[1.0, 2.0, 3.0, 4.0], [-1.0, -2.0, -3.0, -4.0], [11.0, 12.0, 13.0, 14.0]])
+hidden_layer = tf.add(tf.matmul(features, weights[0]), biases[0])
+hidden_layer = tf.nn.relu(hidden_layer)
+logits = tf.add(tf.matmul(hidden_layer, weights[1]), biases[1])
+with tf.Session() as sess:
+    sess.run(tf.global_variables_initializer())
+    print(sess.run(logits))
+keep_prob = tf.placeholder(tf.float32)
+hidden_layer = tf.add(tf.matmul(features, weights[0]), biases[0])
+hidden_layer = tf.nn.relu(hidden_layer)
+hidden_layer = tf.nn.dropout(hidden_layer, keep_prob)
+logits = tf.add(tf.matmul(hidden_layer, weights[1]), biases[1])
+import tensorflow as tf
+hidden_layer_weights = [[0.1, 0.2, 0.4], [0.4, 0.6, 0.6], [0.5, 0.9, 0.1], [0.8, 0.2, 0.8]]
+out_weights = [[0.1, 0.6], [0.2, 0.1], [0.7, 0.9]]
+weights = [tf.Variable(hidden_layer_weights), tf.Variable(out_weights)]
+biases = [tf.Variable(tf.zeros(3)), tf.Variable(tf.zeros(2))]
+features = tf.Variable([[0.0, 2.0, 3.0, 4.0], [0.1, 0.2, 0.3, 0.4], [11.0, 12.0, 13.0, 14.0]])
+keep_prob = tf.placeholder(tf.float32)
+hidden_layer = tf.add(tf.matmul(features, weights[0]), biases[0])
+hidden_layer = tf.nn.relu(hidden_layer)
+hidden_layer = tf.nn.dropout(hidden_layer, keep_prob)
+logits = tf.add(tf.matmul(hidden_layer, weights[1]), biases[1])
+with tf.Session() as sess:
+    sess.run(tf.global_variables_initializer())
+print(sess.run(logits, feed_dict={keep_prob: 0.5}))

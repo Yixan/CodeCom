@@ -1,0 +1,127 @@
+from keras.preprocessing import sequence
+from keras.optimizers import SGD, RMSprop, Adagrad
+from keras.utils import np_utils
+from keras.models import Sequential
+from keras.layers.core import Dense, Dropout, Activation
+from keras.layers.embeddings import Embedding
+from keras.layers.recurrent import LSTM, GRU
+from keras.constraints import unitnorm
+from keras.layers.core import Reshape, Flatten, Merge
+from keras.layers.convolutional import Convolution2D, MaxPooling2D, Convolution1D, MaxPooling1D
+from sklearn.cross_validation import KFold
+from keras.callbacks import EarlyStopping
+from keras.regularizers import l2
+import numpy as np
+from sklearn import cross_validation
+import math
+from keras_input_data import make_idx_data
+from load_vai import loadVAI
+import _pickle as cPickle
+from metrics import continuous_metrics
+def cnn(W=None):
+    N_fm = 100
+    dense_nb = 20
+    kernel_size = 5
+    model = Sequential()
+    model.add(Embedding(input_dim=W.shape[0], output_dim=W.shape[1], weights=[W], W_constraint=unitnorm()))
+    model.add(Reshape(W.shape[0],(conv_input_height, conv_input_width)))
+    model.add(Convolution2D(nb_filter=N_fm, nb_row=kernel_size, nb_col=conv_input_width, border_mode='valid',_regularizer=l2(0.0001), activation='relu'))
+    model.add(Dropout(0.5))
+    model.add(MaxPooling2D(pool_size=(conv_input_height - kernel_size + 1, 1), border_mode='valid'))
+    model.add(Dropout(0.5))
+    model.add(Flatten())
+    model.add(Dense(output_dim=dense_nb, activation='relu'))
+    model.add(Dropout(0.5))
+    model.add(Dense(output_dim=1, activation='linear'))
+    return model
+def lstm(W):
+    model = Sequential()
+    model.add(Embedding(W.shape[0], W.shape[1], input_length=maxlen))
+    model.add(Dropout(0.5))
+    model.add(Dense(1))
+    model.add(Activation('linear'))
+    return model
+def imdb_cnn(W=None):
+    N_fm = 100
+    kernel_size = 5
+    max_features = W.shape[0]
+    hidden_dims = 100
+    print('Build model...')
+    model = Sequential()
+    model.add(Embedding(max_features, dims, input_length=maxlen, weights=[W]))
+    model.add(Dropout(0.5))
+    model.add(Convolution1D(nb_filter=N_fm,filter_length=kernel_size,border_mode='valid',activation='relu',))
+    model.add(Dropout(0.4))
+    model.add(MaxPooling1D(pool_length=2))
+    model.add(Flatten())
+    model.add(Dense(hidden_dims))
+    model.add(Dropout(0.2))
+    model.add(Activation('relu'))
+    model.add(Dense(1))
+    model.add(Activation('linear'))
+    return model
+def cnn_lstm(W):
+    nb_filter = 100
+    filter_length = 5
+    pool_length = 2
+    lstm_output_size = 100
+    p = 0.25
+    model = Sequential()
+    model.add(Embedding(W.shape[0], W.shape[1], input_length=maxlen, weights=[W]))
+    model.add(Dropout(p))
+    model.add(Convolution1D(nb_filter=nb_filter,filter_length=filter_length,border_mode='valid',activation='relu',subsample_length=1))
+    model.add(MaxPooling1D(pool_length=pool_length))
+    model.add(LSTM(lstm_output_size))
+    model.add(Dense(lstm_output_size))
+    model.add(Dropout(p))
+    model.add(Dense(1))
+    model.add(Activation('linear'))
+    return model
+if __name__ == '__main__':
+    x = cPickle.load(open("mr.p", "rb"))
+    revs, W, W2, word_idx_map, vocab = x[0], x[1], x[2], x[3], x[4]
+    print("data loaded!")
+    sentences=[]
+    for rev in revs:
+        sentence = rev['text']
+        sentences.append(sentence)
+    idx_data = make_idx_data(sentences, word_idx_map)
+    dim = 'I'
+    column = loadVAI(dim)
+    irony=column
+    batch_size = 8
+    Y = np.array(irony)
+    Y = [float(x) for x in Y]
+    n_MAE=0
+    n_Pearson_r=0
+    n_Spearman_r=0
+    n_MSE=0
+    n_R2=0
+    n_MSE_sqrt=0
+    SEED = 42
+    for i in range(n):
+        X_train, X_test, y_train, y_test = cross_validation.train_test_split(ata, Y, test_size=.20, random_state=i * SEED)
+        print(len(X_train), 'train sequences')
+        print(len(X_test), 'test sequences')
+        print("Pad sequences (samples x time)")
+        X_train = sequence.pad_sequences(X_train, maxlen=maxlen)
+        X_test = sequence.pad_sequences(X_test, maxlen=maxlen)
+        print('X_train shape:', X_train.shape)
+        print('X_test shape:', X_test.shape)
+        model = lstm_cnn(W)
+        print('-----------lstm_cnn----------')
+        print("Train...")
+        early_stopping = EarlyStopping(monitor='val_loss', patience=5)
+        result = model.fit(X_train, y_train, batch_size=batch_size, nb_epoch=10,validation_data=(X_test, y_test),callbacks=[early_stopping])
+        score = model.evaluate(X_test, y_test, batch_size=batch_size)
+        print('Test score:', score)
+        predict = model.predict(X_test, batch_size=batch_size).reshape((1, len(X_test)))[0]
+        estimate=continuous_metrics(y_test, predict, 'prediction result:')
+        n_MAE += estimate[1]
+        n_Pearson_r += estimate[2]
+    ndigit=3
+    avg_MAE =  round(n_MAE/5, ndigit)
+    avg_Pearson_r =  round(n_Pearson_r/5, ndigit)
+    print('average evaluate result:')
+    print(avg_MAE ,avg_Pearson_r)
+    from visualize import plot_keras, draw_hist
